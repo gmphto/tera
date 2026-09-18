@@ -15,7 +15,7 @@ from backend.analysis.batch import canonical, digest, local_path, snapshot
 
 SCHEMA = "1.0"
 SELECTION = "source-priority-path-sha-v1"
-PROVENANCE = "explicit-category-local-use-v1"
+PROVENANCE = "explicit-category-local-use-v2"
 ROLES = ("kick", "bass")
 KINDS = ("installed_factory", "downloaded_sounds", "demo_preview", "unresolved", "synthetic_fixture")
 LOCAL_USE = "user_authorized_local_evaluation_only"
@@ -101,6 +101,11 @@ def role_evidence(source, path):
         return None, None, "unconfirmed_role"
     rule, method = sorted(matches, key=lambda item: item[0]["id"])[0]
     return rule["role"], {"method": method, "rule_id": rule["id"], "subtype": rule["subtype"]}, None
+
+
+def restricted(path):
+    return any(re.search(r"(^|[ ._-])(demo|preview|misc)([ ._-]|$)", part, re.I)
+               for part in PurePosixPath(path).parts)
 
 
 def hints(path):
@@ -218,7 +223,7 @@ def construct(config):
                          local_use_basis=source["local_use_basis"], metadata=None, reason=reason)
                 if source["kind"] not in ("installed_factory", "downloaded_sounds"):
                     r["reason"] = "ineligible_provenance"
-                elif any(re.search(r"(^|[ _-])(demo|preview|misc)([ _-]|$)", part, re.I) for part in PurePosixPath(relative_path).parts):
+                elif restricted(relative_path):
                     r["reason"] = "demo_preview_or_misc"
                 elif role is None and reason == "unconfirmed_role" and not candidates:
                     r["reason"] = "outside_role_pool"
@@ -284,7 +289,7 @@ def validate_schema(m):
                               frame_count=meta["frame_count"], duration_ms=meta["duration_seconds"]*1000)
                 require(meta["frame_count"] > 0 and meta["subtype"] in ("PCM_U8","PCM_16","PCM_24","PCM_32","FLOAT","DOUBLE"), "Invalid decoded metadata.")
             if group in ("selected", "reserves", "duplicates"):
-                require(role in ROLES and evidence is not None and fingerprint is not None
+                require(not restricted(path) and role in ROLES and evidence is not None and fingerprint is not None
                         and source["kind"] in ("installed_factory", "downloaded_sounds")
                         and r["provenance_kind"] == "real_library_sample", "Ineligible sample admitted.")
             if group in ("selected", "reserves"):

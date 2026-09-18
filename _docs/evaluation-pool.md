@@ -75,6 +75,12 @@ per-file instrument roles, so those filename candidates remain pending. Demo,
 preview and Misc-marked material and unresolved provenance are ineligible.
 No downloaded file was assumed to prove an account purchase.
 
+Provenance policy `explicit-category-local-use-v2` treats spaces, dots, underscores
+and hyphens as marker boundaries, including the dot before a WAV extension.
+Thus `preview.wav`, `demo.wav` and `Misc.wav` are excluded before decoding even
+inside trusted categories. The same restriction guards admitted manifest records.
+Ordinary words merely containing those substrings are not marker matches.
+
 The local-use basis is `user_authorized_local_evaluation_only`, reflecting the
 user's authorization to analyze their available libraries locally. It is separate
 from redistribution rights. Source categories distinguish `installed_factory`,
@@ -185,14 +191,18 @@ content is truly corrupt, nor that padding repair is safe. The strict reader was
 not weakened. Next collection need: investigate these containers and a safe,
 separate preparation path, or obtain additional authorized, role-confirmed
 readable PCM/float sources, then rebuild/revalidate. Until coverage is resolved,
-the 97-bass shortfall blocks the intended balanced evaluation.
+the 97-bass shortfall blocks the intended balanced evaluation. Follow-up
+[#61](https://github.com/gmphto/tera/issues/61) tracks bounded diagnosis and safe
+preparation feasibility; no additional format support was added in this task.
 
 Offline tests use generated fixtures only, including explicitly ineligible
 synthetic provenance and simulations of external source claims. They exercise
 schema/role/provenance errors, duplicate IDs/content/conflicts, deterministic
 selection/reserves, machine root remapping, missing/unreadable/invalid/stale
 sources, cloud placeholders, output aliases and the CLI. Focused validation:
-23 passed. No synthetic fixture was included in the actual pool.
+33 passed after the QA marker-boundary regression fix. A fresh private build and
+validation under provenance policy v2 retained exactly the same aggregate counts.
+No synthetic fixture was included in the actual pool.
 
 ```text
 uv run pytest tests/test_evaluation_manifest.py --basetemp .pytest_cache/pool-focused
