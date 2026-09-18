@@ -1,0 +1,131 @@
+[
+  {
+    "name": "non_finite_score",
+    "path": [
+      "results",
+      0,
+      "compatibility"
+    ],
+    "value": "NaN",
+    "error": "compatibility"
+  },
+  {
+    "name": "wrong_unit",
+    "path": [
+      "samples",
+      0,
+      "features",
+      "measurements",
+      0,
+      "unit"
+    ],
+    "value": "ms",
+    "error": "expected unit Hz"
+  },
+  {
+    "name": "unsupported_role",
+    "path": [
+      "samples",
+      1,
+      "role"
+    ],
+    "value": "snare",
+    "error": "unsupported value"
+  },
+  {
+    "name": "high_confidence",
+    "path": [
+      "results",
+      0,
+      "confidence"
+    ],
+    "value": 1.1,
+    "error": "confidence"
+  },
+  {
+    "name": "missing_reason",
+    "path": [
+      "palette",
+      "song",
+      "genre_unavailable_reason"
+    ],
+    "value": null,
+    "error": "genre"
+  },
+  {
+    "name": "unsupported_version",
+    "path": [
+      "schema_version"
+    ],
+    "value": "2.0",
+    "error": "Unsupported schema version"
+  },
+  {
+    "name": "wrong_candidate_version",
+    "path": [
+      "results",
+      0,
+      "analysis_version"
+    ],
+    "value": "old",
+    "error": "version mismatch"
+  },
+  {
+    "name": "unordered_result",
+    "path": [
+      "results",
+      0,
+      "rank"
+    ],
+    "value": 2,
+    "error": "rank order"
+  },
+  {
+    "name": "wrong_probability_total",
+    "path": [
+      "results",
+      0,
+      "jev_judgments",
+      0,
+      "probabilities",
+      0,
+      "probability"
+    ],
+    "value": 0.5,
+    "error": "sum to one"
+  },
+  {
+    "name": "remote_path",
+    "path": [
+      "samples",
+      0,
+      "audio",
+      "local_path"
+    ],
+    "value": "https://example.invalid/kick.wav",
+    "error": "local filesystem"
+  },
+  {
+    "name": "duplicate_measurement",
+    "path": [
+      "samples",
+      0,
+      "features",
+      "measurements",
+      1,
+      "name"
+    ],
+    "value": "spectral_rolloff",
+    "error": "exactly once"
+  },
+  {
+    "name": "unsupported_nested_version",
+    "path": [
+      "samples",
+      0,
+      "schema_version"
+    ],
+    "value": "1.1",
+    "error": "Unsupported schema version"
+  }
+]

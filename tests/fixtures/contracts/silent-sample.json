@@ -1,0 +1,156 @@
+{
+  "schema_version": "1.0",
+  "sample_id": "silent-001",
+  "role": "bass",
+  "analysis_version": "dsp-fixture-1",
+  "audio": {
+    "local_path": "C:/tera-fixtures/silent-001.wav",
+    "sample_rate_hz": 48000,
+    "channels": 1,
+    "frame_count": 24000,
+    "duration_ms": 500
+  },
+  "features": {
+    "measurements": [
+      {
+        "name": "fundamental",
+        "unit": "Hz",
+        "value": null,
+        "unavailable_reason": "silent_audio",
+        "confidence": null
+      },
+      {
+        "name": "spectral_centroid",
+        "unit": "Hz",
+        "value": null,
+        "unavailable_reason": "silent_audio",
+        "confidence": null
+      },
+      {
+        "name": "spectral_rolloff",
+        "unit": "Hz",
+        "value": null,
+        "unavailable_reason": "silent_audio",
+        "confidence": null
+      },
+      {
+        "name": "rms",
+        "unit": "linear",
+        "value": 0,
+        "unavailable_reason": null,
+        "confidence": null
+      },
+      {
+        "name": "peak",
+        "unit": "linear",
+        "value": 0,
+        "unavailable_reason": null,
+        "confidence": null
+      },
+      {
+        "name": "crest_factor",
+        "unit": "ratio",
+        "value": null,
+        "unavailable_reason": "silent_audio",
+        "confidence": null
+      },
+      {
+        "name": "loudness",
+        "unit": "LUFS",
+        "value": null,
+        "unavailable_reason": "silent_audio",
+        "confidence": null
+      },
+      {
+        "name": "transient_strength",
+        "unit": "normalized",
+        "value": null,
+        "unavailable_reason": "silent_audio",
+        "confidence": null
+      },
+      {
+        "name": "transient_position",
+        "unit": "ms",
+        "value": null,
+        "unavailable_reason": "silent_audio",
+        "confidence": null
+      },
+      {
+        "name": "attack",
+        "unit": "ms",
+        "value": null,
+        "unavailable_reason": "silent_audio",
+        "confidence": null
+      },
+      {
+        "name": "decay",
+        "unit": "ms",
+        "value": null,
+        "unavailable_reason": "silent_audio",
+        "confidence": null
+      },
+      {
+        "name": "stereo_width",
+        "unit": "normalized",
+        "value": null,
+        "unavailable_reason": "silent_audio",
+        "confidence": null
+      },
+      {
+        "name": "tempo",
+        "unit": "BPM",
+        "value": null,
+        "unavailable_reason": "silent_audio",
+        "confidence": null
+      },
+      {
+        "name": "band_sub",
+        "unit": "ratio",
+        "value": null,
+        "unavailable_reason": "silent_audio",
+        "confidence": null
+      },
+      {
+        "name": "band_bass",
+        "unit": "ratio",
+        "value": null,
+        "unavailable_reason": "silent_audio",
+        "confidence": null
+      },
+      {
+        "name": "band_low_mid",
+        "unit": "ratio",
+        "value": null,
+        "unavailable_reason": "silent_audio",
+        "confidence": null
+      },
+      {
+        "name": "band_mid",
+        "unit": "ratio",
+        "value": null,
+        "unavailable_reason": "silent_audio",
+        "confidence": null
+      },
+      {
+        "name": "band_high_mid",
+        "unit": "ratio",
+        "value": null,
+        "unavailable_reason": "silent_audio",
+        "confidence": null
+      },
+      {
+        "name": "band_high",
+        "unit": "ratio",
+        "value": null,
+        "unavailable_reason": "silent_audio",
+        "confidence": null
+      }
+    ],
+    "key": {
+      "tonic": null,
+      "mode": null,
+      "confidence": null,
+      "unavailable_reason": "silent_audio"
+    }
+  }
+}
