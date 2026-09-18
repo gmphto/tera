@@ -213,3 +213,61 @@ def test_empty_results_and_explicit_jev_abstention_round_trip():
     result = replace(batch.results[0], jev_judgments=(judgment,))
     updated = replace(batch, results=(result,))
     assert RecommendationBatch.from_json(updated.to_json()) == updated
+
+
+def integer_model(field):
+    batch = RecommendationBatch.from_dict(read("hybrid.json"))
+    if field == "revision":
+        return batch.palette
+    if field == "rank":
+        return batch.results[0]
+    return batch.samples[0].audio
+
+
+def construct_integer(model, field, value, route):
+    if route == "constructor":
+        return replace(model, **{field: value})
+    payload = {**model.to_dict(), field: value}
+    if route == "dict":
+        return type(model).from_dict(payload)
+    return type(model).from_json(json.dumps(payload))
+
+
+@pytest.mark.parametrize("route", ["constructor", "dict", "json"])
+@pytest.mark.parametrize("field", ["revision", "rank", "sample_rate_hz", "channels", "frame_count"])
+@pytest.mark.parametrize("value", [2**53, -(2**53), 9007199254740993, 10**400, -(10**400)],
+                         ids=["above-safe", "below-safe", "qa-precision", "qa-overflow", "negative-overflow"])
+def test_unsafe_integers_fail_before_domain_validation(field, value, route):
+    with pytest.raises(ContractError, match="exceeds JSON safe integer range"):
+        construct_integer(integer_model(field), field, value, route)
+
+
+@pytest.mark.parametrize("route", ["constructor", "dict", "json"])
+@pytest.mark.parametrize("field", ["revision", "rank", "sample_rate_hz", "channels", "frame_count"])
+@pytest.mark.parametrize("value", [True, False, 1.0, "1"])
+def test_integer_fields_reject_coercion(field, value, route):
+    with pytest.raises(ContractError, match="expected int"):
+        construct_integer(integer_model(field), field, value, route)
+
+
+@pytest.mark.parametrize("route", ["constructor", "dict", "json"])
+@pytest.mark.parametrize("field", ["revision", "rank", "sample_rate_hz", "frame_count"])
+def test_safe_integer_upper_boundary_round_trips_exactly(field, route):
+    value = 2**53 - 1
+    model = integer_model(field)
+    if field == "sample_rate_hz":
+        model = replace(model, frame_count=0, duration_ms=0)
+    elif field == "frame_count":
+        # Change the duration with the count to preserve metadata consistency.
+        model = replace(model, sample_rate_hz=1000, frame_count=value, duration_ms=float(value))
+    result = construct_integer(model, field, value, route)
+    assert getattr(result, field) == value
+    assert type(result).from_json(result.to_json()) == result
+
+
+@pytest.mark.parametrize("route", ["constructor", "dict", "json"])
+@pytest.mark.parametrize("field", ["revision", "rank", "sample_rate_hz", "channels", "frame_count"])
+def test_safe_negative_boundary_reaches_domain_validation(field, route):
+    # Integer safety includes both endpoints, but these domain fields forbid negatives.
+    with pytest.raises(ContractError, match="must be|only mono/stereo"):
+        construct_integer(integer_model(field), field, -(2**53 - 1), route)

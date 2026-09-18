@@ -1,4 +1,56 @@
-"""Validated, local-only kick-to-bass contracts. See _docs/contracts.md."""
+"""Validated, local-only kick-to-bass contracts.
+
+Numeric conventions (bounds are inclusive unless explicitly positive):
+- All numbers must be finite; booleans and numeric strings are not numbers.
+  Integer fields additionally require exact integers within ±(2**53 - 1), so
+  JSON consumers using IEEE-754 doubles can preserve them without rounding.
+- AudioMetadata.sample_rate_hz is positive Hz; channels is 1 (mono) or 2
+  (stereo); frame_count is a nonnegative count of sample frames. duration_ms is
+  nonnegative milliseconds and must equal frame_count * 1000 / sample_rate_hz
+  within 0.001 ms absolute tolerance.
+- PaletteContext.revision is a nonnegative, unitless revision counter.
+  RankedCandidate.rank is a positive, unitless ordinal; batches require
+  contiguous ranks starting at 1.
+- Measurement.value uses the unit and bounds in MEASURES. Fundamental frequency
+  and tempo are strictly positive. Sample frequencies cannot exceed Nyquist
+  (sample_rate_hz / 2); sample times cannot exceed duration_ms. Linear amplitude
+  has no upper bound of 1 (over-range audio is allowed); crest factor is a
+  dimensionless peak/RMS ratio. Band ratios and normalized measures are [0, 1].
+  Loudness is finite LUFS with no fixed lower or upper bound.
+- Every confidence, DimensionScore.compatibility, LabelProbability.probability,
+  and RankedCandidate.compatibility/similarity is a dimensionless [0, 1] value.
+  Jev probabilities cover all five labels and sum to 1 within 1e-6 absolute
+  tolerance. Similarity, compatibility, and confidence are distinct quantities.
+
+Unknown measurements and judgments use null plus a nonblank unavailable_reason;
+unknown values cannot claim confidence. Unknown key has no tonic, mode, or
+confidence. Unknown genre and similarity have their own reason fields. Optional
+measurement confidence may be absent for known values except fundamental and
+tempo, whose reliability is required. DSP owns measured facts, Jev supplies
+judgments, and application code owns final ranking. Paths and audio stay local.
+
+Version evolution:
+Schema version 1.0 is required on the wire for Sample, PaletteContext, and
+RecommendationBatch, including nested instances. Consumers reject every other
+version with UnsupportedVersionError; they also reject unknown fields rather
+than silently dropping evidence. Documentation clarifications and validation
+fixes that enforce the existing contract can retain 1.0. Changes to fields,
+units, ranges, enum values, requiredness, or semantics need a new schema version
+and explicit consumer support/migration, including otherwise additive fields.
+Analysis, model, prompt, and ranking versions identify independent algorithms;
+they do not replace schema_version or automatically change the wire schema.
+
+Local example:
+tests/fixtures/contracts/hybrid.json follows kick-001 (55 Hz fundamental) and
+bass-001 through Sample metadata/features, PaletteContext revision 3, DSP
+dimension scores, Jev judgments with model/prompt versions, and an ordered
+RecommendationBatch. Its first candidate separates similarity 0.41,
+compatibility 0.74, and confidence 0.68. Load it with
+RecommendationBatch.from_json(...), then to_json() and from_json() to round-trip
+the complete evidence. Adjacent dsp-only.json and silent-sample.json show absent
+Jev evidence and explicit unknown measurements; invalid-cases.json records
+rejected inputs.
+"""
 
 from __future__ import annotations
 
@@ -60,10 +112,11 @@ def _typed(value: object, annotation: object, path: str, *, wire: bool) -> objec
         if wire:
             return annotation.from_dict(value)
         _require(type(value) is annotation, f"{path}: expected {annotation.__name__}")
-        if annotation is int:
-            _require(abs(value) <= 2**53 - 1, f"{path}: exceeds JSON safe integer range")
         return value
-    if annotation is float:
+    if annotation is int:
+        _require(type(value) is int, f"{path}: expected int")
+        _require(abs(value) <= 2**53 - 1, f"{path}: exceeds JSON safe integer range")
+    elif annotation is float:
         _require(type(value) in (int, float), f"{path}: expected finite number")
         try:
             finite = math.isfinite(value)
