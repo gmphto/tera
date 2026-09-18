@@ -49,16 +49,25 @@ def _k_weighting(rate):
     return np.array(sections, dtype=np.float64)
 
 
-def _integrated(normalized, peak, rate):
+def _integrated(samples, rate):
     # Precedence after silence: duration, then validated-rate support.
-    if len(normalized) < math.ceil(0.4 * rate):
+    if len(samples) < math.ceil(0.4 * rate):
         return _measurement("loudness", reason="too_short_for_integrated_loudness")
     if rate not in SUPPORTED_LOUDNESS_RATES:
         return _measurement("loudness", reason="unsupported_loudness_sample_rate")
+    block, hop = rate * 4 // 10, rate // 10
+    end = ((len(samples) - block) // hop) * hop + block
+    complete = samples[:end]
+    # Discarded tail samples must not influence even numerical conditioning:
+    # an extreme tail peak could underflow a valid retained block's energy.
+    # Linear RMS/peak/crest still use every original sample independently.
+    peak = float(np.max(np.abs(complete)))
+    if peak == 0:
+        return _measurement("loudness", reason="below_loudness_gate")
+    normalized = complete / peak
     filtered = signal.sosfilt(_k_weighting(rate), normalized, axis=0)
     # Mono, left and right all have unit weights; never sum the waveforms.
     energy = np.sum(filtered * filtered, axis=1)
-    block, hop = rate * 4 // 10, rate // 10
     energies = np.array([np.mean(energy[start:start + block])
                          for start in range(0, len(energy) - block + 1, hop)])
     positive = energies > 0
@@ -110,6 +119,6 @@ def measure_loudness(audio: LoadedAudio) -> LoudnessMeasurements:
             _measurement("rms", rms) if rms > 0 else _measurement("rms", reason="numerical_range"),
             _measurement("peak", peak),
             _measurement("crest_factor", max(1.0, 1 / normalized_rms)),
-            _integrated(normalized, peak, audio.sample_rate_hz),
+            _integrated(x, audio.sample_rate_hz),
         )
     return LoudnessMeasurements(ANALYSIS_VERSION, measurements)
