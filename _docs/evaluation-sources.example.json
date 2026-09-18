@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0",
+  "sources": {
+    "anonymous-source-a": {
+      "root": "C:/REPLACE_WITH_YOUR_OWN_LOCAL_LIBRARY",
+      "priority": 0,
+      "kind": "synthetic_fixture",
+      "provenance_evidence": "EXAMPLE ONLY: no actual library, purchase, audition or role verification is claimed. Replace with recorded source evidence for your own files.",
+      "local_use_basis": "user_authorized_local_evaluation_only",
+      "role_rules": [
+        {"id":"example-kick-category-v1","path":"MANUFACTURER_KICK_CATEGORY","role":"kick","subtype":null,"evidence":"EXAMPLE ONLY: replace with an explicitly verified manufacturer category."},
+        {"id":"example-bass-category-v1","path":"MANUFACTURER_BASS_CATEGORY","role":"bass","subtype":null,"evidence":"EXAMPLE ONLY: replace with an explicitly verified manufacturer category."}
+      ],
+      "reviewed_files": []
+    }
+  }
+}
