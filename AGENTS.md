@@ -11,3 +11,5 @@ The project is currently in the planning stage. These commands apply once the Py
 - Python dependencies are declared in `pyproject.toml`. Ask the user before adding any dependency, including frontend or desktop dependencies.
 - Follow the product scope and architecture in `_docs/plan.md`. Track implementation work in the GitHub issues at https://github.com/gmphto/tera/issues.
 - Keep audio files and local library paths on the user's device. DSP owns measured audio facts, Jev provides typed compatibility judgments, and application code owns the final ranking.
+
+- `_docs/process.md` - how work is organized
