@@ -1,6 +1,6 @@
 # Commands
 
-The project is currently in the planning stage. These commands apply once the Python backend, `pyproject.toml`, and tests are set up; run them from the directory containing `pyproject.toml`.
+The project contains an empty Python backend and an import smoke test. Run these commands from the repository root, which contains `pyproject.toml`.
 
 - `uv sync` - install dependencies.
 - `uv run pytest` - run the whole Python test suite.
