@@ -12,6 +12,9 @@ from numpy.typing import NDArray
 import soundfile as sf
 
 
+READER_VERSION = "riff-wav-v2"
+
+
 class AudioErrorCode(StrEnum):
     INVALID_PATH = "invalid_path"
     NOT_FOUND = "not_found"
@@ -132,6 +135,13 @@ def load_wav(path: str | os.PathLike[str]) -> LoadedAudio:
         raise AudioReadError(AudioErrorCode.ACCESS_DENIED, "Permission denied while reading audio.") from error
     except OSError as error:
         raise AudioReadError(AudioErrorCode.IO_ERROR, "Filesystem error while reading audio.") from error
+    return load_wav_bytes(audio)
+
+
+def load_wav_bytes(audio: bytes) -> LoadedAudio:
+    """Decode one immutable byte snapshot using the same strict WAV policy."""
+    if type(audio) is not bytes:
+        raise AudioReadError(AudioErrorCode.INVALID_AUDIO, "Expected immutable WAV bytes.")
     channels, rate, frames, subtype = _validate_riff(audio)
     try:
         with sf.SoundFile(io.BytesIO(audio)) as decoder:
