@@ -85,6 +85,15 @@ def _validate_riff(audio: bytes) -> tuple[int, int, int, str]:
     subtype = _SUBTYPES.get((tag, bits))
     if subtype is None:
         raise AudioReadError(AudioErrorCode.UNSUPPORTED_FORMAT, "WAV encoding is not supported (use integer PCM or 32/64-bit float).")
+    if tag != 1 and size > 16:
+        # Legacy 16-byte float fmt chunks are accepted. Once WAVEFORMATEX
+        # is present, cbSize must be complete and describe the actual bytes.
+        # PCM explicitly ignores cbSize, so this check is non-PCM only.
+        if size < 18:
+            raise _invalid("WAV format extension size field is incomplete.")
+        extension_size = struct.unpack_from("<H", audio, start + 16)[0]
+        if extension_size != size - 18:
+            raise _invalid("WAV format extension length disagrees with its declared size.")
     if align != channels * (bits // 8) or byte_rate != rate * align:
         raise _invalid("WAV block alignment or byte rate disagrees with its format.")
     data_size = chunks[b"data"][1]
