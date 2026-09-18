@@ -3,7 +3,11 @@ name = "tera"
 version = "0.1.0"
 description = "Local-first instrument palette intelligence"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "numpy==2.2.6",
+    "scipy==1.15.3",
+    "soundfile==0.13.1",
+]
 
 [dependency-groups]
 dev = ["pytest>=8,<10"]
