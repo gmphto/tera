@@ -9,6 +9,17 @@ The existing schema-1 Sample accepts the returned measurement and key directly;
 unknown values have a reason and no confidence. Malformed input raises ValueError.
 Input samples and source files are unchanged; computation is entirely local.
 
+```python
+from backend.analysis.harmony import measure_harmony
+
+result = measure_harmony(audio)  # LoadedAudio from the local reader
+fundamental = result.fundamental
+musical_key = result.key
+```
+
+Frequency-to-MIDI conversion is `midi = 69 + 12*log2(frequency_hz/440)`.
+A frequency difference in cents is `1200*log2(frequency_hz/reference_hz)`.
+
 ## Admitted domain and framing
 
 Mono/stereo floating-point reader output at 44100, 48000 or 96000 Hz is supported.
