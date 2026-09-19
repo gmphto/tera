@@ -19,8 +19,8 @@ from backend.contracts import (AudioFeatures, AudioMetadata, JevJudgment, Label,
 from backend.intelligence.decisions import (JevResponseError, MODEL_ABSTAINED,
                                             PROBABILITY_LABELS, PROBABILITY_SUM_TOLERANCE,
                                             RESPONSE_ERROR_CODES, RESPONSE_FIELDS, validate_response)
-from backend.intelligence.questions import (DIMENSIONS, PROMPT_VERSION, JevQuestion,
-                                            UnavailableQuestion, build_question)
+from backend.intelligence.questions import (DIMENSIONS, OPTIONAL_EVIDENCE, PROMPT_VERSION,
+                                            JevQuestion, UnavailableQuestion, build_question)
 from backend.palette.ranking import RankingPolicy, rank_candidates
 
 
@@ -176,6 +176,43 @@ def test_malformed_response_cases(case):
     assert error.value.code == case["expects"]["code"]
     assert error.value.code in RESPONSE_ERROR_CODES
     assert isinstance(error.value, ValueError) and error.value.code
+
+
+def test_accepted_response_cases_cover_the_criterion_question_list():
+    """A question with a withheld optional fact and one with no song context are answered."""
+    referenced = {case["question_case"] for case in RESPONSE_CASES}
+    no_song, withheld_optional = set(), set()
+    for case in QUESTION_CASES:
+        if case["expects"]["outcome"] != "question":
+            continue
+        question = build(case)
+        assert type(question) is JevQuestion
+        withheld = {(item.side, item.name) for item in question.withheld}
+        if case["song"] is None:
+            no_song.add(case["name"])
+        if withheld & set(OPTIONAL_EVIDENCE[case["dimension"]]):
+            withheld_optional.add(case["name"])
+    assert no_song and withheld_optional
+    assert no_song & referenced, "an accepted response case must answer a no-song-context question"
+    assert withheld_optional & referenced, "an accepted response case must answer a question with a withheld optional fact"
+    assert any(case["expects"]["outcome"] == "abstention" for case in RESPONSE_CASES)
+    assert "frequency_low_band_contradiction" in referenced
+
+    def values(case):
+        expectations = case["expects"]
+        return None if expectations["outcome"] != "judgment" else expectations["probabilities"]
+
+    def tied_argmax(case):
+        numbers = values(case)
+        return numbers is not None and list(numbers.values()).count(max(numbers.values())) > 1
+
+    def out_of_contract_order(case):
+        entries = case.get("response", {}).get("probabilities")
+        return (isinstance(entries, list) and bool(entries)
+                and [entry["label"] for entry in entries] != LABELS)
+
+    assert any(tied_argmax(case) for case in RESPONSE_CASES)
+    assert any(out_of_contract_order(case) for case in RESPONSE_CASES)
 
 
 def test_every_response_error_code_is_declared_and_exercised_by_a_case():

@@ -417,6 +417,26 @@ def test_missing_song_context_is_dimension_specific():
                 assert (side, name, "not_supplied") in not_supplied
 
 
+def test_fixture_cases_include_accepted_questions_asked_without_song_context():
+    accepted = [case for case in QUESTION_CASES
+                if case["expects"]["outcome"] == "question" and case["song"] is None]
+    needs_song = {dimension for dimension in DIMENSIONS
+                  if any(side == "song" for side, _ in REQUIRED_EVIDENCE[dimension])}
+    assert needs_song == {"rhythmic"}
+    assert set(DIMENSIONS) - needs_song <= {case["dimension"] for case in accepted}
+    for case in accepted:
+        question = build(case)
+        assert type(question) is JevQuestion and question.dimension == case["dimension"]
+        absent = {(item.side, item.name, item.reason) for item in question.withheld}
+        for side, name in OPTIONAL_EVIDENCE[case["dimension"]]:
+            if side == "song":
+                assert (side, name, "not_supplied") in absent
+    # rhythmic legitimately cannot be asked without song context: it is not asked
+    rhythmic = CASE_BY_NAME["rhythmic_song_context_absent"]
+    assert rhythmic["song"] is None and rhythmic["expects"]["outcome"] == "unavailable"
+    assert rhythmic["expects"]["code"] == "song_context_absent"
+
+
 def test_a_question_requires_usable_keys_and_never_falls_back_to_a_fundamental():
     kick, candidate, song = full_pair()
     keyless = with_key(candidate, None, None, None)
