@@ -36,7 +36,7 @@ import os
 from pathlib import PureWindowsPath
 import sqlite3
 
-from backend.analysis.batch import canonical, digest
+from backend.analysis.batch import ROLES, canonical, digest
 from backend.contracts import (
     AudioFeatures,
     AudioMetadata,
@@ -96,6 +96,35 @@ class StoredSample:
     pack_id: str | None
     tags: tuple
     file_status: str
+    imported_at: str
+    updated_at: str
+
+
+@dataclass(frozen=True)
+class LibraryPathRecord:
+    """One `samples` row read without its analysis (issue #22).
+
+    The scanner reconciles paths, roles, content identities and availability, so
+    it reads rows at this level. `get_sample`, `find_sample_by_path`,
+    `find_by_content` and `list_samples` instead rebuild a full contract
+    `Sample`, and therefore raise `IncompleteFeatures` for a row whose features
+    have not been written yet — a path is indexed before it is analysed.
+
+    `path` is `samples.original_path` (the local path exactly as stored) and
+    `path_key` is its normalised form.
+    """
+
+    sample_id: str
+    role: str
+    content_sha256: str
+    path: str
+    path_key: str
+    filename: str
+    file_status: str
+    sample_rate_hz: int
+    channels: int
+    frame_count: int
+    duration_ms: float
     imported_at: str
     updated_at: str
 
@@ -160,6 +189,64 @@ def _require_file_status(file_status) -> str:
         raise InvalidFileStatus(
             f"file_status must be one of {', '.join(FILE_STATUSES)}; got {file_status!r}.")
     return file_status
+
+
+def _path_key(path):
+    """`os.path.normcase(os.path.abspath(path))`, or None for an unusable value."""
+
+    try:
+        return os.path.normcase(os.path.abspath(os.fspath(path)))
+    except (TypeError, ValueError):
+        return None
+
+
+def _root_prefix(root) -> str:
+    """The `path_key` prefix that every row inside `root` starts with."""
+
+    key = _path_key(root)
+    if key is None:
+        raise InvalidSample("root must be a filesystem path.")
+    return os.path.join(key, "")
+
+
+def _path_record(row) -> LibraryPathRecord:
+    return LibraryPathRecord(
+        sample_id=row["sample_id"], role=row["role"], content_sha256=row["content_sha256"],
+        path=row["original_path"], path_key=row["path_key"], filename=row["filename"],
+        file_status=row["file_status"], sample_rate_hz=row["sample_rate_hz"],
+        channels=row["channels"], frame_count=row["frame_count"], duration_ms=row["duration_ms"],
+        imported_at=row["imported_at"], updated_at=row["updated_at"])
+
+
+def _require_path(path) -> str:
+    try:
+        text = os.fspath(path)
+    except TypeError:
+        raise InvalidSample("path must be a non-empty local filesystem path.") from None
+    if not isinstance(text, str) or not text:
+        raise InvalidSample("path must be a non-empty local filesystem path.")
+    key = _path_key(text)
+    if key is None:
+        raise InvalidSample("path must be a non-empty local filesystem path.")
+    return key
+
+
+def _validated_metadata(content_sha256, sample_rate_hz, channels, frame_count, duration_ms):
+    """Check the audio metadata a path row stores, returning the content hash."""
+
+    if not _is_hex(content_sha256):
+        raise InvalidContentIdentity("content_sha256 must be 64 lowercase hex characters.")
+    if not isinstance(sample_rate_hz, int) or isinstance(sample_rate_hz, bool) \
+            or sample_rate_hz <= 0:
+        raise InvalidSample("sample_rate_hz must be a positive integer.")
+    if isinstance(channels, bool) or channels not in (1, 2):
+        raise InvalidSample("channels must be 1 or 2.")
+    if not isinstance(frame_count, int) or isinstance(frame_count, bool) or frame_count < 0:
+        raise InvalidSample("frame_count must be a non-negative integer.")
+    if isinstance(duration_ms, bool) or not isinstance(duration_ms, (int, float)) \
+            or duration_ms < 0:
+        raise InvalidSample("duration_ms must be a non-negative number.")
+    return content_sha256
 
 
 def _validated_sample(value) -> Sample:
@@ -523,6 +610,165 @@ class LibraryRepository:
             cursor = self.connection.execute("DELETE FROM samples WHERE sample_id = ?",
                                              (sample_id,))
             return cursor.rowcount == 1
+
+    # -- path rows (issue #22) ---------------------------------------------
+
+    def list_path_records(self, root=None) -> tuple:
+        """Every stored path row, or every row whose path lies inside `root`.
+
+        A purely structural read: it touches no file and never needs features, so
+        rows that have no analysis yet are returned too. Rows come back ordered
+        by `path_key`; a row whose path is the root's sibling (a shared name
+        prefix) is not included.
+        """
+
+        rows = self._all("SELECT * FROM samples ORDER BY path_key ASC")
+        if root is None:
+            return tuple(_path_record(row) for row in rows)
+        prefix = _root_prefix(root)
+        return tuple(_path_record(row) for row in rows if row["path_key"].startswith(prefix))
+
+    def find_path_record(self, path):
+        """The `LibraryPathRecord` whose normalised path equals `path`, or None.
+
+        The argument is normalised exactly like the stored `path_key`, so a case
+        or separator difference still matches.
+        """
+
+        key = _path_key(path)
+        if key is None:
+            return None
+        row = self._one("SELECT * FROM samples WHERE path_key = ?", (key,))
+        return None if row is None else _path_record(row)
+
+    def find_path_records_by_content(self, content_sha256: str) -> tuple:
+        """Every path row holding that content identity, ordered by `path_key`.
+
+        The row-level counterpart of `find_by_content`, which needs a complete
+        analysis to return anything.
+        """
+
+        rows = self._all("SELECT * FROM samples WHERE content_sha256 = ? ORDER BY path_key ASC",
+                         (content_sha256,))
+        return tuple(_path_record(row) for row in rows)
+
+    def has_current_analysis(self, content_sha256: str, analysis_version: str) -> bool:
+        """True when some row holding that content identity stores that version.
+
+        "Stores" means a `sample_features` or `sample_keys` row exists for the
+        version, which is how every read of a version starts.
+        """
+
+        row = self._one(
+            "SELECT 1 FROM samples AS s WHERE s.content_sha256 = ? AND ("
+            "EXISTS (SELECT 1 FROM sample_features AS f "
+            "        WHERE f.sample_id = s.sample_id AND f.analysis_version = ?) "
+            "OR EXISTS (SELECT 1 FROM sample_keys AS k "
+            "           WHERE k.sample_id = s.sample_id AND k.analysis_version = ?)) LIMIT 1",
+            (content_sha256, analysis_version, analysis_version))
+        return row is not None
+
+    def insert_path_record(self, path, *, role, content_sha256, sample_rate_hz, channels,
+                           frame_count, duration_ms, file_status="present", sample_id=None):
+        """Index one local path without analysis and return its path record.
+
+        The row uses the given `sample_id`, or the content-addressed
+        `sha256:<content_sha256>` when none is given. No feature, key, tag, pack
+        or analysis-version row is written and nothing is registered: the row
+        exists so the path, role and content identity survive until analysis
+        (issue #23) stores features.
+
+        The audio metadata is what the caller measured; this method never opens
+        the file. Raises `InvalidContentIdentity` for a malformed hash,
+        `InvalidSample` for a role or metadata the contract cannot hold,
+        `InvalidFileStatus` for another status, `DuplicateContent` when another
+        row already holds that content identity, `PathConflict` when another row
+        already holds that path, `DatabaseLocked` or `WriteFailed`.
+        """
+
+        if role not in ROLES:
+            raise InvalidSample(f"role must be one of {', '.join(ROLES)}; got {role!r}.")
+        identity = _validated_metadata(content_sha256, sample_rate_hz, channels, frame_count,
+                                       duration_ms)
+        _require_file_status(file_status)
+        if sample_id is None:
+            sample_id = "sha256:" + identity
+        elif not isinstance(sample_id, str) or not sample_id:
+            raise InvalidSample("sample_id must be a non-empty string.")
+        path_key = _require_path(path)
+        filename = PureWindowsPath(str(path)).name
+        now = utc_now()
+        with self._writing():
+            clash = self._one("SELECT sample_id FROM samples WHERE content_sha256 = ?", (identity,))
+            if clash is not None:
+                raise DuplicateContent(
+                    f"content_sha256 is already stored for {clash['sample_id']}.")
+            clash = self._one("SELECT sample_id FROM samples WHERE path_key = ?", (path_key,))
+            if clash is not None:
+                raise PathConflict(f"The path is already stored for {clash['sample_id']}.")
+            self.connection.execute(
+                "INSERT INTO samples (sample_id, schema_version, content_sha256, role, "
+                "original_path, path_key, filename, pack_id, file_status, sample_rate_hz, "
+                "channels, frame_count, duration_ms, imported_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (sample_id, "1.0", identity, role, str(path), path_key, filename, None,
+                 file_status, sample_rate_hz, channels, frame_count, duration_ms, now, now))
+            row = self._one("SELECT * FROM samples WHERE sample_id = ?", (sample_id,))
+        return _path_record(row)
+
+    def update_path_record_content(self, sample_id: str, *, content_sha256, sample_rate_hz,
+                                   channels, frame_count, duration_ms, file_status="present"):
+        """Replace one row's content identity and audio metadata in place.
+
+        The stored `sample_id`, path, role, `imported_at` and every feature row
+        stay as they were: an edited file keeps its record identity and its
+        previous content's analysis stays readable under that content's
+        `analysis_version`. Raises the codes `insert_path_record` documents,
+        plus `UnknownSample` for an unknown row.
+        """
+
+        identity = _validated_metadata(content_sha256, sample_rate_hz, channels, frame_count,
+                                       duration_ms)
+        _require_file_status(file_status)
+        with self._writing():
+            self._require_sample(sample_id)
+            clash = self._one(
+                "SELECT sample_id FROM samples WHERE content_sha256 = ? AND sample_id <> ?",
+                (identity, sample_id))
+            if clash is not None:
+                raise DuplicateContent(
+                    f"content_sha256 is already stored for {clash['sample_id']}.")
+            self.connection.execute(
+                "UPDATE samples SET content_sha256 = ?, sample_rate_hz = ?, channels = ?, "
+                "frame_count = ?, duration_ms = ?, file_status = ?, updated_at = ? "
+                "WHERE sample_id = ?",
+                (identity, sample_rate_hz, channels, frame_count, duration_ms, file_status,
+                 utc_now(), sample_id))
+
+    def relocate_path_record(self, sample_id: str, path, file_status="present"):
+        """Point one row at its new local path and restore its availability.
+
+        The row identity, role, content identity, `imported_at` and every feature
+        row stay as they were, and nothing is queued: a moved file is the same
+        content under a new path. Raises `PathConflict` when another row already
+        holds that path, plus `UnknownSample`, `InvalidFileStatus`,
+        `DatabaseLocked` or `WriteFailed`.
+        """
+
+        _require_file_status(file_status)
+        path_key = _require_path(path)
+        filename = PureWindowsPath(str(path)).name
+        with self._writing():
+            self._require_sample(sample_id)
+            clash = self._one(
+                "SELECT sample_id FROM samples WHERE path_key = ? AND sample_id <> ?",
+                (path_key, sample_id))
+            if clash is not None:
+                raise PathConflict(f"The path is already stored for {clash['sample_id']}.")
+            self.connection.execute(
+                "UPDATE samples SET original_path = ?, path_key = ?, filename = ?, "
+                "file_status = ?, updated_at = ? WHERE sample_id = ?",
+                (str(path), path_key, filename, file_status, utc_now(), sample_id))
 
     # -- tags --------------------------------------------------------------
 
