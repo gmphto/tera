@@ -86,7 +86,7 @@ class ScoredCandidate:
     rank: int
     compatibility: float
     confidence: float
-    dimensions: tuple[DimensionScore, ...]
+    dsp_dimensions: tuple[DimensionScore, ...]
     reasons: tuple[str, ...]
     warnings: tuple[str, ...]
 
@@ -98,7 +98,7 @@ class UnscoredCandidate:
     candidate_id: str
     analysis_version: str
     code: str
-    dimensions: tuple[DimensionScore, ...]
+    dsp_dimensions: tuple[DimensionScore, ...]
     reasons: tuple[str, ...]
 
 

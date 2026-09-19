@@ -86,7 +86,7 @@ def rank(candidates, kick=None, policy=None):
 
 
 def entries(record):
-    return {entry.dimension: entry for entry in record.dimensions}
+    return {entry.dimension: entry for entry in record.dsp_dimensions}
 
 
 def test_version_weight_table_and_provenance_are_documented():
@@ -248,7 +248,7 @@ def test_confidence_at_or_above_threshold_never_lowers_a_score():
     low = rank([bass("bass-low", tonal=musical_key("C", "major", 0.80), fundamental_confidence=0.80)]).ranked[0]
     high = rank([bass("bass-high", tonal=musical_key("C", "major", 1.0), fundamental_confidence=1.0)]).ranked[0]
     assert low.compatibility == high.compatibility == pytest.approx(6.7 / 7, abs=1e-12)
-    assert low.dimensions == high.dimensions and low.confidence == high.confidence == 1.0
+    assert low.dsp_dimensions == high.dsp_dimensions and low.confidence == high.confidence == 1.0
 
 
 @pytest.mark.parametrize("kick_overrides,candidate_overrides,dimension,code", [
@@ -287,9 +287,9 @@ def test_candidate_without_any_available_dimension_is_unscored():
     assert record.candidate_id == "bass-unscored"
     assert record.code == INSUFFICIENT_EVIDENCE == "insufficient_evidence"
     assert record.analysis_version == ANALYSIS
-    assert [entry.dimension for entry in record.dimensions] == list(DIMENSIONS)
+    assert [entry.dimension for entry in record.dsp_dimensions] == list(DIMENSIONS)
     assert all(entry.compatibility is None and entry.unavailable_reason.strip()
-               for entry in record.dimensions)
+               for entry in record.dsp_dimensions)
 
 
 def test_all_candidates_unscored_gives_empty_ranked_list():
@@ -355,8 +355,8 @@ def test_awkward_but_usable_inputs_are_finite_and_documented(kick_overrides, can
     assert len(result.ranked) + len(result.unscored) == 1
     records = list(result.ranked) + list(result.unscored)
     for record in records:
-        assert [entry.dimension for entry in record.dimensions] == list(DIMENSIONS)
-        for entry in record.dimensions:
+        assert [entry.dimension for entry in record.dsp_dimensions] == list(DIMENSIONS)
+        for entry in record.dsp_dimensions:
             assert entry.compatibility is None or 0 <= entry.compatibility <= 1
             assert entry.unavailable_reason is None or entry.unavailable_reason.strip()
         for reason in record.reasons:
@@ -395,8 +395,8 @@ def test_records_carry_exactly_the_three_documented_dimensions():
     records = list(result.ranked) + list(result.unscored)
     assert records
     for record in records:
-        assert [entry.dimension for entry in record.dimensions] == list(DIMENSIONS)
-        for entry in record.dimensions:
+        assert [entry.dimension for entry in record.dsp_dimensions] == list(DIMENSIONS)
+        for entry in record.dsp_dimensions:
             if entry.compatibility is None:
                 assert entry.unavailable_reason and entry.unavailable_reason.strip()
             else:
@@ -496,7 +496,7 @@ def test_schema_one_dsp_only_batch_round_trip():
                                     analysis_version=record.analysis_version, rank=record.rank,
                                     compatibility=record.compatibility, confidence=record.confidence,
                                     similarity=None, similarity_unavailable_reason="retrieval_not_run",
-                                    dsp_dimensions=record.dimensions, jev_judgments=(),
+                                    dsp_dimensions=record.dsp_dimensions, jev_judgments=(),
                                     reasons=record.reasons, warnings=record.warnings)
                     for record in result.ranked)
     batch = RecommendationBatch(run_id="run-001", palette=palette, samples=tuple([kick, *candidates]),

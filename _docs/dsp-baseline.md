@@ -50,9 +50,9 @@ candidates are already admitted, and the kick is assumed to have passed #11.
 
 Each ranked record is a `ScoredCandidate` with `candidate_id`,
 `analysis_version` (the candidate's own version), `rank` (1..n), `compatibility`,
-`confidence`, `dimensions`, `reasons` and `warnings`. Each unscored record is
-an `UnscoredCandidate` with `candidate_id`, `analysis_version`, `code`,
-`dimensions` and `reasons`.
+`confidence`, `dsp_dimensions`, `reasons` and `warnings`. Each unscored record
+is an `UnscoredCandidate` with `candidate_id`, `analysis_version`, `code`,
+`dsp_dimensions` and `reasons`.
 
 Every record carries exactly one `DimensionScore` entry for each of the three
 contract dimensions, in the fixed order `frequency`, `transient`, `tonal`.
