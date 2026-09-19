@@ -70,7 +70,7 @@ byte-for-byte unchanged, and a header-valid file that fails
 
 ## Migrations
 
-`schema.SCHEMA_VERSION` is the version this module knows (currently `1`) and
+`schema.SCHEMA_VERSION` is the version this module knows (currently `2`) and
 `schema.MIGRATIONS` is an ordered tuple of `(version, script)` pairs, each
 script holding one or more SQL statements.
 
@@ -95,11 +95,14 @@ and no row change.
 
 ## Tables
 
-The user-table set is exactly these six tables. `PRAGMA user_version` is
+The user-table set is exactly these eight tables. `PRAGMA user_version` is
 `SCHEMA_VERSION`, and no table, column or index outside this list is created.
-`projects`, `palettes`, `palette_items`, `compatibility_scores`,
-`recommendation_outcomes` and `decision_model_versions` belong to later
-issues and do not exist here.
+The six tables below were created by migration 1 (#21); migration 2 (#23) adds
+`job_items` and `job_runs`, the persisted analysis job queue, whose columns,
+constraints, indexes and state transitions are documented in
+[`library-jobs.md`](library-jobs.md). `projects`, `palettes`, `palette_items`,
+`compatibility_scores`, `recommendation_outcomes` and
+`decision_model_versions` belong to later issues and do not exist here.
 
 ### analysis_versions
 
@@ -305,7 +308,7 @@ non-database file with its bytes unchanged, refusal of a newer schema version
 with every row unchanged, corrupt databases, an upgrade that preserves rows, a
 failing migration that rolls back, the connection pragmas, `verify` reporting a
 foreign-key violation, `default_database_path` honouring the override, and the
-six-table set with no BLOB column. `tests/test_library_repository.py` covers
+eight-table set with no BLOB column. `tests/test_library_repository.py` covers
 the round trip of `silent-sample.json` and of both `hybrid.json` samples,
 coexisting analysis versions, the deterministic default version, duplicate
 content on one id moving the path, duplicate content on another id being
@@ -349,8 +352,8 @@ database with `open_database`:
 
 ```text
 verify(): ()
-user_version: 1
-user_tables: analysis_versions, sample_features, sample_keys, sample_packs, sample_tags, samples
+user_version: 2
+user_tables: analysis_versions, job_items, job_runs, sample_features, sample_keys, sample_packs, sample_tags, samples
 journal_mode: wal
 synchronous: 2
 foreign_keys: 1
