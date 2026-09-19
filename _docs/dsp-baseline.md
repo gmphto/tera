@@ -65,6 +65,10 @@ never scored as zero.
 
 ## Dimensions
 
+The contract dimension literals are `frequency`, `transient` and `tonal`; they
+are the plan's `frequencyFit`, `transientFit` and `tonalFit`. Each mapping below
+produces a compatibility value in [0, 1] where higher means more compatible.
+
 ### frequency
 
 Measured inputs: the six band ratios `band_sub`, `band_bass`, `band_low_mid`,
