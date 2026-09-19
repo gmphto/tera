@@ -1,0 +1,828 @@
+[
+  {
+    "name": "all_judged",
+    "batch": [
+      {
+        "request_id": "candidate-001",
+        "question_case": "full_frequency"
+      },
+      {
+        "request_id": "candidate-002",
+        "question_case": "full_transient"
+      },
+      {
+        "request_id": "candidate-003",
+        "question_case": "full_tonal"
+      }
+    ],
+    "script": {
+      "candidate-001": {
+        "judgment": {
+          "probabilities": [
+            0.05,
+            0.05,
+            0.1,
+            0.6,
+            0.2
+          ],
+          "confidence": 0.77,
+          "model_version": "synthetic-model-1"
+        }
+      },
+      "candidate-002": {
+        "judgment": {
+          "probabilities": [
+            0.1,
+            0.1,
+            0.4,
+            0.4,
+            0
+          ],
+          "confidence": 0.55,
+          "model_version": "synthetic-model-2"
+        }
+      },
+      "candidate-003": {
+        "abstain": {
+          "model_version": "synthetic-model-3"
+        }
+      }
+    },
+    "expects": {
+      "source": "double",
+      "interface_name": "jev-contract-double",
+      "sends": 3,
+      "model_versions": [
+        "synthetic-model-1",
+        "synthetic-model-2",
+        "synthetic-model-3"
+      ],
+      "outcomes": [
+        {
+          "state": "judged",
+          "code": null,
+          "attempts": 1
+        },
+        {
+          "state": "judged",
+          "code": null,
+          "attempts": 1
+        },
+        {
+          "state": "abstained",
+          "code": null,
+          "attempts": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "judged_then_malformed",
+    "batch": [
+      {
+        "request_id": "candidate-valid",
+        "question_case": "full_frequency"
+      },
+      {
+        "request_id": "candidate-malformed",
+        "question_case": "full_transient"
+      }
+    ],
+    "script": {
+      "candidate-valid": {
+        "judgment": {
+          "probabilities": [
+            0.05,
+            0.05,
+            0.1,
+            0.6,
+            0.2
+          ],
+          "confidence": 0.77,
+          "model_version": "synthetic-model-1"
+        }
+      },
+      "candidate-malformed": {
+        "text": "{\"reply\": \"synthetic non-Jev response\"}"
+      }
+    },
+    "expects": {
+      "source": "double",
+      "interface_name": "jev-contract-double",
+      "sends": 2,
+      "model_versions": [
+        "synthetic-model-1"
+      ],
+      "outcomes": [
+        {
+          "state": "judged",
+          "code": null,
+          "attempts": 1
+        },
+        {
+          "state": "invalid_result",
+          "code": "unexpected_field",
+          "attempts": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "service_error_then_judged",
+    "batch": [
+      {
+        "request_id": "candidate-001",
+        "question_case": "full_frequency"
+      }
+    ],
+    "script": {
+      "candidate-001": [
+        {
+          "error": "service_error"
+        },
+        {
+          "judgment": {
+            "probabilities": [
+              0.05,
+              0.05,
+              0.1,
+              0.6,
+              0.2
+            ],
+            "confidence": 0.77,
+            "model_version": "synthetic-model-1"
+          }
+        }
+      ]
+    },
+    "expects": {
+      "source": "double",
+      "interface_name": "jev-contract-double",
+      "sends": 2,
+      "model_versions": [
+        "synthetic-model-1"
+      ],
+      "outcomes": [
+        {
+          "state": "judged",
+          "code": null,
+          "attempts": 2
+        }
+      ]
+    }
+  },
+  {
+    "name": "service_unavailable_retried_then_judged",
+    "batch": [
+      {
+        "request_id": "candidate-001",
+        "question_case": "full_texture"
+      }
+    ],
+    "script": {
+      "candidate-001": [
+        {
+          "error": "service_unavailable"
+        },
+        {
+          "judgment": {
+            "probabilities": [
+              0.05,
+              0.05,
+              0.1,
+              0.6,
+              0.2
+            ],
+            "confidence": 0.77,
+            "model_version": "synthetic-model-1"
+          }
+        }
+      ]
+    },
+    "expects": {
+      "source": "double",
+      "interface_name": "jev-contract-double",
+      "sends": 2,
+      "model_versions": [
+        "synthetic-model-1"
+      ],
+      "outcomes": [
+        {
+          "state": "judged",
+          "code": null,
+          "attempts": 2
+        }
+      ]
+    }
+  },
+  {
+    "name": "service_unavailable_exhausts_attempts",
+    "batch": [{ "request_id": "candidate-001", "question_case": "full_frequency" }],
+    "script": { "candidate-001": { "error": "service_unavailable" } },
+    "expects": {
+      "source": "double",
+      "interface_name": "jev-contract-double",
+      "sends": 3,
+      "model_versions": [],
+      "outcomes": [{ "state": "service_error", "code": "service_unavailable", "attempts": 3 }]
+    }
+  },
+  {
+    "name": "rate_limited_exhausts_attempts",
+    "batch": [
+      {
+        "request_id": "candidate-001",
+        "question_case": "full_frequency"
+      }
+    ],
+    "script": {
+      "candidate-001": {
+        "error": "rate_limited"
+      }
+    },
+    "expects": {
+      "source": "double",
+      "interface_name": "jev-contract-double",
+      "sends": 3,
+      "model_versions": [],
+      "outcomes": [
+        {
+          "state": "service_error",
+          "code": "rate_limited",
+          "attempts": 3
+        }
+      ]
+    }
+  },
+  {
+    "name": "connection_failed_exhausts_attempts",
+    "batch": [
+      {
+        "request_id": "candidate-001",
+        "question_case": "full_frequency"
+      }
+    ],
+    "script": {
+      "candidate-001": {
+        "error": "connection_failed"
+      }
+    },
+    "expects": {
+      "source": "double",
+      "interface_name": "jev-contract-double",
+      "sends": 3,
+      "model_versions": [],
+      "outcomes": [
+        {
+          "state": "service_error",
+          "code": "connection_failed",
+          "attempts": 3
+        }
+      ]
+    }
+  },
+  {
+    "name": "timeout_exhausts_retries",
+    "batch": [
+      {
+        "request_id": "candidate-001",
+        "question_case": "full_frequency"
+      }
+    ],
+    "script": {
+      "candidate-001": {
+        "error": "timeout"
+      }
+    },
+    "expects": {
+      "source": "double",
+      "interface_name": "jev-contract-double",
+      "sends": 3,
+      "model_versions": [],
+      "outcomes": [
+        {
+          "state": "timed_out",
+          "code": "timeout",
+          "attempts": 3
+        }
+      ]
+    }
+  },
+  {
+    "name": "invalid_credentials_is_terminal",
+    "batch": [
+      {
+        "request_id": "candidate-001",
+        "question_case": "full_frequency"
+      }
+    ],
+    "script": {
+      "candidate-001": {
+        "error": "invalid_credentials"
+      }
+    },
+    "expects": {
+      "source": "double",
+      "interface_name": "jev-contract-double",
+      "sends": 1,
+      "model_versions": [],
+      "outcomes": [
+        {
+          "state": "service_error",
+          "code": "invalid_credentials",
+          "attempts": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "timeout_then_service_error_reflects_the_last_attempt",
+    "config": {
+      "max_attempts": 2
+    },
+    "batch": [
+      {
+        "request_id": "candidate-001",
+        "question_case": "full_frequency"
+      }
+    ],
+    "script": {
+      "candidate-001": [
+        {
+          "error": "timeout"
+        },
+        {
+          "error": "service_error"
+        }
+      ]
+    },
+    "expects": {
+      "source": "double",
+      "interface_name": "jev-contract-double",
+      "sends": 2,
+      "model_versions": [],
+      "outcomes": [
+        {
+          "state": "service_error",
+          "code": "service_error",
+          "attempts": 2
+        }
+      ]
+    }
+  },
+  {
+    "name": "cancelled_after_first_response",
+    "cancel_after": 1,
+    "batch": [
+      {
+        "request_id": "candidate-001",
+        "question_case": "full_frequency"
+      },
+      {
+        "request_id": "candidate-002",
+        "question_case": "full_transient"
+      },
+      {
+        "request_id": "candidate-003",
+        "question_case": "full_tonal"
+      }
+    ],
+    "script": {
+      "candidate-001": {
+        "judgment": {
+          "probabilities": [
+            0.05,
+            0.05,
+            0.1,
+            0.6,
+            0.2
+          ],
+          "confidence": 0.77,
+          "model_version": "synthetic-model-1"
+        }
+      }
+    },
+    "expects": {
+      "source": "double",
+      "interface_name": "jev-contract-double",
+      "sends": 1,
+      "cancelled": true,
+      "model_versions": [
+        "synthetic-model-1"
+      ],
+      "outcomes": [
+        {
+          "state": "judged",
+          "code": null,
+          "attempts": 1
+        },
+        {
+          "state": "not_attempted",
+          "code": "cancelled",
+          "attempts": 0
+        },
+        {
+          "state": "not_attempted",
+          "code": "cancelled",
+          "attempts": 0
+        }
+      ]
+    }
+  },
+  {
+    "name": "cancelled_between_attempts",
+    "cancel_after": 1,
+    "batch": [
+      {
+        "request_id": "candidate-001",
+        "question_case": "full_frequency"
+      }
+    ],
+    "script": {
+      "candidate-001": [
+        {
+          "error": "service_error"
+        },
+        {
+          "judgment": {
+            "probabilities": [
+              0.05,
+              0.05,
+              0.1,
+              0.6,
+              0.2
+            ],
+            "confidence": 0.77,
+            "model_version": "synthetic-model-1"
+          }
+        }
+      ]
+    },
+    "expects": {
+      "source": "double",
+      "interface_name": "jev-contract-double",
+      "sends": 1,
+      "cancelled": true,
+      "model_versions": [],
+      "outcomes": [
+        {
+          "state": "not_attempted",
+          "code": "cancelled",
+          "attempts": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "deadline_before_later_request",
+    "config": {
+      "max_batch_seconds": 10
+    },
+    "clock": [
+      0,
+      0,
+      1,
+      999,
+      999,
+      999,
+      999
+    ],
+    "batch": [
+      {
+        "request_id": "candidate-001",
+        "question_case": "full_frequency"
+      },
+      {
+        "request_id": "candidate-002",
+        "question_case": "full_transient"
+      },
+      {
+        "request_id": "candidate-003",
+        "question_case": "full_tonal"
+      }
+    ],
+    "script": {
+      "candidate-001": {
+        "judgment": {
+          "probabilities": [
+            0.05,
+            0.05,
+            0.1,
+            0.6,
+            0.2
+          ],
+          "confidence": 0.77,
+          "model_version": "synthetic-model-1"
+        }
+      }
+    },
+    "expects": {
+      "source": "double",
+      "interface_name": "jev-contract-double",
+      "sends": 1,
+      "elapsed_ms": 999000,
+      "model_versions": [
+        "synthetic-model-1"
+      ],
+      "outcomes": [
+        {
+          "state": "judged",
+          "code": null,
+          "attempts": 1
+        },
+        {
+          "state": "not_attempted",
+          "code": "batch_deadline_exceeded",
+          "attempts": 0
+        },
+        {
+          "state": "not_attempted",
+          "code": "batch_deadline_exceeded",
+          "attempts": 0
+        }
+      ]
+    }
+  },
+  {
+    "name": "empty_batch",
+    "batch": [],
+    "expects": {
+      "source": "double",
+      "interface_name": "jev-contract-double",
+      "sends": 0,
+      "model_versions": [],
+      "outcomes": []
+    }
+  },
+  {
+    "name": "repeated_question_id",
+    "batch": [
+      {
+        "request_id": "candidate-a",
+        "question_case": "full_frequency"
+      },
+      {
+        "request_id": "candidate-b",
+        "question_case": "full_frequency"
+      }
+    ],
+    "script": {
+      "candidate-a": {
+        "judgment": {
+          "probabilities": [
+            0.05,
+            0.05,
+            0.1,
+            0.6,
+            0.2
+          ],
+          "confidence": 0.61,
+          "model_version": "synthetic-model-a"
+        }
+      },
+      "candidate-b": {
+        "judgment": {
+          "probabilities": [
+            0.05,
+            0.05,
+            0.1,
+            0.6,
+            0.2
+          ],
+          "confidence": 0.62,
+          "model_version": "synthetic-model-b"
+        }
+      }
+    },
+    "expects": {
+      "source": "double",
+      "interface_name": "jev-contract-double",
+      "sends": 2,
+      "model_versions": [
+        "synthetic-model-a",
+        "synthetic-model-b"
+      ],
+      "outcomes": [
+        {
+          "state": "judged",
+          "code": null,
+          "attempts": 1
+        },
+        {
+          "state": "judged",
+          "code": null,
+          "attempts": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "unavailable_questions",
+    "batch": [
+      {
+        "request_id": "candidate-001",
+        "question_case": "frequency_kick_band_sub_unknown"
+      },
+      {
+        "request_id": "candidate-002",
+        "question_case": "rhythmic_song_context_absent"
+      },
+      {
+        "request_id": "candidate-003",
+        "question_case": "texture_candidate_spectral_centroid_unknown"
+      }
+    ],
+    "expects": {
+      "source": "double",
+      "interface_name": "jev-contract-double",
+      "sends": 0,
+      "model_versions": [],
+      "outcomes": [
+        {
+          "state": "not_asked",
+          "code": "kick_band_sub_unknown",
+          "attempts": 0
+        },
+        {
+          "state": "not_asked",
+          "code": "song_context_absent",
+          "attempts": 0
+        },
+        {
+          "state": "not_asked",
+          "code": "candidate_spectral_centroid_unknown",
+          "attempts": 0
+        }
+      ]
+    }
+  },
+  {
+    "name": "unavailable_judged_and_malformed",
+    "batch": [
+      {
+        "request_id": "candidate-refused",
+        "unavailable": "kick_band_sub_unknown"
+      },
+      {
+        "request_id": "candidate-valid",
+        "question_case": "full_frequency"
+      },
+      {
+        "request_id": "candidate-malformed",
+        "question_case": "full_transient"
+      }
+    ],
+    "script": {
+      "candidate-valid": {
+        "judgment": {
+          "probabilities": [
+            0.05,
+            0.05,
+            0.1,
+            0.6,
+            0.2
+          ],
+          "confidence": 0.77,
+          "model_version": "synthetic-model-1"
+        }
+      },
+      "candidate-malformed": {
+        "text": "{\"reply\": \"synthetic non-Jev response\"}"
+      }
+    },
+    "expects": {
+      "source": "double",
+      "interface_name": "jev-contract-double",
+      "sends": 2,
+      "model_versions": [
+        "synthetic-model-1"
+      ],
+      "outcomes": [
+        {
+          "state": "not_asked",
+          "code": "kick_band_sub_unknown",
+          "attempts": 0
+        },
+        {
+          "state": "judged",
+          "code": null,
+          "attempts": 1
+        },
+        {
+          "state": "invalid_result",
+          "code": "unexpected_field",
+          "attempts": 1
+        }
+      ]
+    }
+  },
+  {
+    "name": "absent_credentials",
+    "credentials": "absent",
+    "batch": [
+      {
+        "request_id": "candidate-001",
+        "question_case": "full_frequency"
+      },
+      {
+        "request_id": "candidate-002",
+        "question_case": "full_transient"
+      },
+      {
+        "request_id": "candidate-003",
+        "question_case": "full_tonal"
+      }
+    ],
+    "expects": {
+      "source": "unavailable",
+      "interface_name": null,
+      "sends": 0,
+      "cancelled": false,
+      "elapsed_ms": 0,
+      "model_versions": [],
+      "outcomes": [
+        {
+          "state": "unavailable",
+          "code": "credentials_absent",
+          "attempts": 0
+        },
+        {
+          "state": "unavailable",
+          "code": "credentials_absent",
+          "attempts": 0
+        },
+        {
+          "state": "unavailable",
+          "code": "credentials_absent",
+          "attempts": 0
+        }
+      ]
+    }
+  },
+  {
+    "name": "over_limit_batch",
+    "config": {
+      "max_batch_size": 2
+    },
+    "batch": [
+      {
+        "request_id": "candidate-001",
+        "question_case": "full_frequency"
+      },
+      {
+        "request_id": "candidate-002",
+        "question_case": "full_transient"
+      },
+      {
+        "request_id": "candidate-003",
+        "question_case": "full_tonal"
+      }
+    ],
+    "expects": {
+      "error": "batch_too_large"
+    }
+  },
+  {
+    "name": "invalid_configuration",
+    "config": {
+      "timeout_s": 0.5
+    },
+    "batch": [
+      {
+        "request_id": "candidate-001",
+        "question_case": "full_frequency"
+      }
+    ],
+    "expects": {
+      "error": "invalid_configuration"
+    }
+  },
+  {
+    "name": "duplicate_request_id",
+    "batch": [
+      {
+        "request_id": "candidate-same",
+        "question_case": "full_frequency"
+      },
+      {
+        "request_id": "candidate-same",
+        "question_case": "full_transient"
+      }
+    ],
+    "expects": {
+      "error": "duplicate_request_id"
+    }
+  },
+  {
+    "name": "invalid_requests_blank_request_id",
+    "batch": [
+      {
+        "request_id": "",
+        "question_case": "full_frequency"
+      }
+    ],
+    "expects": {
+      "error": "invalid_requests"
+    }
+  }
+]
