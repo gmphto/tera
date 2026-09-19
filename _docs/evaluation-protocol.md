@@ -9,9 +9,11 @@ random, DSP-only, Jev-only and hybrid ranking, and what [#17](https://github.com
 must record and [#19](https://github.com/gmphto/tera/issues/19) must report.
 
 The document is public-safe. It quotes aggregate counts already published in
-`_docs/evaluation-pool.md` and `_docs/compressed-sample-preparation.md` and version
+`_docs/evaluation-pool.md` and `_docs/compressed-sample-preparation.md`, version
 strings already published in `_docs/dsp-baseline.md`, `_docs/jev-questions.md`,
-`_docs/jev-adapter.md` and `_docs/hybrid-ranking.md`, and nothing else. It contains
+`_docs/jev-adapter.md` and `_docs/hybrid-ranking.md`, the plan target published in
+`_docs/plan.md` section 5, and the 0.80 reliability gate published in
+`_docs/filter-policy.md`; those are the only published sources it cites. It contains
 no sample id, local path, pack name, hash value, audio, evaluator identity or private diagnostic.
 The split manifest and the detailed rating records stay under the gitignored `.local-evaluation/`
 directory; the manifest is written by #17/#18, never by this document.
@@ -474,7 +476,7 @@ Published version pins, quoted from landed work:
 | `ADAPTER_VERSION` | `jev-adapter-v1` | `_docs/jev-adapter.md` (#14) |
 | `HYBRID_RANKING_VERSION` | `hybrid-ranking-v1` | `_docs/hybrid-ranking.md` (#15) |
 | Hybrid weight-table id | `hybrid-weights-1` | `_docs/hybrid-ranking.md` (#15) |
-| `CONFIDENCE_THRESHOLD` | 0.80 | `_docs/filter-policy.md` (same 0.80 the DSP baseline applies to key and fundamental confidence) |
+| `CONFIDENCE_THRESHOLD` | 0.80 | `_docs/jev-questions.md` (#13) and `_docs/dsp-baseline.md` (#12) name the 0.80 threshold and its import as `backend.palette.compatibility.CONFIDENCE_THRESHOLD`; `_docs/filter-policy.md` is the origin of the 0.80 key/tempo gate value |
 
 ### The four arms
 
@@ -586,9 +588,11 @@ means without gating on them.
 * **insufficient** - an evidence minimum is unmet (pool floors, evaluator minimums, query or pair
   counts, pair coverage floor, agreement floor, latency sample floor, retention selection floor).
 
-Global rule: the protocol **passes** only when every gate is `supported`; it
-**fails** when any gate is `not supported`; otherwise it is insufficient evidence. A
-gate that cannot be evaluated at all is insufficient, never a pass.
+Global rule: the protocol **passes** only when every gate that applies at that design is
+`supported`; it **fails** when any gate that applies at that design is `not supported`;
+otherwise it is insufficient evidence. A gate that does not apply at a design is not
+evaluated and does not enter that design's verdict; a gate that applies but cannot be
+evaluated at all is insufficient, never a pass.
 
 ### What makes a result inconclusive or insufficient rather than negative
 
@@ -638,7 +642,7 @@ non-gating and reported for direction; a version, seed or rule is fixed and is n
 | `MIN_RATINGS_PER_PAIR` | 2 | valid ratings | minimum (gate) | Two evaluators per pair is the floor at which a pair's aggregate is not one person's opinion. |
 | `TARGET_RATINGS_PER_PAIR` | 3 | valid ratings | target (non-gating) | A third rating makes the per-pair median robust to one outlier. |
 | `MIN_HELDOUT_QUERIES` | 60 | held-out query kicks | minimum (gate) | 60 queries is the evidence size at which the stated minimum lifts are above the detection floor. |
-| `TARGET_HELDOUT_QUERIES` | 75 | held-out query kicks | target (non-gating) | 75 queries uses the whole held-out kick partition and doubles the minimum design's evidence. |
+| `TARGET_HELDOUT_QUERIES` | 75 | held-out query kicks | target (non-gating) | 75 queries uses the whole held-out kick partition, raising the minimum design's query count by 25% (75 against 60) and its rating volume by about 88% (1125 against 600 ratings). |
 | `RATED_CANDIDATES_PER_QUERY` | 5 | rated candidates per query | fixed (not a gate) | A fixed candidate-set size of five keeps every query comparable and every pair ratable at the minimum budget. |
 | `MIN_HELDOUT_PAIRS` | 300 (60 x 5) | held-out pairs | minimum (gate) | The minimum design's pair count follows directly from 60 queries at five rated candidates each. |
 | `MIN_TUNING_PAIRS` | 40 | tuning pairs | minimum (gate) | Only a tuning claim needs a floor, and 40 pairs is the smallest set that can compare two tuning choices without overfitting. |
