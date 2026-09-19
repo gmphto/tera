@@ -219,14 +219,16 @@ kept in the session directory as `instructions.txt`, and `?` reprints it at any 
 | --- | --- |
 | `outside_private_root` | A session path or `--output` leaves `<cwd>/.local-evaluation/pair-rating/` |
 | `invalid_session_id`, `invalid_evaluator_id` | The id does not match its pattern |
-| `invalid_monitoring_description` | Blank, longer than 200 characters, or not a dry-run for the fake backend |
+| `invalid_monitoring` | Blank, longer than 200 characters, or not a dry-run for the fake backend |
 | `invalid_player_command` | The command backend has no player command with the `{audio}` placeholder |
 | `protocol_version_mismatch` | The protocol document is missing, unreadable or declares another version |
 | `protocol_constants_missing` | No pinned `ORDER_SEED`, no `MAX_RECOGNISED_RATE` or no instruction text |
 | `schema_mismatch` | The dataset or pair-list document has an unexpected, missing or wrong-typed field |
 | `dataset_version_mismatch` | The pair list and the dataset, or a resumed dataset, disagree on `dataset_version` |
-| `duplicate_pair_id` | One `pair_id` appears twice |
-| `sample_unresolved` | A kick or bass id does not resolve to a selected record of that role |
+| `split_manifest_digest_invalid` | The pair list's `split_manifest_digest` is not the literal `sha256:` plus 64 lowercase hex characters |
+| `duplicate_pair` | One `pair_id` appears twice in the pair list |
+| `unknown_sample_id` | A kick or bass id is not a selected sample of the dataset |
+| `role_mismatch` | A kick id resolves to a selected `bass` record, or a bass id to a selected `kick` record |
 | `audio_unreadable` | Missing, not a regular local file, a cloud placeholder or undecodable audio |
 | `sample_rate_mismatch` | The two elements of one pair do not share a sample rate |
 | `session_exists` | A session with this id already exists under the private root |

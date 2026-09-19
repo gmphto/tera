@@ -213,7 +213,7 @@ def test_command_backend_reports_a_timeout_as_incomplete(tmp_path, monkeypatch):
 def test_fake_backend_needs_a_dry_run_monitoring_description(workspace, capsys):
     code = run(start_arguments(workspace, monitoring="listening on monitors"), "q\n")
     assert code == 2
-    assert "invalid_monitoring_description" in capsys.readouterr().err
+    assert "invalid_monitoring" in capsys.readouterr().err
     assert not session_directory(workspace, "session-one").exists()
     assert run(start_arguments(workspace, monitoring=""), "q\n") == 2
     assert not session_directory(workspace, "session-one").exists()
@@ -445,7 +445,8 @@ def test_outside_private_root_is_refused(workspace, capsys):
 def test_preflight_reports_every_violation_together(workspace, capsys):
     pairs = workspace.pairs_document
     pairs["pairs"][1]["kick_sample_id"] = "sample-kick-02"     # synth-pair-02: 44100 bass
-    pairs["pairs"][2]["kick_sample_id"] = "sample-kick-99"     # unresolved kick
+    pairs["pairs"][2]["kick_sample_id"] = "sample-kick-99"     # synth-pair-03: unknown sample id
+    pairs["pairs"][3]["kick_sample_id"] = "sample-bass-02"     # synth-pair-04: wrong role
     pairs["pairs"].append(dict(pairs["pairs"][0]))             # duplicate pair id
     pairs_path = workspace.tmp / "pairs-broken.json"
     pairs_path.write_text(json.dumps(pairs), encoding="utf-8")
@@ -458,9 +459,42 @@ def test_preflight_reports_every_violation_together(workspace, capsys):
     error = capsys.readouterr().err
     assert "audio_unreadable: synth-pair-01" in error
     assert "sample_rate_mismatch: synth-pair-02" in error
-    assert "sample_unresolved: synth-pair-03" in error
-    assert "duplicate_pair_id: synth-pair-01" in error
+    assert "unknown_sample_id: synth-pair-03" in error
+    assert "role_mismatch: synth-pair-04" in error
+    assert "duplicate_pair: synth-pair-01" in error
     assert str(workspace.audio) not in error and ".wav" not in error
+    assert not session_directory(workspace, "session-one").exists()
+
+
+def test_documents_that_do_not_match_the_schema_are_refused(workspace, capsys):
+    pairs = workspace.pairs_document
+    pairs["unexpected_field"] = True
+    extra = workspace.tmp / "pairs-extra-field.json"
+    extra.write_text(json.dumps(pairs), encoding="utf-8")
+    assert run(start_arguments(workspace, pairs=extra), "q\n") == 2
+    assert "schema_mismatch: pair_list" in capsys.readouterr().err
+    assert not session_directory(workspace, "session-one").exists()
+
+    dataset = workspace.dataset_document
+    dataset.pop("dataset_version")
+    other = workspace.tmp / "dataset-no-version.json"
+    other.write_text(json.dumps(dataset), encoding="utf-8")
+    arguments = start_arguments(workspace)
+    arguments[arguments.index(str(workspace.dataset))] = str(other)
+    assert run(arguments, "q\n") == 2
+    assert "schema_mismatch: dataset.dataset_version" in capsys.readouterr().err
+    assert not session_directory(workspace, "session-one").exists()
+
+
+def test_a_pair_list_with_a_bad_split_manifest_digest_is_refused(workspace, capsys):
+    pairs = workspace.pairs_document
+    pairs["split_manifest_digest"] = "sha256:not-a-digest"
+    pairs_path = workspace.tmp / "pairs-bad-digest.json"
+    pairs_path.write_text(json.dumps(pairs), encoding="utf-8")
+    assert run(start_arguments(workspace, pairs=pairs_path), "q\n") == 2
+    error = capsys.readouterr().err
+    assert "split_manifest_digest_invalid: pair_list.split_manifest_digest" in error
+    assert str(workspace.audio) not in error
     assert not session_directory(workspace, "session-one").exists()
 
 
@@ -613,7 +647,7 @@ def test_a_dry_run_session_cannot_be_resumed_as_a_listening_session(workspace, c
     player = player_command("import sys; sys.exit(0)")
     arguments = resume_arguments(workspace, "session-one", backend="command", player=player)
     assert run(arguments, "2\n") == 2
-    assert "invalid_monitoring_description" in capsys.readouterr().err
+    assert "invalid_monitoring" in capsys.readouterr().err
     assert len(journal_records(workspace, "session-one")) == 1
 
 

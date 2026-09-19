@@ -312,7 +312,7 @@ def check_pair_list_document(document):
         problems.append(preflight("schema_mismatch", "pair_list.dataset_version"))
     if type(document["split_manifest_digest"]) is not str \
             or not DIGEST_PATTERN.fullmatch(document["split_manifest_digest"]):
-        problems.append(preflight("schema_mismatch", "pair_list.split_manifest_digest"))
+        problems.append(preflight("split_manifest_digest_invalid", "pair_list.split_manifest_digest"))
     for name in ("sampler_seed", "assignment_seed"):
         if type(document[name]) is not str or not document[name].strip():
             problems.append(preflight("schema_mismatch", "pair_list." + name))
@@ -358,18 +358,21 @@ def check_assignments(dataset, pair_list):
     for pair in pair_list["pairs"]:
         pair_id = pair["pair_id"]
         if pair_id in seen:
-            problems.append(preflight("duplicate_pair_id", pair_id))
+            problems.append(preflight("duplicate_pair", pair_id))
             continue
         seen.add(pair_id)
-        elements, unresolved = {}, False
+        elements, rejected = {}, None
         for name, role in (("kick_sample_id", "kick"), ("bass_sample_id", "bass")):
             record = selected.get(pair[name])
-            if record is None or record.get("role") != role or pair[name] not in paths:
-                unresolved = True
+            if record is None or pair[name] not in paths:
+                rejected = "unknown_sample_id"
+                break
+            if record.get("role") != role:
+                rejected = "role_mismatch"
                 break
             elements[name] = paths[pair[name]]
-        if unresolved:
-            problems.append(preflight("sample_unresolved", pair_id))
+        if rejected is not None:
+            problems.append(preflight(rejected, pair_id))
             continue
         rates = {}
         for name in ("kick_sample_id", "bass_sample_id"):
@@ -402,7 +405,7 @@ def check_backend(arguments, monitoring):
     backend = arguments.playback_backend or "command"
     problem = playback.monitoring_problem(backend, monitoring)
     if problem is not None:
-        raise RatingError("invalid_monitoring_description", problem)
+        raise RatingError("invalid_monitoring", problem)
     if backend == "command":
         problem = playback.player_command_problem(arguments.player_command)
         if problem is not None:
@@ -954,7 +957,7 @@ def resume(arguments, stream, stdout):
     backend = check_backend(arguments, document["monitoring_description"])
     if document["monitoring_description"].startswith(playback.FAKE_MONITORING_PREFIX) \
             and backend != "fake":
-        raise RatingError("invalid_monitoring_description",
+        raise RatingError("invalid_monitoring",
                           "A dry-run session can only be resumed with the fake playback backend.")
     dataset = load_dataset(arguments.dataset)
     if dataset is None:

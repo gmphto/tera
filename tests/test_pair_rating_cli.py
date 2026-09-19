@@ -244,8 +244,10 @@ def test_file_removed_mid_session_is_recorded_as_failed_playback(workspace):
 @pytest.mark.parametrize("case,expected", [
     ("missing", "audio_unreadable: synth-pair-03"),
     ("corrupt", "audio_unreadable: synth-pair-02"),
-    ("duplicate", "duplicate_pair_id: synth-pair-01"),
+    ("duplicate", "duplicate_pair: synth-pair-01"),
     ("rate-mismatch", "sample_rate_mismatch: synth-pair-03"),
+    ("digest", "split_manifest_digest_invalid: pair_list.split_manifest_digest"),
+    ("role-mismatch", "role_mismatch: synth-pair-01"),
 ])
 def test_preflight_refusals_exit_two_without_records(workspace, case, expected):
     pairs_path = workspace.pairs
@@ -253,13 +255,18 @@ def test_preflight_refusals_exit_two_without_records(workspace, case, expected):
         (workspace.audio / "kick-03.wav").unlink()
     elif case == "corrupt":
         write(workspace.audio, b"RIFF this is not a decodable wave file", "bass-02.wav")
-    elif case == "duplicate":
-        document = workspace.pairs_document
-        document["pairs"].append(dict(document["pairs"][0]))
-        pairs_path = workspace.tmp / "pairs-duplicate.json"
-        pairs_path.write_text(json.dumps(document), encoding="utf-8")
-    else:
+    elif case == "rate-mismatch":
         write(workspace.audio, wav(tone(90.0, rate=44100), 44100, "FLOAT"), "bass-03.wav")
+    else:
+        document = workspace.pairs_document
+        if case == "duplicate":
+            document["pairs"].append(dict(document["pairs"][0]))
+        elif case == "digest":
+            document["split_manifest_digest"] = "sha256:not-a-digest"
+        else:
+            document["pairs"][0]["kick_sample_id"] = "sample-bass-01"
+        pairs_path = workspace.tmp / ("pairs-" + case + ".json")
+        pairs_path.write_text(json.dumps(document), encoding="utf-8")
     code, out, err = cli(workspace, start(workspace, "cli-refused", pairs=pairs_path), "q\n", case)
     assert code == 2
     assert expected in err
