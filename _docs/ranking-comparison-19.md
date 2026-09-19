@@ -57,10 +57,10 @@ insufficient evidence — no held-out pair list exists (#65 has not landed the s
 | --- | --- | --- | --- | --- |
 | random | 0 of 0 | undefined (0 rated candidates) | none | insufficient (no_held_out_query) |
 | dsp-only | 0 of 0 | undefined (0 rated candidates) | none | insufficient (no_held_out_query) |
-| jev-only | 0 of 0 | undefined (0 rated candidates) | none | insufficient (no_held_out_query) |
-| hybrid | 0 of 0 | undefined (0 rated candidates) | none | insufficient (no_held_out_query) |
+| jev-only | not reported (no live Jev outcomes) | undefined (0 rated candidates) | none | insufficient (no_held_out_query) |
+| hybrid | not reported (no live Jev outcomes) | undefined (0 rated candidates) | none | insufficient (no_held_out_query) |
 
-Intersection of the four arms' eligible queries: 0 of 0 sampled queries. Every arm received the same eligible candidate set per query (the sampled candidates that pass filter_candidates with FilterPolicy()); an arm ordering a different set is rejected with candidate_set_mismatch instead of being compared.
+Intersection of the eligible queries across the 2 published arms (random, dsp-only): 0 of 0 sampled queries. Every arm received the same eligible candidate set per query (the sampled candidates that pass filter_candidates with FilterPolicy()); an arm ordering a different set is rejected with candidate_set_mismatch instead of being compared. An arm whose evidence is not live is excluded from every published count.
 
 ## Quality
 
@@ -72,7 +72,7 @@ claim.
 
 | Arm | Version | Weight table / rule | Verdict | Mode counts | Jev status counts | Identical orderings | Arm error codes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| random | dsp-baseline-v1 (declared; no ordering was produced) | random-draw (declared) | not supported | (no ordering produced) | (no ordering produced) | (no ordering produced) | none |
+| random | dsp-baseline-v1 (declared; no ordering was produced) | random-draw (declared) | insufficient | (no ordering produced) | (no ordering produced) | (no ordering produced) | none |
 | dsp-only | dsp-baseline-v1 (declared; no ordering was produced) | dsp-baseline-weights-1 (declared) | insufficient | (no ordering produced) | (no ordering produced) | (no ordering produced) | none |
 | jev-only | jev-only-v1 (declared; no ordering was produced) | equal-1/6-weights (declared) | insufficient | (no ordering produced) | (no ordering produced) | (no ordering produced) | none |
 | hybrid | hybrid-ranking-v1 (declared; no ordering was produced) | hybrid-weights-1 (declared) | insufficient | (no ordering produced) | (no ordering produced) | (no ordering produced) | none |
@@ -96,13 +96,13 @@ Jev evidence: real TypeSafe Jev integration: UNVERIFIED - TERA_JEV_ENDPOINT/TERA
 | MIN_PAIR_COVERAGE = 0.8 | minimum (gate) | random, dsp-only, jev-only, hybrid | not computable (0 of 0 sampled pairs) | not applicable (evidence minimum) | insufficient | 0 of 0 sampled pairs rated |
 | MIN_AGREEMENT_PAIRS = 40 | minimum (gate) | random, dsp-only, jev-only, hybrid | 0 of 40 pairs with at least two valid ratings | not applicable (evidence minimum) | insufficient | 0 of 40 pairs with at least two valid ratings |
 | MAX_MEAN_ABSOLUTE_DEVIATION = 1.0 | minimum (gate) | random, dsp-only, jev-only, hybrid | not computable (0 of 40 reportable pairs) | not applicable (evidence minimum) | insufficient | 0 of 40 pairs with at least two valid ratings |
-| MIN_SCORED_SHARE_PER_QUERY = 0.5 | minimum (gate) | random, dsp-only, jev-only, hybrid | no eligible query | not applicable (evidence minimum) | insufficient | 0 of 0 eligible queries |
+| MIN_SCORED_SHARE_PER_QUERY = 0.5 | minimum (gate) | random, dsp-only | no eligible query | not applicable (evidence minimum) | insufficient | 0 of 0 eligible queries |
 | MAX_RECOGNISED_RATE = 0.2 | minimum (gate) | random, dsp-only, jev-only, hybrid | 0 sessions to check | not applicable (evidence minimum) | insufficient | - |
-| MIN_LATENCY_REQUESTS_PER_ARM = 30 | minimum (gate) | random, dsp-only, jev-only, hybrid | 0 of 30 valid samples on the least-sampled arm | not applicable (evidence minimum) | insufficient | 0 of 30 valid latency samples per arm |
+| MIN_LATENCY_REQUESTS_PER_ARM = 30 | minimum (gate) | random, dsp-only | 0 of 30 valid samples on the least-sampled published arm | not applicable (evidence minimum) | insufficient | 0 of 30 valid latency samples on the least-sampled published arm; no_live_jev_outcomes |
 | MIN_DSP_PAIRWISE_ACCURACY = 0.55 | minimum (gate) | dsp-only | not computed | not computed | insufficient | 0 of 60 eligible held-out queries |
 | MIN_JEV_ONLY_PAIRWISE_ACCURACY = 0.55 | minimum (gate) | jev-only | not reported (no live Jev outcomes) | not reported | insufficient | no_live_jev_outcomes |
 | MIN_PAIRWISE_ACCURACY = 0.6 | minimum (gate) | hybrid | not reported (no live Jev outcomes) | not reported | insufficient | no_live_jev_outcomes |
-| MIN_LIFT_OVER_RANDOM = 0.1 | minimum (gate) | random | +0.0000 | [0.0000, 0.0000] | not supported | structurally zero: the identical arm |
+| MIN_LIFT_OVER_RANDOM = 0.1 | minimum (gate) | random | not computed | not computed | insufficient | 0 of 60 paired eligible queries |
 | MIN_LIFT_OVER_RANDOM = 0.1 | minimum (gate) | dsp-only | not computed | not computed | insufficient | 0 of 60 paired eligible queries |
 | MIN_LIFT_OVER_RANDOM = 0.1 | minimum (gate) | jev-only | not reported (no live Jev outcomes) | not reported | insufficient | no_live_jev_outcomes |
 | MIN_LIFT_OVER_RANDOM = 0.1 | minimum (gate) | hybrid | not reported (no live Jev outcomes) | not reported | insufficient | no_live_jev_outcomes |
@@ -118,8 +118,8 @@ Jev evidence: real TypeSafe Jev integration: UNVERIFIED - TERA_JEV_ENDPOINT/TERA
 | MIN_TOP_K_MEAN = 2.0 | minimum (gate, literal top-10 only) | hybrid | not computed (k = 5 is descriptive) | not computed | insufficient | 0 of 0 eligible queries hold 11 rated candidates |
 | MIN_TOP_K_MEAN_LIFT_OVER_RANDOM = 0.3 | minimum (gate, literal top-10 only) | hybrid | not computed (k = 5 is descriptive) | not computed | insufficient | 0 of 0 eligible queries hold 11 rated candidates |
 | MIN_TOP_K_MEAN_LIFT_OVER_DSP = 0.15 | minimum (gate, literal top-10 only) | hybrid | not computed (k = 5 is descriptive) | not computed | insufficient | 0 of 0 eligible queries hold 11 rated candidates |
-| MAX_COLD_RECOMMENDATION_P95_MS = 2000 | minimum (gate) | random, dsp-only, jev-only, hybrid | not measured (least-sampled arm 0 of 30 valid samples) | not applicable (no complete sample set) | insufficient | 0 of 30 valid latency samples per arm |
-| MAX_WARM_RECOMMENDATION_P95_MS = 500 | minimum (gate) | random, dsp-only, jev-only, hybrid | not measured (least-sampled arm 0 of 30 valid samples) | not applicable (no complete sample set) | insufficient | 0 of 30 valid latency samples per arm |
+| MAX_COLD_RECOMMENDATION_P95_MS = 2000 | minimum (gate) | random, dsp-only | not measured (least-sampled arm 0 of 30 valid samples) | not applicable (no complete sample set) | insufficient | 0 of 30 valid latency samples on the least-sampled published arm; no_live_jev_outcomes |
+| MAX_WARM_RECOMMENDATION_P95_MS = 500 | minimum (gate) | random, dsp-only | not measured (least-sampled arm 0 of 30 valid samples) | not applicable (no complete sample set) | insufficient | 0 of 30 valid latency samples on the least-sampled published arm; no_live_jev_outcomes |
 | TARGET_EVALUATORS = 8 | target (non-gating) | random, dsp-only, jev-only, hybrid | descriptive | not applicable (target class) | not evaluated (target class) | - |
 | TARGET_RATINGS_PER_PAIR = 3 | target (non-gating) | random, dsp-only, jev-only, hybrid | descriptive | not applicable (target class) | not evaluated (target class) | - |
 | TARGET_HELDOUT_QUERIES = 75 | target (non-gating) | random, dsp-only, jev-only, hybrid | descriptive | not applicable (target class) | not evaluated (target class) | - |
@@ -162,7 +162,7 @@ Bootstrap: 10000 resamples of the eligible query kicks with replacement under BO
 
 The minimum detectable difference is the protocol's predeclared table: about 0.08 accuracy points for pairwise_accuracy (1.96 x 0.30 / sqrt(60)) and about 0.25 rating points for top1_margin (1.96 x 1.00 / sqrt(60)). Every gated lift is set at or above that floor (+0.10 over random, +0.10 over DSP, +0.30 top-1 margin). The top-k gates are not evaluable at this design and are reported insufficient.
 
-Determinism: re-running the recorded command reproduces run.json (sha256:666a7325a0eb301864c187742410153dfc2679134e0a1dd19f2bd147efc4faed), records.json (sha256:07d4f37f87500ef1b4e27618053e30f20941ba89b11709121981cf9c16e34ee6) and this report byte for byte. The run key covers the protocol version, the dataset version and identity digest, the split manifest version and digest, the pair-list digest, every seed, the analysis and ranking versions and weight-table ids, ADAPTER_VERSION, PROMPT_VERSION and the observed model versions.
+Determinism: re-running the recorded command reproduces run.json (sha256:7c576622b36d40d080524a1eabc2c4e3fd42bf8bced49569e0ee35c93d5be464), records.json (sha256:07d4f37f87500ef1b4e27618053e30f20941ba89b11709121981cf9c16e34ee6) and this report byte for byte. The run key covers the protocol version, the dataset version and identity digest, the split manifest version and digest, the pair-list digest, every seed, the analysis and ranking versions and weight-table ids, ADAPTER_VERSION, PROMPT_VERSION and the observed model versions.
 
 ## Agreement
 
