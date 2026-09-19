@@ -186,11 +186,23 @@ confidence    = sum(weight[d] for available d)
 ```
 
 `confidence` is therefore the total weight covered by the available
-dimensions, in [0, 1] (1 when all three are available, 4/7 when frequency is
-unavailable, 2/7 when only one dimension is available). Compatibility and
-confidence stay separate: measurement confidences at or above the threshold
-are never multiplied into or added to a score, they change no compatibility
-value, and they never determine order. A candidate with no available dimension
+dimensions, in [0, 1]: it is the sum of the weights of the dimensions that are
+available, and nothing else — not a count of dimensions and not a calibration
+of them. Every non-empty availability set resolves to:
+
+| Available dimensions | Covered weights | `confidence` |
+| --- | --- | ---: |
+| `frequency`, `transient`, `tonal` | 3/7 + 2/7 + 2/7 | 1 |
+| `frequency`, `transient` | 3/7 + 2/7 | 5/7 |
+| `frequency`, `tonal` | 3/7 + 2/7 | 5/7 |
+| `transient`, `tonal` | 2/7 + 2/7 | 4/7 |
+| `frequency` | 3/7 | 3/7 |
+| `transient` | 2/7 | 2/7 |
+| `tonal` | 2/7 | 2/7 |
+
+Compatibility and confidence stay separate: measurement confidences at or
+above the threshold are never multiplied into or added to a score, they change
+no compatibility value, and they never determine order. A candidate with no available dimension
 gets no compatibility value at all: it is returned in `unscored` with the
 stable code `insufficient_evidence` and with all three dimension entries
 marked unavailable, and it never appears in `ranked`.
