@@ -623,13 +623,20 @@ class SessionSummary:
     answered: int
     recognised: int
     ratings: tuple
+    protocol_version: str | None = None
+    order_seed: str | None = None
+    playback_gain_db: float | None = None
 
     def as_dict(self):
         return {"session_id": self.session_id, "validate_exit": self.validate_exit,
                 "violations": list(self.violations), "tooling": self.tooling,
                 "counted": self.counted, "reason": self.reason,
                 "presentations": self.presentations, "answered": self.answered,
-                "recognised": self.recognised, "valid_ratings": len(self.ratings)}
+                "recognised": self.recognised, "valid_ratings": len(self.ratings),
+                "protocol_version": self.protocol_version, "order_seed": self.order_seed,
+                "playback_gain_db": self.playback_gain_db,
+                "dataset_version": self.dataset_version,
+                "split_manifest_digest": self.split_manifest_digest}
 
 
 def git_tracks(path):
@@ -770,7 +777,9 @@ def load_session(directory):
     return SessionSummary(path.name, str(path), exit_code, violations,
                           document.get("evaluator_id"), tooling, counted, reason,
                           document.get("dataset_version"), document.get("split_manifest_digest"),
-                          total, len(effective), recognised, tuple(valid))
+                          total, len(effective), recognised, tuple(valid),
+                          document.get("protocol_version"), document.get("order_seed"),
+                          document.get("playback_gain_db"))
 
 
 def load_sessions(root):
@@ -783,19 +792,19 @@ def load_sessions(root):
     return tuple(load_session(directory) for directory in directories)
 
 
-def session_field_problems(document, *, dataset_version, split_manifest_digest):
-    """The five field values #19 must see; returns the codes of any violation."""
+def session_field_problems(summary, *, dataset_version, split_manifest_digest):
+    """The five field values #19 must see, checked against the run's own records."""
     problems = []
-    if document.get("protocol_version") != PROTOCOL_VERSION:
+    if summary.protocol_version != PROTOCOL_VERSION:
         problems.append("protocol_version")
-    if document.get("playback_gain_db") != -6.0:
+    if summary.playback_gain_db != -6.0:
         problems.append("playback_gain_db")
-    if document.get("order_seed") != ORDER_SEED:
+    if summary.order_seed != ORDER_SEED:
         problems.append("order_seed")
-    if dataset_version is not None and document.get("dataset_version") != dataset_version:
+    if dataset_version is not None and summary.dataset_version != dataset_version:
         problems.append("dataset_version")
     if (split_manifest_digest is not None
-            and document.get("split_manifest_digest") != split_manifest_digest):
+            and summary.split_manifest_digest != split_manifest_digest):
         problems.append("split_manifest_digest")
     return problems
 # --- declared inputs and the nine recorded preflight checks ----------------
@@ -1550,7 +1559,18 @@ def evaluate(paths):
         except ComparisonError as error:
             mechanism.append(error)
             assignment = replace(assignment, value=None, malformed=True)
-    sessions = load_sessions(paths.sessions)
+    sessions = list(load_sessions(paths.sessions) or ())
+    expected_version = (dataset.value or {}).get("dataset_version")
+    expected_digest = (split.value or {}).get("split_manifest_digest")
+    for index, summary in enumerate(sessions):
+        if summary.validate_exit != 0 or not summary.counted:
+            continue
+        problems = session_field_problems(summary, dataset_version=expected_version,
+                                          split_manifest_digest=expected_digest)
+        if problems:
+            sessions[index] = replace(summary, counted=False, reason="session_field_mismatch",
+                                      ratings=(),
+                                      violations=tuple(summary.violations) + tuple(problems))
     try:
         jev_runs = load_jev_runs(paths.jev_runs)
     except ComparisonError as error:
@@ -2133,6 +2153,9 @@ def analyse(findings, paths, *, latency, outcome_table):
                      "unscored_share": summary["unscored_share"]["value"],
                      "variant_disagreements": variant_disagreements,
                      "publishable": evidence_source == "live" if arm in JEV_ARMS else True}
+    eligible_sets = [{item.query_id for item in arms[arm]["evaluations"] if item.eligible}
+                     for arm in ARM_NAMES]
+    intersection = set.intersection(*eligible_sets) if eligible_sets else set()
     lifts = build_lifts(arms)
     identical = count_identical_orderings({arm: {item.query_id: item.order
                                                 for item in arms[arm]["evaluations"]
@@ -2150,6 +2173,7 @@ def analyse(findings, paths, *, latency, outcome_table):
             "memo": latency["memo"], "latency": latency, "agreement": agreement,
             "leave_one_out": (), "queries_with_11_rated_candidates": queries_with_11,
             "jev_variant_disagreements": arms["jev-only"]["variant_disagreements"],
+            "intersection": len(intersection),
             "eligible_queries": len([query for query in findings.query if query.eligible]),
             "topk_reachable": topk_reachable, "double_runs": sum(1 for run in runs
                                                                  if run.source == "double")}
@@ -2586,6 +2610,7 @@ def run_document(findings, analysis, gates, latency, key, identity, others):
                      "model_versions": identity["model_versions"]},
         "counts": dict(findings.accounting),
         "split_counts": findings.split_counts,
+        "intersection_eligible_queries": analysis["intersection"],
         "items": [item.as_dict() for item in findings.items],
         "arms": {arm: {"version": analysis["arms"][arm]["version"],
                        "weight_table_id": analysis["arms"][arm]["weight_table_id"],
@@ -2751,17 +2776,21 @@ def render_report(findings, analysis, gates, latency, key, identity, others, dig
         ["dataset records used / synthetic", str(counts["dataset_records"]) + " / "
          + str(counts["synthetic_fixture_records"]), "provenance_kind = real_library_sample"],
     ])
-    lines += ["", "| Arm | Eligible queries | Intersection of eligible queries | Unscored share"
-              " | Evidence source | Status |", "| --- | --- | --- | --- | --- | --- |"]
+    lines += ["", "| Arm | Eligible queries | Unscored share | Evidence source | Status |",
+              "| --- | --- | --- | --- | --- |"]
     for arm in ARM_NAMES:
         entry = analysis["arms"][arm]
         lines.append("| " + arm + " | " + str(entry["summary"]["eligible_queries"]) + " of "
                      + str(counts["sampled_queries"]) + " | "
-                     + str(entry["summary"]["eligible_queries"]) + " | "
                      + (shown(entry["unscored_share"]) if entry["unscored_share"] is not None
                         else "undefined (0 rated candidates)")
                      + " | " + entry["evidence_source"] + " | " + entry["status"]
                      + ("" if entry["reason"] is None else " (" + entry["reason"] + ")") + " |")
+    lines += ["", "Intersection of the four arms' eligible queries: " + str(analysis["intersection"])
+              + " of " + str(counts["sampled_queries"]) + " sampled queries. Every arm received"
+              " the same eligible candidate set per query (the sampled candidates that pass"
+              " filter_candidates with FilterPolicy()); an arm ordering a different set is"
+              " rejected with candidate_set_mismatch instead of being compared."]
     lines += ["", "## Quality", "",
               "Arm mechanics, latency and determinism are reported here and below; none of that",
               "evidence carries a rating, so this section cannot support any lift or quality",
@@ -2936,7 +2965,16 @@ def render_report(findings, analysis, gates, latency, key, identity, others, dig
         [item.name, item.code, item.expected, item.actual] for item in findings.gaps])
     if not findings.gaps:
         lines += ["No evidence gap was recorded."]
-    lines += ["", "## Deviations", ""]
+    lines += ["", "## Deviations", "", "### Session rows", ""]
+    if findings.sessions:
+        lines += report_table(["Session (anonymous)", "validate exit", "counted", "reason",
+                               "presentations", "valid ratings"], [
+            [str(index), str(summary.validate_exit), "yes" if summary.counted else "no",
+             summary.reason or "-", str(summary.presentations), str(len(summary.ratings))]
+            for index, summary in enumerate(findings.sessions, start=1)])
+    else:
+        lines += ["No session exists, so no session row carries a validate exit status."]
+    lines += [""]
     rendered = []
     for deviation in findings.deviations:
         rendered.append("session " + str(deviation["session_id"]) + ": validate exit "

@@ -755,6 +755,32 @@ def test_the_report_is_byte_identical_on_a_rerun(workspace, fast_run):
     assert json.loads(output)["run_key"] == keys[0]
 
 
+def test_a_session_with_a_foreign_dataset_version_contributes_nothing(workspace):
+    write_session(workspace, "session-foreign", "evaluator-alpha",
+                  assignments_for(workspace, "evaluator-alpha"), ("good", "excellent"),
+                  dataset_version="another-pool")
+    paths = comparison.Paths(REPOSITORY_ROOT / "_docs" / "evaluation-protocol.md",
+                             workspace.dataset, workspace.split, workspace.pairs,
+                             workspace.assignment, workspace.sessions, workspace.analyses, (),
+                             workspace.report, workspace.runs, workspace.tmp / "tuning", False,
+                             False)
+    findings = comparison.evaluate(paths)
+    assert findings.accounting["counted_evaluators"] == 0
+    assert findings.accounting["valid_ratings"] == 0
+    assert any(item.get("reason") == "session_field_mismatch" for item in findings.deviations)
+
+
+def test_the_report_carries_a_session_row_per_session(workspace, fast_run):
+    write_session(workspace, "session-one", "evaluator-alpha",
+                  assignments_for(workspace, "evaluator-alpha"), ("good", "excellent"))
+    code, _ = run(workspace_arguments(workspace, "report"))
+    assert code == 1
+    text = workspace.report.read_text(encoding="utf-8")
+    assert "### Session rows" in text
+    assert "| 1 | 0 | yes |" in text
+    assert "Intersection of the four arms' eligible queries:" in text
+
+
 def test_the_report_carries_no_private_identifier(tmp_path, fast_run):
     workspace = build_workspace(tmp_path)
     write_session(workspace, "session-one", "evaluator-alpha",
