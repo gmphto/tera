@@ -3,3 +3,6 @@ __pycache__/
 .pytest_cache/
 *.py[cod]
 .local-evaluation/
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
