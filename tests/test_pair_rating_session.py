@@ -2,8 +2,10 @@
 
 import hashlib
 import io
+import itertools
 import json
 import os
+import random
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -662,4 +664,92 @@ def test_export_accepts_an_output_inside_the_private_root(workspace, capsys):
     assert set(json.loads(destination.read_text(encoding="utf-8"))) == \
         {"schema_version", "session", "ratings"}
     assert json.loads(capsys.readouterr().out.strip().splitlines()[-1])["ratings"] == 1
+
+
+# --- the adjacency repair: QA regression and properties --------------------
+
+QA_COUNTEREXAMPLE_KICKS = ["k1", "k3", "k0", "k0", "k3", "k3", "k2"]
+
+
+def qa_counterexample_pairs():
+    return [{"pair_id": "pair-%d" % number, "kick_sample_id": kick,
+             "bass_sample_id": "bass-%d" % number}
+            for number, kick in enumerate(QA_COUNTEREXAMPLE_KICKS)]
+
+
+def improving_swaps(order):
+    """Every single swap that would strictly reduce the shared-kick adjacency count."""
+    found = []
+    for first in range(len(order)):
+        for second in range(first + 1, len(order)):
+            before = rating._adjacent_collisions(order, first) + rating._adjacent_collisions(order, second)
+            order[first], order[second] = order[second], order[first]
+            after = rating._adjacent_collisions(order, first) + rating._adjacent_collisions(order, second)
+            order[first], order[second] = order[second], order[first]
+            if after < before:
+                found.append((first, second))
+    return found
+
+
+def test_the_qa_counterexample_persists_without_a_shared_kick():
+    """Session rnd-5 of the QA shape used to persist k0 k2 k0 k3 k3 k1 k3, one shared kick."""
+    pairs = qa_counterexample_pairs()
+    order = rating.presentation_order(pairs, rating.ORDER_SEED, "rnd-5")
+    assert [pair["pair_id"] for pair in order] ==         ["pair-2", "pair-4", "pair-3", "pair-5", "pair-6", "pair-0", "pair-1"]
+    assert rating.collision_count(order) == rating.collision_floor(order) == 0
+    assert improving_swaps(order) == []
+    for session_id in ("rnd-44", "rnd-100", "rnd-108", "rnd-206"):
+        other = rating.presentation_order(pairs, rating.ORDER_SEED, session_id)
+        assert rating.collision_count(other) == rating.collision_floor(other) == 0
+        assert improving_swaps(other) == []
+
+
+def test_the_repair_reaches_the_fewest_shared_kicks_the_assignment_allows():
+    generator = random.Random(17)
+    for attempt in range(400):
+        pairs = [{"pair_id": "pair-%d" % number,
+                  "kick_sample_id": "k%d" % generator.randrange(generator.randint(2, 5)),
+                  "bass_sample_id": "bass-%d" % number}
+                 for number in range(generator.randint(4, 8))]
+        session_id = "rnd-%d" % attempt
+        order = rating.presentation_order(pairs, rating.ORDER_SEED, session_id)
+        assert rating.collision_count(order) == rating.collision_floor(order)
+        assert improving_swaps(order) == []
+        assert sorted(pair["pair_id"] for pair in order) == sorted(pair["pair_id"] for pair in pairs)
+        again = rating.presentation_order(pairs, rating.ORDER_SEED, session_id)
+        assert [pair["pair_id"] for pair in again] == [pair["pair_id"] for pair in order]
+
+
+def test_the_repair_matches_an_exhaustive_search_on_small_assignments():
+    generator = random.Random(23)
+    checked = 0
+    for _ in range(30):
+        pairs = [{"pair_id": "pair-%d" % number,
+                  "kick_sample_id": "k%d" % generator.randrange(generator.randint(2, 4)),
+                  "bass_sample_id": "bass-%d" % number}
+                 for number in range(generator.randint(4, 7))]
+        order = rating.presentation_order(pairs, rating.ORDER_SEED, "exhaustive")
+        best = min(rating.collision_count(list(permutation))
+                   for permutation in itertools.permutations(pairs))
+        assert rating.collision_count(order) == best
+        checked += 1
+    assert checked == 30
+
+
+def test_a_collision_free_seeded_order_is_never_reordered():
+    generator = random.Random(31)
+    checked = 0
+    for attempt in range(400):
+        pairs = [{"pair_id": "pair-%d" % number,
+                  "kick_sample_id": "k%d" % generator.randrange(generator.randint(3, 8)),
+                  "bass_sample_id": "bass-%d" % number}
+                 for number in range(generator.randint(4, 9))]
+        session_id = "keep-%d" % attempt
+        seeded = seeded_order(pairs, session_id)
+        if rating.collision_count(seeded):
+            continue
+        order = rating.presentation_order(pairs, rating.ORDER_SEED, session_id)
+        assert [pair["pair_id"] for pair in order] == [pair["pair_id"] for pair in seeded]
+        checked += 1
+    assert checked > 0
 

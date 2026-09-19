@@ -8,10 +8,12 @@ lives under <cwd>/.local-evaluation/pair-rating/.
 """
 
 import argparse
+from collections import Counter
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 import hashlib
+import itertools
 import json
 import os
 from pathlib import Path
@@ -415,31 +417,80 @@ def check_backend(arguments, monitoring):
 # --- session records -------------------------------------------------------
 
 def presentation_order(pairs, order_seed, session_id):
-    """Order the sorted pair ids by a seeded digest, then repair shared kicks.
+    """Order the sorted pair ids by a seeded digest, then repair shared kicks to a fixpoint.
 
     Whenever two consecutive presentations share a kick, the pair at the later position trades
     places with the first later, then the first earlier, presentation whose kick differs, and the
-    swap is kept only when it strictly reduces the number of shared-kick adjacencies. When no such
-    swap exists the two stay adjacent. The rule is deterministic: same inputs, same order.
+    swap is kept only when it strictly reduces the number of shared-kick adjacencies. The pass
+    repeats until a full pass makes no swap, so the persisted order admits no single swap that
+    reduces the count: a collision that survives means no single swap can remove one. An order with
+    no shared-kick adjacency is returned unchanged. The rule is deterministic and needs no
+    randomness, so the same inputs always produce the same order.
     """
     ordered = sorted(pairs, key=lambda pair: pair["pair_id"])
     seeds = {pair["pair_id"]: hashlib.sha256(
         (order_seed + "\n" + session_id + "\n" + pair["pair_id"]).encode("utf-8")).hexdigest()
         for pair in ordered}
     shuffled = sorted(ordered, key=lambda pair: (seeds[pair["pair_id"]], pair["pair_id"]))
-    for index in range(1, len(shuffled)):
-        if not shared_kick(shuffled[index - 1], shuffled[index]):
-            continue
-        for position in (index, index - 1):
-            others = list(range(position + 1, len(shuffled))) + list(range(position - 1, -1, -1))
-            for other in others:
-                if _improves(shuffled, position, other):
-                    shuffled[position], shuffled[other] = shuffled[other], shuffled[position]
-                    break
-            else:
-                continue
-            break
+    while repair_pass(shuffled):
+        pass
+    if collision_count(shuffled) > collision_floor(shuffled):
+        arranged = minimal_collision_order(shuffled)
+        if collision_count(arranged) < collision_count(shuffled):
+            shuffled = arranged
     return shuffled
+
+
+def collision_count(order):
+    """Shared-kick adjacencies in one order."""
+    return sum(shared_kick(order[index - 1], order[index]) for index in range(1, len(order)))
+
+
+def collision_floor(order):
+    """The fewest shared-kick adjacencies any arrangement of this assignment can have."""
+    counts = Counter(pair["kick_sample_id"] for pair in order)
+    largest = max(counts.values(), default=0)
+    return max(0, 2 * largest - len(order) - 1)
+
+
+def minimal_collision_order(order):
+    """Deterministic arrangement that reaches the collision floor."""
+    queues, first = {}, {}
+    for position, pair in enumerate(order):
+        queues.setdefault(pair["kick_sample_id"], []).append(pair)
+        first.setdefault(pair["kick_sample_id"], position)
+    arranged, last = [], None
+    while len(arranged) < len(order):
+        remaining = [(len(queue), first[kick], kick) for kick, queue in queues.items()
+                     if queue and kick != last]
+        kick = min(remaining, key=lambda item: (-item[0], item[1], item[2]))[2] if remaining else last
+        arranged.append(queues[kick].pop(0))
+        last = kick
+    return arranged
+
+
+def repair_pass(order):
+    """One deterministic improving-swap scan; True when it changed the order.
+
+    Every accepted swap strictly reduces the shared-kick adjacency count, so repeated passes
+    terminate and the persisted order is a fixpoint of the swap predicate.
+    """
+    changed = False
+    for index in range(1, len(order)):
+        if not shared_kick(order[index - 1], order[index]):
+            continue
+        if swap_once(order, index) or swap_once(order, index - 1):
+            changed = True
+    return changed
+
+
+def swap_once(order, position):
+    """Swap one position with the first candidate that strictly reduces shared-kick adjacencies."""
+    for other in itertools.chain(range(position + 1, len(order)), range(position - 1, -1, -1)):
+        if _improves(order, position, other):
+            order[position], order[other] = order[other], order[position]
+            return True
+    return False
 
 
 def shared_kick(first, second):

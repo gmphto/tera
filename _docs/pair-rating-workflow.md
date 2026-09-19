@@ -142,14 +142,31 @@ sorted pair ids: every pair id is hashed with SHA-256 over `order_seed + "\n" + 
 pair_id` and the pairs are ordered by that digest, ties broken by `pair_id` ascending. The
 result is a permutation of the assignment with no repeat and no omission.
 
-One repair pass then keeps two consecutive presentations from sharing a kick:
-whenever two consecutive presentations share a `kick_sample_id`, the pair at the later position
-trades places with the first later, then the first earlier, presentation whose kick differs, and the
-swap is kept only when it strictly reduces the number of shared-kick adjacencies. When the
-assignment makes separation impossible — for example when every assigned pair uses one kick — no
-swap reduces the count, and the two stay adjacent. The resolved order is persisted in the session
-file, `resume` reads it instead of recomputing it, and the same inputs always produce the same
-persisted order.
+The repair runs in two deterministic stages and uses no randomness.
+
+1. **Improving swaps to a fixpoint.** Whenever two consecutive presentations share a
+   `kick_sample_id`, the pair at the later position trades places with the first later, then the
+   first earlier, presentation whose kick differs, and the swap is kept only when it strictly
+   reduces the number of shared-kick adjacencies. The scan repeats until a full pass makes no swap,
+   so the result admits no single swap that reduces the count. An order that already has no
+   shared-kick adjacency is returned unchanged.
+2. **The floor, when swaps are not enough.** Let `L` be the most pairs one kick supplies and `N`
+   the number of presentations. The `L` pairs of that kick fall into at most `N - L + 1` unbroken
+   runs, so at least `max(0, 2 * L - N - 1)` shared-kick adjacencies are unavoidable. If the
+   fixpoint still has more than that, the order is rebuilt: the kick with the most remaining pairs
+   goes next, never the kick just placed while another kick still has pairs, the pairs of each kick
+   keep their seeded relative order, and ties break on the kick's first appearance in the seeded
+   order. The rebuilt order reaches the bound, so the persisted order always has the fewest
+   shared-kick adjacencies the assignment allows, and a remaining adjacency is genuinely
+   unavoidable — for example when one kick supplies more than half of the pairs, or when every
+   assigned pair uses one kick.
+
+The resolved order is persisted in the session file, `resume` reads it instead of recomputing it,
+and the same inputs always produce the same persisted order. `tests/test_pair_rating_session.py`
+pins the counterexample from #17's review (session `rnd-5` of a seven-pair, four-kick assignment)
+and checks, over seeded synthetic assignments, that no single swap can improve the order, that it
+matches an exhaustive search on small assignments, and that a collision-free seeded order is never
+reordered.
 
 ## Playback
 
@@ -248,7 +265,9 @@ unreadable input. It never repairs a record. Run `export` before `validate`: a m
 ## What is automated and what is manual
 
 Automated by `tests/test_pair_rating_session.py`: the record contract and its invariants, the
-seeded order and its adjacency repair, the render rule (alignment, padding, mono broadcast, the
+seeded order and its adjacency repair (fixpoint, provable floor, exhaustive-search agreement,
+the repaired #17 counterexample and never reordering a collision-free order), the render rule
+(alignment, padding, mono broadcast, the
 fixed gain, lossless float output and untouched sources), the command backend (zero exit, non-zero
 exit, missing executable, timeout), preflight refusal of every input class, the durable journal and
 its failure path, pause and Ctrl-C resume, corrections, the cross-session duplicate guard, the
