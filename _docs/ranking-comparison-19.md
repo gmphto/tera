@@ -220,6 +220,7 @@ No session exists, so no session row carries a validate exit status.
 - unscored candidates: random 0 of 0 rated candidates scored; dsp-only 0 of 0 rated candidates scored; jev-only 0 of 0 rated candidates scored; hybrid 0 of 0 rated candidates scored
 - identical orderings: random 0 query pairs; dsp-only 0 query pairs; jev-only 0 query pairs; hybrid 0 query pairs
 - unrated queries: 0
+- the #65 split-manifest and evaluator-assignment schemas are this runner's declared expectation, because #65 has not landed: schema_version 1.0, dataset_version, the three seeds, tuning and held_out with kicks and basses, and the manifest's recorded split_manifest_digest for the manifest; schema_version 1.0, assignment_seed, split_manifest_digest and assignments (pair id to evaluator ids) for the assignment. This runner checks that the pair list's digest equals the manifest's recorded digest, and it never re-derives a manifest digest, a seed, a split, an assignment or a pair list
 - no threshold was lowered, no metric was changed and no denominator was redefined for this run
 - (latency: cold samples run as one fresh child process per sample; the exact spawned command is recorded in the private run artifact and the report carries its template so no private path is published)
 

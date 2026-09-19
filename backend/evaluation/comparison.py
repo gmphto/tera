@@ -3003,6 +3003,15 @@ def render_report(findings, analysis, gates, latency, key, identity, others, dig
         rendered.append("hybrid fallback on " + str(analysis["arms"]["hybrid"]["mode_counts"]
                                                     .get(MODE_DSP_ONLY, 0)) + " queries: "
                         + FALLBACK_REASON)
+    rendered.append("the #65 split-manifest and evaluator-assignment schemas are this runner's"
+                    " declared expectation, because #65 has not landed: schema_version 1.0,"
+                    " dataset_version, the three seeds, tuning and held_out with kicks and"
+                    " basses, and the manifest's recorded split_manifest_digest for the"
+                    " manifest; schema_version 1.0, assignment_seed, split_manifest_digest and"
+                    " assignments (pair id to evaluator ids) for the assignment. This runner"
+                    " checks that the pair list's digest equals the manifest's recorded digest,"
+                    " and it never re-derives a manifest digest, a seed, a split, an assignment"
+                    " or a pair list")
     rendered.append("no threshold was lowered, no metric was changed and no denominator was"
                     " redefined for this run")
     rendered.append("(latency: cold samples run as one fresh child process per sample; the"

@@ -665,6 +665,7 @@ def test_the_blocked_path_writes_the_report_with_zeros_and_shortfalls(tmp_path):
     assert "cannot support any lift or quality" in text
     assert "queries_with_11_rated_candidates: 0 of 0" in text
     assert comparison.ADAPTER_VERDICT in text
+    assert "never re-derives a manifest digest, a seed, a split, an assignment" in text
     for gate in ("MIN_HELDOUT_PAIRS = 300", "MIN_EVALUATORS = 5", "MIN_PAIRWISE_ACCURACY = 0.6"):
         assert gate in text, gate
     assert "not_implemented" in text
