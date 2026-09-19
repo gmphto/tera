@@ -197,9 +197,11 @@ A rhythmic question needs a usable candidate tempo and a usable song tempo. `son
 `song_tempo_unreliable`, and an unknown or unreliable candidate tempo the matching
 `candidate_tempo_unknown` or `candidate_tempo_unreliable` code. A tonal question needs both keys and
 never falls back to a fundamental. A texture question needs both sides' spectral centroid and
-roll-off. Tempo measurement does not exist yet ([#46](https://github.com/gmphto/tera/issues/46)), so
-every tempo in these fixtures is a declared synthetic value; this module consumes a reliable tempo
-and never produces one.
+roll-off. Rhythmic is the only dimension that requires song context: the other five are asked with
+`song is None` as well, and the song facts they could have used are withheld as `not_supplied`.
+Tempo measurement does not exist yet ([#46](https://github.com/gmphto/tera/issues/46)), so every
+tempo in these fixtures is a declared synthetic value; this module consumes a reliable tempo and
+never produces one.
 
 ## Instructions and prompt version
 
@@ -364,23 +366,23 @@ is ever stored or returned.
 
 | Code | Meaning |
 | --- | --- |
-| `dimension_mismatch` | `The response echoes a different contract dimension than the asked one |
-| `invalid_abstention` | `A null label does not carry exactly the model_abstained reason with no confidence and no probabilities, or a labeled response carries a reason |
-| `invalid_confidence` | `confidence is not a finite number in [0, 1] |
-| `invalid_probabilities` | `probabilities is not a five-entry list naming each contract label exactly once, or an entry is not an object with exactly label and probability, or a probability is not a number (booleans included) |
-| `invalid_question` | `The value passed as the asked question is not a JevQuestion |
-| `invalid_response` | `The response is not JSON text or a mapping, is not valid JSON, is not a JSON object, repeats a field name, or carries a non-finite JSON number |
-| `invalid_version` | `model_version is blank or is not text |
-| `label_probability_mismatch` | `label is not one of the labels attaining the highest probability; a tie is accepted |
-| `missing_field` | `The response object is missing one of the documented eight fields |
-| `probability_out_of_range` | `A probability is not a finite number in [0, 1] |
-| `probability_sum` | `The five probabilities do not sum to 1 within the contract's absolute tolerance of 1e-06 |
-| `prompt_version_mismatch` | `The response does not echo the asked prompt_version |
-| `question_id_mismatch` | `The response does not echo the asked question_id |
-| `question_unavailable` | `A response was offered for an UnavailableQuestion, so a question this product refused can never receive an accepted judgment |
-| `unexpected_field` | `The response object contains a field outside the documented eight; an overall compatibility, score, rank or overall field is rejected here |
-| `unsupported_dimension` | `The response dimension is outside the six contract literals, for example the plan-era alias frequencyFit |
-| `unsupported_label` | `The response label is not one of the five contract Label literals, for example GOOD, very_poor or rating-good |
+| `dimension_mismatch` | The response echoes a different contract dimension than the asked one |
+| `invalid_abstention` | A null `label` does not carry exactly the `model_abstained` reason with no confidence and no probabilities, or a labeled response carries a reason |
+| `invalid_confidence` | `confidence` is not a finite number in [0, 1] |
+| `invalid_probabilities` | `probabilities` is not a five-entry list naming each contract label exactly once, or an entry is not an object with exactly `label` and `probability`, or a probability is not a number (booleans included) |
+| `invalid_question` | The value passed as the asked question is not a `JevQuestion` |
+| `invalid_response` | The response is not JSON text or a mapping, is not valid JSON, is not a JSON object, repeats a field name, or carries a non-finite JSON number |
+| `invalid_version` | `model_version` is blank or is not text |
+| `label_probability_mismatch` | `label` is not one of the labels attaining the highest probability; a tie is accepted |
+| `missing_field` | The response object is missing one of the documented eight fields |
+| `probability_out_of_range` | A probability is not a finite number in [0, 1] |
+| `probability_sum` | The five probabilities do not sum to 1 within the contract's absolute tolerance of 1e-6 |
+| `prompt_version_mismatch` | The response does not echo the asked `prompt_version` |
+| `question_id_mismatch` | The response does not echo the asked `question_id` |
+| `question_unavailable` | A response was offered for an `UnavailableQuestion`, so a question this product refused can never receive an accepted judgment |
+| `unexpected_field` | The response object contains a field outside the documented eight; an overall `compatibility`, `score`, `rank` or `overall` field is rejected here |
+| `unsupported_dimension` | The response `dimension` is outside the six contract literals, for example the plan-era alias `frequencyFit` |
+| `unsupported_label` | The response `label` is not one of the five contract `Label` literals, for example `GOOD`, `very_poor` or `rating-good` |
 
 ## Derived judgment and versions
 
@@ -470,8 +472,8 @@ uv run pytest tests/test_jev_questions.py tests/test_jev_decisions.py --basetemp
 uv run pytest --basetemp .pytest_cache/jev-full
 ```
 
-Focused validation: 202 passed (`tests/test_jev_questions.py` and `tests/test_jev_decisions.py`,
-from 1070 collected tests). The full suite after this work is 1066 passed / 4 failed (1070
+Focused validation: 213 passed (`tests/test_jev_questions.py` 113 and `tests/test_jev_decisions.py`
+100, from 1081 collected tests). The full suite after this work is 1077 passed / 4 failed (1081
 collected), against the 864 passed / 4 failed baseline (868 collected). The four failures are
 pre-existing and sandbox-only: they spawn a subprocess with captured pipes, which this environment
 forbids (`test_batch.py`, `test_evaluation_manifest.py`, `test_evaluation_prepare.py`), and they are
