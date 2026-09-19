@@ -69,6 +69,22 @@ A consumer can always tell three states apart:
 abstention never carries a label. A question that was not asked is a record, an abstention is a
 judgment with a null label, and a judged answer carries a label.
 
+An `UnavailableQuestion` records its `dimension`, the first failure `code` and the `withheld` facts;
+it carries no prompt version and no judgment, because nothing was asked.
+
+## Question input errors
+
+`build_question` revalidates every supplied record the way the filter and the DSP baseline do: exact
+type plus a full `from_dict(to_dict())` round trip. A failure raises `QuestionInputError`, a
+`ValueError` with a stable `.code` in `INPUT_ERROR_CODES`:
+
+| Code | Condition |
+| --- | --- |
+| `invalid_dimension` | The dimension is not one of the six contract literals |
+| `invalid_kick` | The selected record is not a valid `Sample`, fails revalidation, or does not have role `kick` |
+| `invalid_candidate` | The candidate is not a valid `Sample`, its role is not `bass` or `sub-bass`, or it shares the kick's sample ID |
+| `invalid_context` | The supplied song context is not a valid `SongContext` |
+
 ## Evidence by dimension
 
 Every fact is a schema-1 contract fact: a `MEASURES` name or one of the documented non-measurement
@@ -454,5 +470,9 @@ uv run pytest tests/test_jev_questions.py tests/test_jev_decisions.py --basetemp
 uv run pytest --basetemp .pytest_cache/jev-full
 ```
 
-Focused validation: 197 passed. Fixture and test counts, the focused commands and the full-suite
-result are recorded in the issue report for task 13.
+Focused validation: 202 passed (`tests/test_jev_questions.py` and `tests/test_jev_decisions.py`,
+from 1070 collected tests). The full suite after this work is 1066 passed / 4 failed (1070
+collected), against the 864 passed / 4 failed baseline (868 collected). The four failures are
+pre-existing and sandbox-only: they spawn a subprocess with captured pipes, which this environment
+forbids (`test_batch.py`, `test_evaluation_manifest.py`, `test_evaluation_prepare.py`), and they are
+unrelated to this contract.

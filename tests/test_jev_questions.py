@@ -18,10 +18,11 @@ from backend.contracts import (AudioFeatures, AudioMetadata, Dimension, Label, M
                                MusicalKey, Sample, SongContext)
 from backend.palette.compatibility import CONFIDENCE_THRESHOLD
 from backend.intelligence import questions as questions_module
-from backend.intelligence.questions import (DIMENSIONS, INSTRUCTIONS, OPTIONAL_EVIDENCE,
-                                            PROMPT_VERSION, QUESTION_UNAVAILABLE_CODES,
-                                            REQUIRED_EVIDENCE, WITHHELD_REASONS, JevQuestion,
-                                            QuestionInputError, UnavailableQuestion, build_question)
+from backend.intelligence.questions import (DIMENSIONS, INSTRUCTIONS, INPUT_ERROR_CODES,
+                                            OPTIONAL_EVIDENCE, PROMPT_VERSION,
+                                            QUESTION_UNAVAILABLE_CODES, REQUIRED_EVIDENCE,
+                                            WITHHELD_REASONS, JevQuestion, QuestionInputError,
+                                            UnavailableQuestion, build_question)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -570,6 +571,8 @@ def test_document_records_the_version_instructions_evidence_and_code_table():
     assert {row[0].strip(TICK) for row in table_rows(text, "## Unavailable codes")
             if row[0].startswith(TICK)} == set(QUESTION_UNAVAILABLE_CODES)
     for code in QUESTION_UNAVAILABLE_CODES:
+        assert TICK + code + TICK in text
+    for code in INPUT_ERROR_CODES:
         assert TICK + code + TICK in text
     for name in ("unknown", "below_reliability_threshold", "not_supplied", "song_context_absent",
                  "model_abstained", "CONFIDENCE_THRESHOLD", "0.80", "1e-6"):
