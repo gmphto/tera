@@ -1,0 +1,332 @@
+[
+  {
+    "name": "judgment_confident_good",
+    "question_case": "full_frequency",
+    "expects": {
+      "outcome": "judgment",
+      "label": "good",
+      "probabilities": {"very-poor": 0.05, "poor": 0.05, "neutral": 0.1, "good": 0.6, "excellent": 0.2},
+      "confidence": 0.77,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.6},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": 0.77,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "note": "A well-formed label, five probabilities and a self-reported confidence."
+  },
+  {
+    "name": "judgment_tied_argmax",
+    "question_case": "full_transient",
+    "expects": {
+      "outcome": "judgment",
+      "label": "neutral",
+      "probabilities": {"very-poor": 0.1, "poor": 0.1, "neutral": 0.4, "good": 0.4, "excellent": 0.0},
+      "confidence": 0.55,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "neutral",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.1},
+        {"label": "poor", "probability": 0.1},
+        {"label": "neutral", "probability": 0.4},
+        {"label": "good", "probability": 0.4},
+        {"label": "excellent", "probability": 0.0}
+      ],
+      "confidence": 0.55,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "note": "Two labels attain the maximum; either is accepted."
+  },
+  {
+    "name": "judgment_probabilities_out_of_contract_order",
+    "question_case": "full_tonal",
+    "expects": {
+      "outcome": "judgment",
+      "label": "good",
+      "probabilities": {"very-poor": 0.05, "poor": 0.05, "neutral": 0.1, "good": 0.6, "excellent": 0.2},
+      "confidence": 0.61,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "good",
+      "probabilities": [
+        {"label": "good", "probability": 0.6},
+        {"label": "poor", "probability": 0.05},
+        {"label": "excellent", "probability": 0.2},
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1}
+      ],
+      "confidence": 0.61,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "note": "The validated probabilities are ordered by the contract Label literal order."
+  },
+  {
+    "name": "judgment_confidence_below_the_chosen_probability",
+    "question_case": "full_texture",
+    "expects": {
+      "outcome": "judgment",
+      "label": "good",
+      "probabilities": {"very-poor": 0.05, "poor": 0.05, "neutral": 0.1, "good": 0.6, "excellent": 0.2},
+      "confidence": 0.05,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.6},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": 0.05,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "note": "Confidence is a self-report and is never compared with the probabilities."
+  },
+  {
+    "name": "judgment_confidence_above_the_chosen_probability",
+    "question_case": "full_arrangement",
+    "expects": {
+      "outcome": "judgment",
+      "label": "good",
+      "probabilities": {"very-poor": 0.05, "poor": 0.05, "neutral": 0.1, "good": 0.6, "excellent": 0.2},
+      "confidence": 1.0,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.6},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": 1.0,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    }
+  },
+  {
+    "name": "judgment_from_json_text",
+    "question_case": "full_frequency",
+    "expects": {
+      "outcome": "judgment",
+      "label": "good",
+      "probabilities": {"very-poor": 0.05, "poor": 0.05, "neutral": 0.1, "good": 0.6, "excellent": 0.2},
+      "confidence": 0.77,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "response_text": "{\"confidence\": 0.77, \"dimension\": \"<dimension>\", \"label\": \"good\", \"model_version\": \"synthetic-model-1\", \"probabilities\": [{\"label\": \"very-poor\", \"probability\": 0.05}, {\"label\": \"poor\", \"probability\": 0.05}, {\"label\": \"neutral\", \"probability\": 0.1}, {\"label\": \"good\", \"probability\": 0.6}, {\"label\": \"excellent\", \"probability\": 0.2}], \"prompt_version\": \"<prompt_version>\", \"question_id\": \"<question_id>\", \"unavailable_reason\": null}",
+    "note": "A response may arrive as JSON text instead of a mapping."
+  },
+  {
+    "name": "judgment_integer_numbers",
+    "question_case": "full_rhythmic",
+    "expects": {
+      "outcome": "judgment",
+      "label": "excellent",
+      "probabilities": {"very-poor": 0, "poor": 0, "neutral": 0, "good": 0, "excellent": 1},
+      "confidence": 1,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "excellent",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0},
+        {"label": "poor", "probability": 0},
+        {"label": "neutral", "probability": 0},
+        {"label": "good", "probability": 0},
+        {"label": "excellent", "probability": 1}
+      ],
+      "confidence": 1,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "note": "Integer probabilities and confidence are finite numbers in range."
+  },
+  {
+    "name": "judgment_probability_sum_within_contract_tolerance",
+    "question_case": "full_frequency",
+    "expects": {
+      "outcome": "judgment",
+      "label": "excellent",
+      "probabilities": {"very-poor": 0.2, "poor": 0.2, "neutral": 0.2, "good": 0.2, "excellent": 0.2000005},
+      "confidence": 0.5,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "excellent",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.2},
+        {"label": "poor", "probability": 0.2},
+        {"label": "neutral", "probability": 0.2},
+        {"label": "good", "probability": 0.2},
+        {"label": "excellent", "probability": 0.2000005}
+      ],
+      "confidence": 0.5,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "note": "The contract's 1e-6 absolute tolerance is inclusive."
+  },
+  {
+    "name": "abstention_model_abstained",
+    "question_case": "full_tonal",
+    "expects": {
+      "outcome": "abstention",
+      "label": null,
+      "probabilities": null,
+      "confidence": null,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": "model_abstained"
+    },
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": null,
+      "probabilities": null,
+      "confidence": null,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": "model_abstained"
+    },
+    "note": "An abstention carries only the stable token; no free text is stored."
+  },
+  {
+    "name": "abstention_empty_probabilities",
+    "question_case": "full_frequency",
+    "expects": {
+      "outcome": "abstention",
+      "label": null,
+      "probabilities": null,
+      "confidence": null,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": "model_abstained"
+    },
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": null,
+      "probabilities": [],
+      "confidence": null,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": "model_abstained"
+    }
+  },
+  {
+    "name": "judgment_contradicts_measured_facts",
+    "question_case": "frequency_low_band_contradiction",
+    "expects": {
+      "outcome": "judgment",
+      "label": "excellent",
+      "probabilities": {"very-poor": 0.0, "poor": 0.0, "neutral": 0.05, "good": 0.15, "excellent": 0.8},
+      "confidence": 0.93,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "excellent",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.0},
+        {"label": "poor", "probability": 0.0},
+        {"label": "neutral", "probability": 0.05},
+        {"label": "good", "probability": 0.15},
+        {"label": "excellent", "probability": 0.8}
+      ],
+      "confidence": 0.93,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "note": "Both sides concentrate in the low band, yet an excellent judgment is accepted unchanged: the module never reconciles a judgment with a measured fact (#15)."
+  },
+  {
+    "name": "judgment_records_distinct_model_version",
+    "question_case": "full_arrangement",
+    "expects": {
+      "outcome": "judgment",
+      "label": "good",
+      "probabilities": {"very-poor": 0.05, "poor": 0.05, "neutral": 0.1, "good": 0.6, "excellent": 0.2},
+      "confidence": 0.44,
+      "model_version": "synthetic-model-2",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.6},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": 0.44,
+      "model_version": "synthetic-model-2",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    }
+  }
+]

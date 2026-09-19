@@ -1,0 +1,989 @@
+[
+  {
+    "name": "unexpected_field_overall",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.6},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": 0.77,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null,
+      "overall": 0.9
+    },
+    "expects": {"code": "unexpected_field"},
+    "note": "No question or answer may carry an overall, compatibility, score or rank field."
+  },
+  {
+    "name": "unexpected_field_compatibility",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.6},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": 0.77,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null,
+      "compatibility": 0.9
+    },
+    "expects": {"code": "unexpected_field"},
+    "note": "No question or answer may carry an overall, compatibility, score or rank field."
+  },
+  {
+    "name": "unexpected_field_score",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.6},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": 0.77,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null,
+      "score": 0.9
+    },
+    "expects": {"code": "unexpected_field"},
+    "note": "No question or answer may carry an overall, compatibility, score or rank field."
+  },
+  {
+    "name": "unexpected_field_rank",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.6},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": 0.77,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null,
+      "rank": 0.9
+    },
+    "expects": {"code": "unexpected_field"},
+    "note": "No question or answer may carry an overall, compatibility, score or rank field."
+  },
+  {
+    "name": "missing_field_confidence",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.6},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "expects": {"code": "missing_field"}
+  },
+  {
+    "name": "missing_field_probabilities",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "good",
+      "confidence": 0.77,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "expects": {"code": "missing_field"}
+  },
+  {
+    "name": "missing_field_prompt_version",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.6},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": 0.77,
+      "model_version": "synthetic-model-1",
+      "unavailable_reason": null
+    },
+    "expects": {"code": "missing_field"}
+  },
+  {
+    "name": "invalid_response_not_json",
+    "question_case": "full_frequency",
+    "response_text": "not json at all",
+    "expects": {"code": "invalid_response"}
+  },
+  {
+    "name": "invalid_response_duplicate_keys",
+    "question_case": "full_frequency",
+    "response_text": "{\"question_id\": \"a\", \"question_id\": \"b\"}",
+    "expects": {"code": "invalid_response"}
+  },
+  {
+    "name": "invalid_response_non_finite_number",
+    "question_case": "full_frequency",
+    "response_text": "{\"question_id\": \"<question_id>\", \"confidence\": NaN}",
+    "expects": {"code": "invalid_response"}
+  },
+  {
+    "name": "invalid_response_json_array",
+    "question_case": "full_frequency",
+    "response_text": "[{\"question_id\": \"<question_id>\"}]",
+    "expects": {"code": "invalid_response"}
+  },
+  {
+    "name": "invalid_response_list_value",
+    "question_case": "full_frequency",
+    "response_value": "list",
+    "expects": {"code": "invalid_response"}
+  },
+  {
+    "name": "invalid_response_number_value",
+    "question_case": "full_frequency",
+    "response_value": "number",
+    "expects": {"code": "invalid_response"}
+  },
+  {
+    "name": "invalid_response_none_value",
+    "question_case": "full_frequency",
+    "response_value": "none",
+    "expects": {"code": "invalid_response"}
+  },
+  {
+    "name": "invalid_question_none",
+    "question_value": "none",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.6},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": 0.77,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "expects": {"code": "invalid_question"}
+  },
+  {
+    "name": "invalid_question_mapping",
+    "question_value": "mapping",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.6},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": 0.77,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "expects": {"code": "invalid_question"}
+  },
+  {
+    "name": "invalid_question_text",
+    "question_value": "text",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.6},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": 0.77,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "expects": {"code": "invalid_question"}
+  },
+  {
+    "name": "question_unavailable",
+    "question_case": "rhythmic_song_context_absent",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.6},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": 0.77,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "expects": {"code": "question_unavailable"},
+    "note": "A refused question can never receive an accepted judgment."
+  },
+  {
+    "name": "question_id_mismatch",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "q-0000000000000000000000000000000000000000000000000000000000000000",
+      "dimension": "<dimension>",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.6},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": 0.77,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "expects": {"code": "question_id_mismatch"}
+  },
+  {
+    "name": "dimension_mismatch",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "texture",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.6},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": 0.77,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "expects": {"code": "dimension_mismatch"}
+  },
+  {
+    "name": "prompt_version_mismatch",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.6},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": 0.77,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "other-prompt-1",
+      "unavailable_reason": null
+    },
+    "expects": {"code": "prompt_version_mismatch"}
+  },
+  {
+    "name": "unsupported_dimension_frequencyFit",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "frequencyFit",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.6},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": 0.77,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "expects": {"code": "unsupported_dimension"},
+    "note": "Plan-era or unknown dimension aliases are rejected, not coerced."
+  },
+  {
+    "name": "unsupported_dimension_loudness",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "loudness",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.6},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": 0.77,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "expects": {"code": "unsupported_dimension"},
+    "note": "Plan-era or unknown dimension aliases are rejected, not coerced."
+  },
+  {
+    "name": "unsupported_dimension_Frequency",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "Frequency",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.6},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": 0.77,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "expects": {"code": "unsupported_dimension"},
+    "note": "Plan-era or unknown dimension aliases are rejected, not coerced."
+  },
+  {
+    "name": "unsupported_label_GOOD",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "GOOD",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.6},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": 0.77,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "expects": {"code": "unsupported_label"}
+  },
+  {
+    "name": "unsupported_label_very_poor",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "very_poor",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.6},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": 0.77,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "expects": {"code": "unsupported_label"}
+  },
+  {
+    "name": "unsupported_label_rating-good",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "rating-good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.6},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": 0.77,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "expects": {"code": "unsupported_label"}
+  },
+  {
+    "name": "invalid_probabilities_missing_label",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.6}
+      ],
+      "confidence": 0.77,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "expects": {"code": "invalid_probabilities"}
+  },
+  {
+    "name": "invalid_probabilities_duplicate_label",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.6},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": 0.77,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "expects": {"code": "invalid_probabilities"}
+  },
+  {
+    "name": "invalid_probabilities_extra_label",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.6},
+        {"label": "excellent", "probability": 0.2},
+        {"label": "good", "probability": 0.0}
+      ],
+      "confidence": 0.77,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "expects": {"code": "invalid_probabilities"}
+  },
+  {
+    "name": "invalid_probabilities_non_numeric",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": "0.60"},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": 0.77,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "expects": {"code": "invalid_probabilities"}
+  },
+  {
+    "name": "invalid_probabilities_boolean",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": true},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": 0.77,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "expects": {"code": "invalid_probabilities"}
+  },
+  {
+    "name": "invalid_probabilities_not_a_list",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "good",
+      "probabilities": {"good": 0.6, "poor": 0.4},
+      "confidence": 0.77,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "expects": {"code": "invalid_probabilities"}
+  },
+  {
+    "name": "probability_out_of_range_negative",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": -0.01},
+        {"label": "poor", "probability": 0.06},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.65},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": 0.77,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "expects": {"code": "probability_out_of_range"}
+  },
+  {
+    "name": "probability_out_of_range_above_one",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 1.01},
+        {"label": "excellent", "probability": -0.21}
+      ],
+      "confidence": 0.77,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "expects": {"code": "probability_out_of_range"}
+  },
+  {
+    "name": "probability_out_of_range_not_finite",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": Infinity},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": 0.77,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "expects": {"code": "probability_out_of_range"}
+  },
+  {
+    "name": "probability_sum_below_one",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.5},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": 0.77,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "expects": {"code": "probability_sum"}
+  },
+  {
+    "name": "probability_sum_above_one",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.7},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": 0.77,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "expects": {"code": "probability_sum"}
+  },
+  {
+    "name": "probability_sum_outside_tolerance",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.2},
+        {"label": "poor", "probability": 0.2},
+        {"label": "neutral", "probability": 0.2},
+        {"label": "good", "probability": 0.2},
+        {"label": "excellent", "probability": 0.200002}
+      ],
+      "confidence": 0.77,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "expects": {"code": "probability_sum"}
+  },
+  {
+    "name": "label_probability_mismatch",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "poor",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.6},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": 0.77,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "expects": {"code": "label_probability_mismatch"}
+  },
+  {
+    "name": "invalid_confidence_negative",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.6},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": -0.1,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "expects": {"code": "invalid_confidence"}
+  },
+  {
+    "name": "invalid_confidence_above_one",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.6},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": 1.1,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "expects": {"code": "invalid_confidence"}
+  },
+  {
+    "name": "invalid_confidence_text",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.6},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": "0.9",
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "expects": {"code": "invalid_confidence"}
+  },
+  {
+    "name": "invalid_confidence_boolean",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.6},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": true,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "expects": {"code": "invalid_confidence"}
+  },
+  {
+    "name": "invalid_confidence_null",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.6},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": null,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "expects": {"code": "invalid_confidence"}
+  },
+  {
+    "name": "invalid_abstention_with_confidence",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": null,
+      "probabilities": null,
+      "confidence": 0.5,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": "model_abstained"
+    },
+    "expects": {"code": "invalid_abstention"}
+  },
+  {
+    "name": "invalid_abstention_with_probabilities",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": null,
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.6},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": null,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": "model_abstained"
+    },
+    "expects": {"code": "invalid_abstention"}
+  },
+  {
+    "name": "invalid_abstention_unknown_reason",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": null,
+      "probabilities": null,
+      "confidence": null,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": "not_sure"
+    },
+    "expects": {"code": "invalid_abstention"}
+  },
+  {
+    "name": "invalid_abstention_missing_reason",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": null,
+      "probabilities": null,
+      "confidence": null,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "expects": {"code": "invalid_abstention"}
+  },
+  {
+    "name": "invalid_abstention_labeled_response_carries_reason",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.6},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": 0.77,
+      "model_version": "synthetic-model-1",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": "model_abstained"
+    },
+    "expects": {"code": "invalid_abstention"}
+  },
+  {
+    "name": "invalid_version_blank",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.6},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": 0.77,
+      "model_version": "",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "expects": {"code": "invalid_version"}
+  },
+  {
+    "name": "invalid_version_whitespace",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.6},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": 0.77,
+      "model_version": "   ",
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "expects": {"code": "invalid_version"}
+  },
+  {
+    "name": "invalid_version_number",
+    "question_case": "full_frequency",
+    "response": {
+      "question_id": "<question_id>",
+      "dimension": "<dimension>",
+      "label": "good",
+      "probabilities": [
+        {"label": "very-poor", "probability": 0.05},
+        {"label": "poor", "probability": 0.05},
+        {"label": "neutral", "probability": 0.1},
+        {"label": "good", "probability": 0.6},
+        {"label": "excellent", "probability": 0.2}
+      ],
+      "confidence": 0.77,
+      "model_version": 7,
+      "prompt_version": "<prompt_version>",
+      "unavailable_reason": null
+    },
+    "expects": {"code": "invalid_version"}
+  }
+]
