@@ -1,0 +1,3073 @@
+[
+  {
+    "name": "pair_frequency",
+    "note": "complementary and conflicting pair on frequency",
+    "kick": {
+      "bands": {
+        "sub": 0.5,
+        "bass": 0.3,
+        "low_mid": 0.1,
+        "mid": 0.05,
+        "high_mid": 0.03,
+        "high": 0.02
+      },
+      "attack": 10,
+      "decay": 250,
+      "strength": 0.8,
+      "position": 0,
+      "tonic": "C",
+      "mode": "major",
+      "key_confidence": 0.9,
+      "fundamental": 55,
+      "fundamental_confidence": 0.9
+    },
+    "candidates": [
+      {
+        "id": "bass-complement",
+        "bands": {
+          "bass": 0.1,
+          "low_mid": 0.3,
+          "mid": 0.4,
+          "high_mid": 0.15,
+          "high": 0.05
+        },
+        "position": 300,
+        "tonic": "C",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 110,
+        "fundamental_confidence": 0.9
+      },
+      {
+        "id": "bass-conflict",
+        "bands": {
+          "sub": 0.6,
+          "bass": 0.3,
+          "low_mid": 0.05,
+          "mid": 0.03,
+          "high_mid": 0.01,
+          "high": 0.01
+        },
+        "position": 100,
+        "tonic": "F#",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 55,
+        "fundamental_confidence": 0.9
+      }
+    ],
+    "evidence": {
+      "bass-complement": [
+        {
+          "dimension": "frequency",
+          "label": "excellent",
+          "confidence": 0.9
+        }
+      ],
+      "bass-conflict": [
+        {
+          "dimension": "frequency",
+          "label": "very-poor",
+          "confidence": 0.9
+        }
+      ]
+    },
+    "expects": {
+      "mode": "hybrid",
+      "jev_status": "jev_partial",
+      "order": [
+        "bass-complement",
+        "bass-conflict"
+      ],
+      "unscored": [],
+      "alternatives": [],
+      "candidates": {
+        "bass-complement": {
+          "rank": 1,
+          "compatibility": 0.9785714285714288,
+          "confidence": 0.7,
+          "uncertain": false,
+          "warnings": [],
+          "jev_judgments": [
+            "frequency"
+          ],
+          "dimensions": {
+            "frequency": {
+              "weight": 0.3,
+              "dsp": 0.9,
+              "jev": 1,
+              "combined": 0.95,
+              "unavailable_reason": null
+            },
+            "transient": {
+              "weight": 0.2,
+              "dsp": 1,
+              "jev": null,
+              "combined": 1,
+              "unavailable_reason": null
+            },
+            "tonal": {
+              "weight": 0.2,
+              "dsp": 1,
+              "jev": null,
+              "combined": 1,
+              "unavailable_reason": null
+            },
+            "texture": {
+              "weight": 0.1,
+              "dsp": null,
+              "jev": null,
+              "combined": null,
+              "unavailable_reason": "no_evidence"
+            }
+          }
+        },
+        "bass-conflict": {
+          "rank": 2,
+          "compatibility": 0.21648351648351646,
+          "confidence": 0.7,
+          "uncertain": false,
+          "warnings": [],
+          "jev_judgments": [
+            "frequency"
+          ],
+          "dimensions": {
+            "frequency": {
+              "weight": 0.3,
+              "dsp": 0.2,
+              "jev": 0,
+              "combined": 0.1,
+              "unavailable_reason": null
+            },
+            "transient": {
+              "weight": 0.2,
+              "dsp": 0.5076923076923077,
+              "combined": 0.5076923076923077
+            },
+            "tonal": {
+              "weight": 0.2,
+              "dsp": 0.1,
+              "combined": 0.1
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "pair_transient",
+    "note": "complementary and conflicting pair on transient",
+    "kick": {
+      "bands": {
+        "sub": 0.5,
+        "bass": 0.3,
+        "low_mid": 0.1,
+        "mid": 0.05,
+        "high_mid": 0.03,
+        "high": 0.02
+      },
+      "attack": 10,
+      "decay": 250,
+      "strength": 0.8,
+      "position": 0,
+      "tonic": "C",
+      "mode": "major",
+      "key_confidence": 0.9,
+      "fundamental": 55,
+      "fundamental_confidence": 0.9
+    },
+    "candidates": [
+      {
+        "id": "bass-complement",
+        "bands": {
+          "bass": 0.1,
+          "low_mid": 0.3,
+          "mid": 0.4,
+          "high_mid": 0.15,
+          "high": 0.05
+        },
+        "position": 300,
+        "tonic": "C",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 110,
+        "fundamental_confidence": 0.9
+      },
+      {
+        "id": "bass-conflict",
+        "bands": {
+          "sub": 0.6,
+          "bass": 0.3,
+          "low_mid": 0.05,
+          "mid": 0.03,
+          "high_mid": 0.01,
+          "high": 0.01
+        },
+        "position": 100,
+        "tonic": "F#",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 55,
+        "fundamental_confidence": 0.9
+      }
+    ],
+    "evidence": {
+      "bass-complement": [
+        {
+          "dimension": "transient",
+          "label": "good",
+          "confidence": 0.9
+        }
+      ],
+      "bass-conflict": [
+        {
+          "dimension": "transient",
+          "label": "poor",
+          "confidence": 0.9
+        }
+      ]
+    },
+    "expects": {
+      "mode": "hybrid",
+      "jev_status": "jev_partial",
+      "order": [
+        "bass-complement",
+        "bass-conflict"
+      ],
+      "unscored": [],
+      "alternatives": [],
+      "candidates": {
+        "bass-complement": {
+          "rank": 1,
+          "compatibility": 0.9214285714285715,
+          "confidence": 0.7,
+          "uncertain": false,
+          "warnings": [],
+          "jev_judgments": [
+            "transient"
+          ],
+          "dimensions": {
+            "transient": {
+              "dsp": 1,
+              "jev": 0.75,
+              "combined": 0.875
+            }
+          }
+        },
+        "bass-conflict": {
+          "rank": 2,
+          "compatibility": 0.22252747252747254,
+          "confidence": 0.7,
+          "uncertain": false,
+          "warnings": [],
+          "jev_judgments": [
+            "transient"
+          ],
+          "dimensions": {
+            "transient": {
+              "dsp": 0.5076923076923077,
+              "jev": 0.25,
+              "combined": 0.37884615384615383
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "pair_tonal",
+    "note": "complementary and conflicting pair on tonal; the conflicting judgment is 0.65 away and is reported",
+    "kick": {
+      "bands": {
+        "sub": 0.5,
+        "bass": 0.3,
+        "low_mid": 0.1,
+        "mid": 0.05,
+        "high_mid": 0.03,
+        "high": 0.02
+      },
+      "attack": 10,
+      "decay": 250,
+      "strength": 0.8,
+      "position": 0,
+      "tonic": "C",
+      "mode": "major",
+      "key_confidence": 0.9,
+      "fundamental": 55,
+      "fundamental_confidence": 0.9
+    },
+    "candidates": [
+      {
+        "id": "bass-complement",
+        "bands": {
+          "bass": 0.1,
+          "low_mid": 0.3,
+          "mid": 0.4,
+          "high_mid": 0.15,
+          "high": 0.05
+        },
+        "position": 300,
+        "tonic": "C",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 110,
+        "fundamental_confidence": 0.9
+      },
+      {
+        "id": "bass-conflict",
+        "bands": {
+          "sub": 0.6,
+          "bass": 0.3,
+          "low_mid": 0.05,
+          "mid": 0.03,
+          "high_mid": 0.01,
+          "high": 0.01
+        },
+        "position": 100,
+        "tonic": "F#",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 55,
+        "fundamental_confidence": 0.9
+      }
+    ],
+    "evidence": {
+      "bass-complement": [
+        {
+          "dimension": "tonal",
+          "label": "neutral",
+          "confidence": 0.9
+        }
+      ],
+      "bass-conflict": [
+        {
+          "dimension": "tonal",
+          "label": "good",
+          "confidence": 0.9
+        }
+      ]
+    },
+    "expects": {
+      "mode": "hybrid",
+      "jev_status": "jev_partial",
+      "order": [
+        "bass-complement",
+        "bass-conflict"
+      ],
+      "unscored": [],
+      "alternatives": [],
+      "candidates": {
+        "bass-complement": {
+          "rank": 1,
+          "compatibility": 0.8857142857142859,
+          "confidence": 0.7,
+          "uncertain": false,
+          "warnings": [],
+          "dimensions": {
+            "tonal": {
+              "dsp": 1,
+              "jev": 0.5,
+              "combined": 0.75
+            }
+          }
+        },
+        "bass-conflict": {
+          "rank": 2,
+          "compatibility": 0.3521978021978022,
+          "confidence": 0.7,
+          "uncertain": false,
+          "warnings": [
+            "dimension_disagreement"
+          ],
+          "dimensions": {
+            "tonal": {
+              "dsp": 0.1,
+              "jev": 0.75,
+              "combined": 0.425
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "pair_texture",
+    "note": "complementary and conflicting pair on the Jev-only texture dimension",
+    "kick": {
+      "bands": {
+        "sub": 0.5,
+        "bass": 0.3,
+        "low_mid": 0.1,
+        "mid": 0.05,
+        "high_mid": 0.03,
+        "high": 0.02
+      },
+      "attack": 10,
+      "decay": 250,
+      "strength": 0.8,
+      "position": 0,
+      "tonic": "C",
+      "mode": "major",
+      "key_confidence": 0.9,
+      "fundamental": 55,
+      "fundamental_confidence": 0.9
+    },
+    "candidates": [
+      {
+        "id": "bass-complement",
+        "bands": {
+          "bass": 0.1,
+          "low_mid": 0.3,
+          "mid": 0.4,
+          "high_mid": 0.15,
+          "high": 0.05
+        },
+        "position": 300,
+        "tonic": "C",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 110,
+        "fundamental_confidence": 0.9
+      },
+      {
+        "id": "bass-conflict",
+        "bands": {
+          "sub": 0.6,
+          "bass": 0.3,
+          "low_mid": 0.05,
+          "mid": 0.03,
+          "high_mid": 0.01,
+          "high": 0.01
+        },
+        "position": 100,
+        "tonic": "F#",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 55,
+        "fundamental_confidence": 0.9
+      }
+    ],
+    "evidence": {
+      "bass-complement": [
+        {
+          "dimension": "texture",
+          "label": "excellent",
+          "confidence": 0.9
+        }
+      ],
+      "bass-conflict": [
+        {
+          "dimension": "texture",
+          "label": "very-poor",
+          "confidence": 0.9
+        }
+      ]
+    },
+    "expects": {
+      "mode": "hybrid",
+      "jev_status": "jev_partial",
+      "order": [
+        "bass-complement",
+        "bass-conflict"
+      ],
+      "unscored": [],
+      "alternatives": [],
+      "candidates": {
+        "bass-complement": {
+          "rank": 1,
+          "compatibility": 0.9625000000000001,
+          "confidence": 0.8,
+          "uncertain": false,
+          "warnings": [],
+          "jev_judgments": [
+            "texture"
+          ],
+          "dimensions": {
+            "frequency": {
+              "dsp": 0.9,
+              "combined": 0.9
+            },
+            "texture": {
+              "weight": 0.1,
+              "dsp": null,
+              "jev": 1,
+              "combined": 1,
+              "unavailable_reason": null
+            }
+          }
+        },
+        "bass-conflict": {
+          "rank": 2,
+          "compatibility": 0.22692307692307695,
+          "confidence": 0.8,
+          "uncertain": false,
+          "warnings": [],
+          "jev_judgments": [
+            "texture"
+          ],
+          "dimensions": {
+            "texture": {
+              "weight": 0.1,
+              "dsp": null,
+              "jev": 0,
+              "combined": 0
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "pair_arrangement",
+    "note": "complementary and conflicting pair on the Jev-only arrangement dimension",
+    "kick": {
+      "bands": {
+        "sub": 0.5,
+        "bass": 0.3,
+        "low_mid": 0.1,
+        "mid": 0.05,
+        "high_mid": 0.03,
+        "high": 0.02
+      },
+      "attack": 10,
+      "decay": 250,
+      "strength": 0.8,
+      "position": 0,
+      "tonic": "C",
+      "mode": "major",
+      "key_confidence": 0.9,
+      "fundamental": 55,
+      "fundamental_confidence": 0.9
+    },
+    "candidates": [
+      {
+        "id": "bass-complement",
+        "bands": {
+          "bass": 0.1,
+          "low_mid": 0.3,
+          "mid": 0.4,
+          "high_mid": 0.15,
+          "high": 0.05
+        },
+        "position": 300,
+        "tonic": "C",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 110,
+        "fundamental_confidence": 0.9
+      },
+      {
+        "id": "bass-conflict",
+        "bands": {
+          "sub": 0.6,
+          "bass": 0.3,
+          "low_mid": 0.05,
+          "mid": 0.03,
+          "high_mid": 0.01,
+          "high": 0.01
+        },
+        "position": 100,
+        "tonic": "F#",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 55,
+        "fundamental_confidence": 0.9
+      }
+    ],
+    "evidence": {
+      "bass-complement": [
+        {
+          "dimension": "arrangement",
+          "label": "excellent",
+          "confidence": 0.9
+        }
+      ],
+      "bass-conflict": [
+        {
+          "dimension": "arrangement",
+          "label": "very-poor",
+          "confidence": 0.9
+        }
+      ]
+    },
+    "expects": {
+      "mode": "hybrid",
+      "jev_status": "jev_partial",
+      "order": [
+        "bass-complement",
+        "bass-conflict"
+      ],
+      "unscored": [],
+      "alternatives": [],
+      "candidates": {
+        "bass-complement": {
+          "rank": 1,
+          "compatibility": 0.9666666666666669,
+          "confidence": 0.9,
+          "uncertain": false,
+          "warnings": [],
+          "jev_judgments": [
+            "arrangement"
+          ],
+          "dimensions": {
+            "arrangement": {
+              "weight": 0.2,
+              "dsp": null,
+              "jev": 1,
+              "combined": 1,
+              "unavailable_reason": null
+            }
+          }
+        },
+        "bass-conflict": {
+          "rank": 2,
+          "compatibility": 0.20170940170940171,
+          "confidence": 0.9,
+          "uncertain": false,
+          "warnings": [],
+          "jev_judgments": [
+            "arrangement"
+          ],
+          "dimensions": {
+            "arrangement": {
+              "weight": 0.2,
+              "dsp": null,
+              "jev": 0,
+              "combined": 0
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "dimension_states",
+    "note": "all four states of frequency in one run: judgment only, both sources, DSP only with an explicit unavailable entry, neither",
+    "kick": {
+      "bands": {
+        "sub": 0.5,
+        "bass": 0.3,
+        "low_mid": 0.1,
+        "mid": 0.05,
+        "high_mid": 0.03,
+        "high": 0.02
+      },
+      "attack": 10,
+      "decay": 250,
+      "strength": 0.8,
+      "position": 0,
+      "tonic": "C",
+      "mode": "major",
+      "key_confidence": 0.9,
+      "fundamental": 55,
+      "fundamental_confidence": 0.9
+    },
+    "candidates": [
+      {
+        "id": "bass-a-judgment-only",
+        "bands": {}
+      },
+      {
+        "id": "bass-b-both",
+        "bands": {
+          "bass": 0.1,
+          "low_mid": 0.3,
+          "mid": 0.4,
+          "high_mid": 0.15,
+          "high": 0.05
+        },
+        "position": 300,
+        "tonic": "C",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 110,
+        "fundamental_confidence": 0.9
+      },
+      {
+        "id": "bass-c-dsp-only-reason",
+        "bands": {
+          "bass": 0.1,
+          "low_mid": 0.3,
+          "mid": 0.4,
+          "high_mid": 0.15,
+          "high": 0.05
+        },
+        "position": 300,
+        "tonic": "C",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 110,
+        "fundamental_confidence": 0.9
+      },
+      {
+        "id": "bass-d-neither",
+        "bands": {},
+        "position": 300,
+        "tonic": "C",
+        "mode": "major",
+        "key_confidence": 0.9
+      }
+    ],
+    "evidence": {
+      "bass-a-judgment-only": [
+        {
+          "dimension": "frequency",
+          "label": "excellent",
+          "confidence": 0.9
+        }
+      ],
+      "bass-b-both": [
+        {
+          "dimension": "frequency",
+          "label": "good",
+          "confidence": 0.9
+        }
+      ],
+      "bass-c-dsp-only-reason": [
+        {
+          "dimension": "frequency",
+          "unavailable_reason": "kick_key_unknown"
+        }
+      ]
+    },
+    "expects": {
+      "mode": "hybrid",
+      "jev_status": "jev_partial",
+      "order": [
+        "bass-a-judgment-only",
+        "bass-d-neither",
+        "bass-c-dsp-only-reason",
+        "bass-b-both"
+      ],
+      "unscored": [],
+      "alternatives": [
+        "bass-d-neither",
+        "bass-c-dsp-only-reason",
+        "bass-b-both"
+      ],
+      "candidates": {
+        "bass-a-judgment-only": {
+          "rank": 1,
+          "compatibility": 1,
+          "confidence": 0.3,
+          "uncertain": true,
+          "warnings": [
+            "low_coverage"
+          ],
+          "jev_judgments": [
+            "frequency"
+          ],
+          "dimensions": {
+            "frequency": {
+              "weight": 0.3,
+              "dsp": null,
+              "dsp_unavailable_reason": "candidate_band_energy_zero",
+              "jev": 1,
+              "combined": 1,
+              "unavailable_reason": null
+            }
+          }
+        },
+        "bass-d-neither": {
+          "rank": 2,
+          "compatibility": 1,
+          "confidence": 0.4,
+          "uncertain": true,
+          "warnings": [
+            "candidate_no_jev_evidence",
+            "low_coverage"
+          ],
+          "jev_judgments": [],
+          "dimensions": {
+            "frequency": {
+              "weight": 0.3,
+              "dsp": null,
+              "dsp_unavailable_reason": "candidate_band_energy_zero",
+              "jev": null,
+              "combined": null,
+              "unavailable_reason": "no_evidence"
+            }
+          }
+        },
+        "bass-c-dsp-only-reason": {
+          "rank": 3,
+          "compatibility": 0.9571428571428573,
+          "confidence": 0.7,
+          "uncertain": false,
+          "warnings": [
+            "jev_evidence_unavailable",
+            "candidate_no_jev_evidence"
+          ],
+          "jev_judgments": [],
+          "dimensions": {
+            "frequency": {
+              "weight": 0.3,
+              "dsp": 0.9,
+              "jev": null,
+              "combined": 0.9,
+              "unavailable_reason": null,
+              "jev_unavailable_reason": "kick_key_unknown"
+            }
+          }
+        },
+        "bass-b-both": {
+          "rank": 4,
+          "compatibility": 0.925,
+          "confidence": 0.7,
+          "uncertain": false,
+          "warnings": [],
+          "jev_judgments": [
+            "frequency"
+          ],
+          "dimensions": {
+            "frequency": {
+              "weight": 0.3,
+              "dsp": 0.9,
+              "jev": 0.75,
+              "combined": 0.825
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "abstention",
+    "note": "a null-label model_abstained judgment is provenance, never a score",
+    "kick": {
+      "bands": {
+        "sub": 0.5,
+        "bass": 0.3,
+        "low_mid": 0.1,
+        "mid": 0.05,
+        "high_mid": 0.03,
+        "high": 0.02
+      },
+      "attack": 10,
+      "decay": 250,
+      "strength": 0.8,
+      "position": 0,
+      "tonic": "C",
+      "mode": "major",
+      "key_confidence": 0.9,
+      "fundamental": 55,
+      "fundamental_confidence": 0.9
+    },
+    "candidates": [
+      {
+        "id": "bass-a-abstain",
+        "bands": {
+          "bass": 0.1,
+          "low_mid": 0.3,
+          "mid": 0.4,
+          "high_mid": 0.15,
+          "high": 0.05
+        },
+        "position": 300,
+        "tonic": "C",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 110,
+        "fundamental_confidence": 0.9
+      },
+      {
+        "id": "bass-b-judged",
+        "bands": {
+          "bass": 0.1,
+          "low_mid": 0.3,
+          "mid": 0.4,
+          "high_mid": 0.15,
+          "high": 0.05
+        },
+        "position": 300,
+        "tonic": "C",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 110,
+        "fundamental_confidence": 0.9
+      }
+    ],
+    "evidence": {
+      "bass-a-abstain": [
+        {
+          "dimension": "frequency",
+          "abstain": true,
+          "model_version": "hybrid-abstain-1"
+        }
+      ],
+      "bass-b-judged": [
+        {
+          "dimension": "frequency",
+          "label": "good",
+          "confidence": 0.9,
+          "model_version": "hybrid-judged-1"
+        }
+      ]
+    },
+    "expects": {
+      "mode": "hybrid",
+      "jev_status": "jev_partial",
+      "order": [
+        "bass-a-abstain",
+        "bass-b-judged"
+      ],
+      "unscored": [],
+      "alternatives": [],
+      "candidates": {
+        "bass-a-abstain": {
+          "rank": 1,
+          "compatibility": 0.9571428571428573,
+          "confidence": 0.7,
+          "uncertain": false,
+          "warnings": [
+            "candidate_no_jev_evidence"
+          ],
+          "jev_judgments": [],
+          "dimensions": {
+            "frequency": {
+              "weight": 0.3,
+              "dsp": 0.9,
+              "jev": null,
+              "jev_label": null,
+              "jev_score": null,
+              "jev_confidence": null,
+              "combined": 0.9,
+              "unavailable_reason": null,
+              "jev_unavailable_reason": "jev_abstained",
+              "jev_model_version": "hybrid-abstain-1"
+            }
+          }
+        },
+        "bass-b-judged": {
+          "rank": 2,
+          "compatibility": 0.925,
+          "confidence": 0.7,
+          "uncertain": false,
+          "warnings": [],
+          "jev_judgments": [
+            "frequency"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "transport_states",
+    "note": "every #14 transport or question outcome code is recorded verbatim and never becomes a score",
+    "kick": {
+      "bands": {
+        "sub": 0.5,
+        "bass": 0.3,
+        "low_mid": 0.1,
+        "mid": 0.05,
+        "high_mid": 0.03,
+        "high": 0.02
+      },
+      "attack": 10,
+      "decay": 250,
+      "strength": 0.8,
+      "position": 0,
+      "tonic": "C",
+      "mode": "major",
+      "key_confidence": 0.9,
+      "fundamental": 55,
+      "fundamental_confidence": 0.9
+    },
+    "candidates": [
+      {
+        "id": "bass-a-timeout",
+        "bands": {
+          "bass": 0.1,
+          "low_mid": 0.3,
+          "mid": 0.4,
+          "high_mid": 0.15,
+          "high": 0.05
+        },
+        "position": 300,
+        "tonic": "C",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 110,
+        "fundamental_confidence": 0.9
+      },
+      {
+        "id": "bass-b-service-error",
+        "bands": {
+          "bass": 0.1,
+          "low_mid": 0.3,
+          "mid": 0.4,
+          "high_mid": 0.15,
+          "high": 0.05
+        },
+        "position": 300,
+        "tonic": "C",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 110,
+        "fundamental_confidence": 0.9
+      },
+      {
+        "id": "bass-c-cancelled",
+        "bands": {
+          "bass": 0.1,
+          "low_mid": 0.3,
+          "mid": 0.4,
+          "high_mid": 0.15,
+          "high": 0.05
+        },
+        "position": 300,
+        "tonic": "C",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 110,
+        "fundamental_confidence": 0.9
+      },
+      {
+        "id": "bass-d-deadline",
+        "bands": {
+          "bass": 0.1,
+          "low_mid": 0.3,
+          "mid": 0.4,
+          "high_mid": 0.15,
+          "high": 0.05
+        },
+        "position": 300,
+        "tonic": "C",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 110,
+        "fundamental_confidence": 0.9
+      },
+      {
+        "id": "bass-e-credentials",
+        "bands": {
+          "bass": 0.1,
+          "low_mid": 0.3,
+          "mid": 0.4,
+          "high_mid": 0.15,
+          "high": 0.05
+        },
+        "position": 300,
+        "tonic": "C",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 110,
+        "fundamental_confidence": 0.9
+      },
+      {
+        "id": "bass-f-not-asked",
+        "bands": {
+          "bass": 0.1,
+          "low_mid": 0.3,
+          "mid": 0.4,
+          "high_mid": 0.15,
+          "high": 0.05
+        },
+        "position": 300,
+        "tonic": "C",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 110,
+        "fundamental_confidence": 0.9
+      },
+      {
+        "id": "bass-g-judged",
+        "bands": {
+          "bass": 0.1,
+          "low_mid": 0.3,
+          "mid": 0.4,
+          "high_mid": 0.15,
+          "high": 0.05
+        },
+        "position": 300,
+        "tonic": "C",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 110,
+        "fundamental_confidence": 0.9
+      }
+    ],
+    "evidence": {
+      "bass-a-timeout": [
+        {
+          "dimension": "frequency",
+          "unavailable_reason": "timeout"
+        }
+      ],
+      "bass-b-service-error": [
+        {
+          "dimension": "frequency",
+          "unavailable_reason": "service_unavailable"
+        }
+      ],
+      "bass-c-cancelled": [
+        {
+          "dimension": "frequency",
+          "unavailable_reason": "cancelled"
+        }
+      ],
+      "bass-d-deadline": [
+        {
+          "dimension": "frequency",
+          "unavailable_reason": "batch_deadline_exceeded"
+        }
+      ],
+      "bass-e-credentials": [
+        {
+          "dimension": "frequency",
+          "unavailable_reason": "credentials_absent"
+        }
+      ],
+      "bass-f-not-asked": [
+        {
+          "dimension": "frequency",
+          "unavailable_reason": "song_context_absent"
+        }
+      ],
+      "bass-g-judged": [
+        {
+          "dimension": "frequency",
+          "label": "good",
+          "confidence": 0.9
+        }
+      ]
+    },
+    "expects": {
+      "mode": "hybrid",
+      "jev_status": "jev_partial",
+      "order": [
+        "bass-a-timeout",
+        "bass-b-service-error",
+        "bass-c-cancelled",
+        "bass-d-deadline",
+        "bass-e-credentials",
+        "bass-f-not-asked",
+        "bass-g-judged"
+      ],
+      "unscored": [],
+      "alternatives": [],
+      "candidates": {
+        "bass-a-timeout": {
+          "rank": 1,
+          "compatibility": 0.9571428571428573,
+          "confidence": 0.7,
+          "uncertain": false,
+          "warnings": [
+            "jev_evidence_unavailable",
+            "candidate_no_jev_evidence"
+          ],
+          "jev_judgments": [],
+          "dimensions": {
+            "frequency": {
+              "dsp": 0.9,
+              "jev": null,
+              "jev_score": null,
+              "combined": 0.9,
+              "jev_unavailable_reason": "timeout"
+            }
+          }
+        },
+        "bass-b-service-error": {
+          "rank": 2,
+          "compatibility": 0.9571428571428573,
+          "confidence": 0.7,
+          "uncertain": false,
+          "warnings": [
+            "jev_evidence_unavailable",
+            "candidate_no_jev_evidence"
+          ],
+          "jev_judgments": [],
+          "dimensions": {
+            "frequency": {
+              "dsp": 0.9,
+              "jev": null,
+              "jev_score": null,
+              "combined": 0.9,
+              "jev_unavailable_reason": "service_unavailable"
+            }
+          }
+        },
+        "bass-c-cancelled": {
+          "rank": 3,
+          "compatibility": 0.9571428571428573,
+          "confidence": 0.7,
+          "uncertain": false,
+          "warnings": [
+            "jev_evidence_unavailable",
+            "candidate_no_jev_evidence"
+          ],
+          "jev_judgments": [],
+          "dimensions": {
+            "frequency": {
+              "dsp": 0.9,
+              "jev": null,
+              "jev_score": null,
+              "combined": 0.9,
+              "jev_unavailable_reason": "cancelled"
+            }
+          }
+        },
+        "bass-d-deadline": {
+          "rank": 4,
+          "compatibility": 0.9571428571428573,
+          "confidence": 0.7,
+          "uncertain": false,
+          "warnings": [
+            "jev_evidence_unavailable",
+            "candidate_no_jev_evidence"
+          ],
+          "jev_judgments": [],
+          "dimensions": {
+            "frequency": {
+              "dsp": 0.9,
+              "jev": null,
+              "jev_score": null,
+              "combined": 0.9,
+              "jev_unavailable_reason": "batch_deadline_exceeded"
+            }
+          }
+        },
+        "bass-e-credentials": {
+          "rank": 5,
+          "compatibility": 0.9571428571428573,
+          "confidence": 0.7,
+          "uncertain": false,
+          "warnings": [
+            "jev_evidence_unavailable",
+            "candidate_no_jev_evidence"
+          ],
+          "jev_judgments": [],
+          "dimensions": {
+            "frequency": {
+              "dsp": 0.9,
+              "jev": null,
+              "jev_score": null,
+              "combined": 0.9,
+              "jev_unavailable_reason": "credentials_absent"
+            }
+          }
+        },
+        "bass-f-not-asked": {
+          "rank": 6,
+          "compatibility": 0.9571428571428573,
+          "confidence": 0.7,
+          "uncertain": false,
+          "warnings": [
+            "jev_evidence_unavailable",
+            "candidate_no_jev_evidence"
+          ],
+          "jev_judgments": [],
+          "dimensions": {
+            "frequency": {
+              "dsp": 0.9,
+              "jev": null,
+              "jev_score": null,
+              "combined": 0.9,
+              "jev_unavailable_reason": "song_context_absent"
+            }
+          }
+        },
+        "bass-g-judged": {
+          "rank": 7,
+          "compatibility": 0.925,
+          "confidence": 0.7,
+          "uncertain": false,
+          "warnings": [],
+          "jev_judgments": [
+            "frequency"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "mixed_batch",
+    "note": "one candidate with judgments and one without: exact order, per-candidate confidence and provenance",
+    "kick": {
+      "bands": {
+        "sub": 0.5,
+        "bass": 0.3,
+        "low_mid": 0.1,
+        "mid": 0.05,
+        "high_mid": 0.03,
+        "high": 0.02
+      },
+      "attack": 10,
+      "decay": 250,
+      "strength": 0.8,
+      "position": 0,
+      "tonic": "C",
+      "mode": "major",
+      "key_confidence": 0.9,
+      "fundamental": 55,
+      "fundamental_confidence": 0.9
+    },
+    "candidates": [
+      {
+        "id": "bass-with",
+        "bands": {
+          "bass": 0.1,
+          "low_mid": 0.3,
+          "mid": 0.4,
+          "high_mid": 0.15,
+          "high": 0.05
+        },
+        "position": 300,
+        "tonic": "C",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 110,
+        "fundamental_confidence": 0.9
+      },
+      {
+        "id": "bass-without",
+        "bands": {
+          "bass": 0.1,
+          "low_mid": 0.3,
+          "mid": 0.4,
+          "high_mid": 0.15,
+          "high": 0.05
+        },
+        "position": 300,
+        "tonic": "C",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 110,
+        "fundamental_confidence": 0.9
+      }
+    ],
+    "evidence": {
+      "bass-with": [
+        {
+          "dimension": "frequency",
+          "label": "good",
+          "confidence": 0.9
+        }
+      ]
+    },
+    "expects": {
+      "mode": "hybrid",
+      "jev_status": "jev_partial",
+      "order": [
+        "bass-without",
+        "bass-with"
+      ],
+      "unscored": [],
+      "alternatives": [],
+      "candidates": {
+        "bass-without": {
+          "rank": 1,
+          "compatibility": 0.9571428571428573,
+          "confidence": 0.7,
+          "uncertain": false,
+          "warnings": [
+            "candidate_no_jev_evidence"
+          ],
+          "jev_judgments": [],
+          "dimensions": {
+            "frequency": {
+              "weight": 0.3,
+              "dsp": 0.9,
+              "jev": null,
+              "combined": 0.9,
+              "unavailable_reason": null
+            }
+          }
+        },
+        "bass-with": {
+          "rank": 2,
+          "compatibility": 0.925,
+          "confidence": 0.7,
+          "uncertain": false,
+          "warnings": [],
+          "jev_judgments": [
+            "frequency"
+          ],
+          "dimensions": {
+            "frequency": {
+              "weight": 0.3,
+              "dsp": 0.9,
+              "jev": 0.75,
+              "combined": 0.825
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "total_unavailability",
+    "note": "no usable judgment anywhere gives the dsp-only fallback, equal to rank_candidates at runtime",
+    "kick": {
+      "bands": {
+        "sub": 0.5,
+        "bass": 0.3,
+        "low_mid": 0.1,
+        "mid": 0.05,
+        "high_mid": 0.03,
+        "high": 0.02
+      },
+      "attack": 10,
+      "decay": 250,
+      "strength": 0.8,
+      "position": 0,
+      "tonic": "C",
+      "mode": "major",
+      "key_confidence": 0.9,
+      "fundamental": 55,
+      "fundamental_confidence": 0.9
+    },
+    "candidates": [
+      {
+        "id": "bass-complement",
+        "bands": {
+          "bass": 0.1,
+          "low_mid": 0.3,
+          "mid": 0.4,
+          "high_mid": 0.15,
+          "high": 0.05
+        },
+        "position": 300,
+        "tonic": "C",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 110,
+        "fundamental_confidence": 0.9
+      },
+      {
+        "id": "bass-conflict",
+        "bands": {
+          "sub": 0.6,
+          "bass": 0.3,
+          "low_mid": 0.05,
+          "mid": 0.03,
+          "high_mid": 0.01,
+          "high": 0.01
+        },
+        "position": 100,
+        "tonic": "F#",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 55,
+        "fundamental_confidence": 0.9
+      }
+    ],
+    "evidence": {},
+    "expects": {
+      "mode": "dsp-only",
+      "jev_status": "jev_absent",
+      "order": [
+        "bass-complement",
+        "bass-conflict"
+      ],
+      "unscored": [],
+      "alternatives": [],
+      "baseline_fallback": true,
+      "candidates": {
+        "bass-complement": {
+          "rank": 1,
+          "compatibility": 0.957142857142857,
+          "confidence": 1,
+          "uncertain": false,
+          "warnings": [],
+          "jev_judgments": [],
+          "dimensions": {
+            "frequency": {
+              "dsp": 0.9,
+              "jev": null,
+              "combined": 0.9
+            }
+          }
+        },
+        "bass-conflict": {
+          "rank": 2,
+          "compatibility": 0.2593406593406593,
+          "confidence": 1,
+          "uncertain": false,
+          "warnings": [],
+          "jev_judgments": []
+        }
+      }
+    }
+  },
+  {
+    "name": "total_unavailability_with_codes",
+    "note": "upstream codes and an abstention are recorded, yet the records stay the baseline's own",
+    "kick": {
+      "bands": {
+        "sub": 0.5,
+        "bass": 0.3,
+        "low_mid": 0.1,
+        "mid": 0.05,
+        "high_mid": 0.03,
+        "high": 0.02
+      },
+      "attack": 10,
+      "decay": 250,
+      "strength": 0.8,
+      "position": 0,
+      "tonic": "C",
+      "mode": "major",
+      "key_confidence": 0.9,
+      "fundamental": 55,
+      "fundamental_confidence": 0.9
+    },
+    "candidates": [
+      {
+        "id": "bass-complement",
+        "bands": {
+          "bass": 0.1,
+          "low_mid": 0.3,
+          "mid": 0.4,
+          "high_mid": 0.15,
+          "high": 0.05
+        },
+        "position": 300,
+        "tonic": "C",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 110,
+        "fundamental_confidence": 0.9
+      },
+      {
+        "id": "bass-conflict",
+        "bands": {
+          "sub": 0.6,
+          "bass": 0.3,
+          "low_mid": 0.05,
+          "mid": 0.03,
+          "high_mid": 0.01,
+          "high": 0.01
+        },
+        "position": 100,
+        "tonic": "F#",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 55,
+        "fundamental_confidence": 0.9
+      }
+    ],
+    "evidence": {
+      "bass-complement": [
+        {
+          "dimension": "frequency",
+          "unavailable_reason": "kick_key_unknown"
+        }
+      ],
+      "bass-conflict": [
+        {
+          "dimension": "frequency",
+          "abstain": true,
+          "model_version": "hybrid-abstain-1"
+        }
+      ]
+    },
+    "expects": {
+      "mode": "dsp-only",
+      "jev_status": "jev_absent",
+      "order": [
+        "bass-complement",
+        "bass-conflict"
+      ],
+      "unscored": [],
+      "alternatives": [],
+      "baseline_fallback": true,
+      "candidates": {
+        "bass-complement": {
+          "rank": 1,
+          "compatibility": 0.957142857142857,
+          "confidence": 1,
+          "uncertain": false,
+          "warnings": [],
+          "jev_judgments": [],
+          "dimensions": {
+            "frequency": {
+              "dsp": 0.9,
+              "jev": null,
+              "combined": 0.9,
+              "jev_unavailable_reason": "kick_key_unknown"
+            }
+          }
+        },
+        "bass-conflict": {
+          "rank": 2,
+          "compatibility": 0.2593406593406593,
+          "confidence": 1,
+          "uncertain": false,
+          "warnings": [],
+          "jev_judgments": [],
+          "dimensions": {
+            "frequency": {
+              "dsp": 0.2,
+              "jev": null,
+              "combined": 0.2,
+              "jev_unavailable_reason": "jev_abstained"
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "rhythmic_absent",
+    "note": "the control for the rhythmic fixture: no rhythmic evidence at all",
+    "kick": {
+      "bands": {
+        "sub": 0.5,
+        "bass": 0.3,
+        "low_mid": 0.1,
+        "mid": 0.05,
+        "high_mid": 0.03,
+        "high": 0.02
+      },
+      "attack": 10,
+      "decay": 250,
+      "strength": 0.8,
+      "position": 0,
+      "tonic": "C",
+      "mode": "major",
+      "key_confidence": 0.9,
+      "fundamental": 55,
+      "fundamental_confidence": 0.9
+    },
+    "candidates": [
+      {
+        "id": "bass-complement",
+        "bands": {
+          "bass": 0.1,
+          "low_mid": 0.3,
+          "mid": 0.4,
+          "high_mid": 0.15,
+          "high": 0.05
+        },
+        "position": 300,
+        "tonic": "C",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 110,
+        "fundamental_confidence": 0.9
+      },
+      {
+        "id": "bass-conflict",
+        "bands": {
+          "sub": 0.6,
+          "bass": 0.3,
+          "low_mid": 0.05,
+          "mid": 0.03,
+          "high_mid": 0.01,
+          "high": 0.01
+        },
+        "position": 100,
+        "tonic": "F#",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 55,
+        "fundamental_confidence": 0.9
+      }
+    ],
+    "evidence": {},
+    "expects": {
+      "mode": "dsp-only",
+      "jev_status": "jev_absent",
+      "order": [
+        "bass-complement",
+        "bass-conflict"
+      ],
+      "unscored": [],
+      "alternatives": [],
+      "baseline_fallback": true,
+      "compare_with": "rhythmic_present",
+      "candidates": {
+        "bass-complement": {
+          "rank": 1,
+          "compatibility": 0.957142857142857,
+          "confidence": 1,
+          "uncertain": false,
+          "warnings": []
+        }
+      }
+    }
+  },
+  {
+    "name": "rhythmic_present",
+    "note": "a supplied rhythmic judgment is unweighted: it changes no score, order or alternative",
+    "kick": {
+      "bands": {
+        "sub": 0.5,
+        "bass": 0.3,
+        "low_mid": 0.1,
+        "mid": 0.05,
+        "high_mid": 0.03,
+        "high": 0.02
+      },
+      "attack": 10,
+      "decay": 250,
+      "strength": 0.8,
+      "position": 0,
+      "tonic": "C",
+      "mode": "major",
+      "key_confidence": 0.9,
+      "fundamental": 55,
+      "fundamental_confidence": 0.9
+    },
+    "candidates": [
+      {
+        "id": "bass-complement",
+        "bands": {
+          "bass": 0.1,
+          "low_mid": 0.3,
+          "mid": 0.4,
+          "high_mid": 0.15,
+          "high": 0.05
+        },
+        "position": 300,
+        "tonic": "C",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 110,
+        "fundamental_confidence": 0.9
+      },
+      {
+        "id": "bass-conflict",
+        "bands": {
+          "sub": 0.6,
+          "bass": 0.3,
+          "low_mid": 0.05,
+          "mid": 0.03,
+          "high_mid": 0.01,
+          "high": 0.01
+        },
+        "position": 100,
+        "tonic": "F#",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 55,
+        "fundamental_confidence": 0.9
+      }
+    ],
+    "evidence": {
+      "bass-complement": [
+        {
+          "dimension": "rhythmic",
+          "label": "poor",
+          "confidence": 0.9
+        }
+      ]
+    },
+    "expects": {
+      "mode": "dsp-only",
+      "jev_status": "jev_absent",
+      "order": [
+        "bass-complement",
+        "bass-conflict"
+      ],
+      "unscored": [],
+      "alternatives": [],
+      "baseline_fallback": true,
+      "compare_with": "rhythmic_absent",
+      "candidates": {
+        "bass-complement": {
+          "rank": 1,
+          "compatibility": 0.957142857142857,
+          "confidence": 1,
+          "uncertain": false,
+          "warnings": [],
+          "jev_judgments": [],
+          "dimensions": {
+            "rhythmic": {
+              "weight": 0,
+              "dsp": null,
+              "jev": null,
+              "jev_label": "poor",
+              "jev_score": null,
+              "combined": null,
+              "unavailable_reason": "unweighted_dimension"
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "tie_exact_equal",
+    "note": "two candidates whose combined compatibility is exactly equal, declared in reverse order",
+    "kick": {
+      "bands": {
+        "sub": 0.5,
+        "bass": 0.3,
+        "low_mid": 0.1,
+        "mid": 0.05,
+        "high_mid": 0.03,
+        "high": 0.02
+      },
+      "attack": 10,
+      "decay": 250,
+      "strength": 0.8,
+      "position": 0,
+      "tonic": "C",
+      "mode": "major",
+      "key_confidence": 0.9,
+      "fundamental": 55,
+      "fundamental_confidence": 0.9
+    },
+    "candidates": [
+      {
+        "id": "bass-b",
+        "bands": {
+          "bass": 0.1,
+          "low_mid": 0.3,
+          "mid": 0.4,
+          "high_mid": 0.15,
+          "high": 0.05
+        },
+        "position": 300,
+        "tonic": "C",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 110,
+        "fundamental_confidence": 0.9
+      },
+      {
+        "id": "bass-a",
+        "bands": {
+          "bass": 0.1,
+          "low_mid": 0.3,
+          "mid": 0.4,
+          "high_mid": 0.15,
+          "high": 0.05
+        },
+        "position": 300,
+        "tonic": "C",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 110,
+        "fundamental_confidence": 0.9
+      }
+    ],
+    "evidence": {
+      "bass-a": [
+        {
+          "dimension": "frequency",
+          "label": "good",
+          "confidence": 0.9
+        }
+      ],
+      "bass-b": [
+        {
+          "dimension": "frequency",
+          "label": "good",
+          "confidence": 0.9
+        }
+      ]
+    },
+    "expects": {
+      "mode": "hybrid",
+      "jev_status": "jev_partial",
+      "order": [
+        "bass-a",
+        "bass-b"
+      ],
+      "unscored": [],
+      "alternatives": [],
+      "exact_tie": true,
+      "candidates": {
+        "bass-a": {
+          "rank": 1,
+          "compatibility": 0.925,
+          "confidence": 0.7,
+          "uncertain": false,
+          "warnings": []
+        },
+        "bass-b": {
+          "rank": 2,
+          "compatibility": 0.925,
+          "confidence": 0.7,
+          "uncertain": false,
+          "warnings": []
+        }
+      }
+    }
+  },
+  {
+    "name": "tie_dsp_only_vs_jev_only",
+    "note": "an exact tie between a DSP-only candidate and a Jev-only candidate, broken by ID alone",
+    "kick": {
+      "bands": {
+        "sub": 0.5,
+        "bass": 0.3,
+        "low_mid": 0.1,
+        "mid": 0.05,
+        "high_mid": 0.03,
+        "high": 0.02
+      },
+      "attack": 10,
+      "decay": 250,
+      "strength": 0.8,
+      "position": 0,
+      "tonic": "C",
+      "mode": "major",
+      "key_confidence": 0.9,
+      "fundamental": 55,
+      "fundamental_confidence": 0.9
+    },
+    "candidates": [
+      {
+        "id": "bass-z-dsp",
+        "bands": {
+          "low_mid": 0.35,
+          "mid": 0.45,
+          "high_mid": 0.15,
+          "high": 0.05
+        },
+        "position": 300,
+        "tonic": "C",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 110,
+        "fundamental_confidence": 0.9
+      },
+      {
+        "id": "bass-a-jev",
+        "bands": {}
+      }
+    ],
+    "evidence": {
+      "bass-a-jev": [
+        {
+          "dimension": "texture",
+          "label": "excellent",
+          "confidence": 0.9
+        }
+      ]
+    },
+    "expects": {
+      "mode": "hybrid",
+      "jev_status": "jev_partial",
+      "order": [
+        "bass-a-jev",
+        "bass-z-dsp"
+      ],
+      "unscored": [],
+      "alternatives": [
+        "bass-z-dsp"
+      ],
+      "exact_tie": true,
+      "candidates": {
+        "bass-a-jev": {
+          "rank": 1,
+          "compatibility": 1,
+          "confidence": 0.1,
+          "uncertain": true,
+          "warnings": [
+            "low_coverage"
+          ],
+          "jev_judgments": [
+            "texture"
+          ]
+        },
+        "bass-z-dsp": {
+          "rank": 2,
+          "compatibility": 1,
+          "confidence": 0.7,
+          "uncertain": false,
+          "warnings": [
+            "candidate_no_jev_evidence"
+          ],
+          "jev_judgments": [],
+          "dimensions": {
+            "frequency": {
+              "dsp": 1,
+              "combined": 1
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "custom_weight_table",
+    "note": "a custom table with its own identifier is recorded and changes the scores",
+    "kick": {
+      "bands": {
+        "sub": 0.5,
+        "bass": 0.3,
+        "low_mid": 0.1,
+        "mid": 0.05,
+        "high_mid": 0.03,
+        "high": 0.02
+      },
+      "attack": 10,
+      "decay": 250,
+      "strength": 0.8,
+      "position": 0,
+      "tonic": "C",
+      "mode": "major",
+      "key_confidence": 0.9,
+      "fundamental": 55,
+      "fundamental_confidence": 0.9
+    },
+    "candidates": [
+      {
+        "id": "bass-complement",
+        "bands": {
+          "bass": 0.1,
+          "low_mid": 0.3,
+          "mid": 0.4,
+          "high_mid": 0.15,
+          "high": 0.05
+        },
+        "position": 300,
+        "tonic": "C",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 110,
+        "fundamental_confidence": 0.9
+      },
+      {
+        "id": "bass-conflict",
+        "bands": {
+          "sub": 0.6,
+          "bass": 0.3,
+          "low_mid": 0.05,
+          "mid": 0.03,
+          "high_mid": 0.01,
+          "high": 0.01
+        },
+        "position": 100,
+        "tonic": "F#",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 55,
+        "fundamental_confidence": 0.9
+      }
+    ],
+    "policy": {
+      "identifier": "hybrid-weights-fixture-2",
+      "frequency": 0.5,
+      "transient": 0.2,
+      "tonal": 0.1,
+      "texture": 0.1,
+      "arrangement": 0.1
+    },
+    "evidence": {
+      "bass-complement": [
+        {
+          "dimension": "frequency",
+          "label": "excellent",
+          "confidence": 0.9
+        }
+      ],
+      "bass-conflict": [
+        {
+          "dimension": "frequency",
+          "label": "excellent",
+          "confidence": 0.9
+        }
+      ]
+    },
+    "expects": {
+      "mode": "hybrid",
+      "jev_status": "jev_partial",
+      "weight_table_id": "hybrid-weights-fixture-2",
+      "order": [
+        "bass-complement",
+        "bass-conflict"
+      ],
+      "unscored": [],
+      "alternatives": [],
+      "candidates": {
+        "bass-complement": {
+          "rank": 1,
+          "compatibility": 0.9687500000000001,
+          "confidence": 0.8,
+          "uncertain": false,
+          "warnings": []
+        },
+        "bass-conflict": {
+          "rank": 2,
+          "compatibility": 0.514423076923077,
+          "confidence": 0.8,
+          "uncertain": false,
+          "warnings": [
+            "dimension_disagreement"
+          ],
+          "dimensions": {
+            "frequency": {
+              "weight": 0.5,
+              "dsp": 0.2,
+              "jev": 1,
+              "combined": 0.6
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "all_judged_certain",
+    "note": "every weighted dimension judged on both candidates: full coverage, no uncertainty, no alternatives",
+    "kick": {
+      "bands": {
+        "sub": 0.5,
+        "bass": 0.3,
+        "low_mid": 0.1,
+        "mid": 0.05,
+        "high_mid": 0.03,
+        "high": 0.02
+      },
+      "attack": 10,
+      "decay": 250,
+      "strength": 0.8,
+      "position": 0,
+      "tonic": "C",
+      "mode": "major",
+      "key_confidence": 0.9,
+      "fundamental": 55,
+      "fundamental_confidence": 0.9
+    },
+    "candidates": [
+      {
+        "id": "bass-complement",
+        "bands": {
+          "bass": 0.1,
+          "low_mid": 0.3,
+          "mid": 0.4,
+          "high_mid": 0.15,
+          "high": 0.05
+        },
+        "position": 300,
+        "tonic": "C",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 110,
+        "fundamental_confidence": 0.9
+      },
+      {
+        "id": "bass-conflict",
+        "bands": {
+          "sub": 0.6,
+          "bass": 0.3,
+          "low_mid": 0.05,
+          "mid": 0.03,
+          "high_mid": 0.01,
+          "high": 0.01
+        },
+        "position": 100,
+        "tonic": "F#",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 55,
+        "fundamental_confidence": 0.9
+      }
+    ],
+    "evidence": {
+      "bass-complement": [
+        {
+          "dimension": "frequency",
+          "label": "good",
+          "confidence": 0.9
+        },
+        {
+          "dimension": "transient",
+          "label": "good",
+          "confidence": 0.9
+        },
+        {
+          "dimension": "tonal",
+          "label": "good",
+          "confidence": 0.9
+        },
+        {
+          "dimension": "texture",
+          "label": "good",
+          "confidence": 0.9
+        },
+        {
+          "dimension": "arrangement",
+          "label": "good",
+          "confidence": 0.9
+        }
+      ],
+      "bass-conflict": [
+        {
+          "dimension": "frequency",
+          "label": "neutral",
+          "confidence": 0.9
+        },
+        {
+          "dimension": "transient",
+          "label": "good",
+          "confidence": 0.9
+        },
+        {
+          "dimension": "tonal",
+          "label": "neutral",
+          "confidence": 0.9
+        },
+        {
+          "dimension": "texture",
+          "label": "good",
+          "confidence": 0.9
+        },
+        {
+          "dimension": "arrangement",
+          "label": "good",
+          "confidence": 0.9
+        }
+      ]
+    },
+    "expects": {
+      "mode": "hybrid",
+      "jev_status": "jev_present",
+      "order": [
+        "bass-complement",
+        "bass-conflict"
+      ],
+      "unscored": [],
+      "alternatives": [],
+      "candidates": {
+        "bass-complement": {
+          "rank": 1,
+          "compatibility": 0.8225000000000001,
+          "confidence": 1,
+          "uncertain": false,
+          "warnings": [],
+          "jev_judgments": [
+            "frequency",
+            "transient",
+            "tonal",
+            "texture",
+            "arrangement"
+          ],
+          "dimensions": {
+            "frequency": {
+              "dsp": 0.9,
+              "jev": 0.75,
+              "combined": 0.825
+            },
+            "transient": {
+              "dsp": 1,
+              "jev": 0.75,
+              "combined": 0.875
+            },
+            "texture": {
+              "dsp": null,
+              "jev": 0.75,
+              "combined": 0.75
+            },
+            "arrangement": {
+              "dsp": null,
+              "jev": 0.75,
+              "combined": 0.75
+            }
+          }
+        },
+        "bass-conflict": {
+          "rank": 2,
+          "compatibility": 0.5157692307692308,
+          "confidence": 1,
+          "uncertain": false,
+          "warnings": [],
+          "dimensions": {
+            "frequency": {
+              "dsp": 0.2,
+              "jev": 0.5,
+              "combined": 0.35
+            },
+            "transient": {
+              "dsp": 0.5076923076923077,
+              "jev": 0.75,
+              "combined": 0.6288461538461538
+            },
+            "tonal": {
+              "dsp": 0.1,
+              "jev": 0.5,
+              "combined": 0.3
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "alternatives_rank1_uncertain",
+    "note": "rank 1 is uncertain, so the next up to three ranked IDs are offered",
+    "kick": {
+      "bands": {
+        "sub": 0.5,
+        "bass": 0.3,
+        "low_mid": 0.1,
+        "mid": 0.05,
+        "high_mid": 0.03,
+        "high": 0.02
+      },
+      "attack": 10,
+      "decay": 250,
+      "strength": 0.8,
+      "position": 0,
+      "tonic": "C",
+      "mode": "major",
+      "key_confidence": 0.9,
+      "fundamental": 55,
+      "fundamental_confidence": 0.9
+    },
+    "candidates": [
+      {
+        "id": "bass-a-uncertain",
+        "bands": {}
+      },
+      {
+        "id": "bass-b",
+        "bands": {
+          "sub": 0.6,
+          "bass": 0.3,
+          "low_mid": 0.05,
+          "mid": 0.03,
+          "high_mid": 0.01,
+          "high": 0.01
+        },
+        "position": 100,
+        "tonic": "F#",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 55,
+        "fundamental_confidence": 0.9
+      },
+      {
+        "id": "bass-c",
+        "bands": {
+          "sub": 0.6,
+          "bass": 0.3,
+          "low_mid": 0.05,
+          "mid": 0.03,
+          "high_mid": 0.01,
+          "high": 0.01
+        },
+        "position": 100,
+        "tonic": "F#",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 55,
+        "fundamental_confidence": 0.9
+      },
+      {
+        "id": "bass-d",
+        "bands": {
+          "sub": 0.6,
+          "bass": 0.3,
+          "low_mid": 0.05,
+          "mid": 0.03,
+          "high_mid": 0.01,
+          "high": 0.01
+        },
+        "position": 100,
+        "tonic": "F#",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 55,
+        "fundamental_confidence": 0.9
+      },
+      {
+        "id": "bass-e",
+        "bands": {
+          "sub": 0.6,
+          "bass": 0.3,
+          "low_mid": 0.05,
+          "mid": 0.03,
+          "high_mid": 0.01,
+          "high": 0.01
+        },
+        "position": 100,
+        "tonic": "F#",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 55,
+        "fundamental_confidence": 0.9
+      }
+    ],
+    "evidence": {
+      "bass-a-uncertain": [
+        {
+          "dimension": "texture",
+          "label": "excellent",
+          "confidence": 0.9
+        },
+        {
+          "dimension": "arrangement",
+          "label": "excellent",
+          "confidence": 0.9
+        }
+      ]
+    },
+    "expects": {
+      "mode": "hybrid",
+      "jev_status": "jev_partial",
+      "order": [
+        "bass-a-uncertain",
+        "bass-b",
+        "bass-c",
+        "bass-d",
+        "bass-e"
+      ],
+      "unscored": [],
+      "alternatives": [
+        "bass-b",
+        "bass-c",
+        "bass-d"
+      ],
+      "candidates": {
+        "bass-a-uncertain": {
+          "rank": 1,
+          "compatibility": 1,
+          "confidence": 0.3,
+          "uncertain": true,
+          "warnings": [
+            "low_coverage"
+          ],
+          "jev_judgments": [
+            "texture",
+            "arrangement"
+          ]
+        },
+        "bass-b": {
+          "rank": 2,
+          "compatibility": 0.25934065934065936,
+          "confidence": 0.7,
+          "uncertain": false,
+          "warnings": [
+            "candidate_no_jev_evidence"
+          ],
+          "jev_judgments": []
+        },
+        "bass-e": {
+          "rank": 5,
+          "compatibility": 0.25934065934065936,
+          "confidence": 0.7,
+          "uncertain": false,
+          "warnings": [
+            "candidate_no_jev_evidence"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "alternatives_fewer_than_four",
+    "note": "two ranked candidates with an uncertain rank 1: only the next ID is offered",
+    "kick": {
+      "bands": {
+        "sub": 0.5,
+        "bass": 0.3,
+        "low_mid": 0.1,
+        "mid": 0.05,
+        "high_mid": 0.03,
+        "high": 0.02
+      },
+      "attack": 10,
+      "decay": 250,
+      "strength": 0.8,
+      "position": 0,
+      "tonic": "C",
+      "mode": "major",
+      "key_confidence": 0.9,
+      "fundamental": 55,
+      "fundamental_confidence": 0.9
+    },
+    "candidates": [
+      {
+        "id": "bass-a-uncertain",
+        "bands": {}
+      },
+      {
+        "id": "bass-b",
+        "bands": {
+          "bass": 0.1,
+          "low_mid": 0.3,
+          "mid": 0.4,
+          "high_mid": 0.15,
+          "high": 0.05
+        },
+        "position": 300,
+        "tonic": "C",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 110,
+        "fundamental_confidence": 0.9
+      }
+    ],
+    "evidence": {
+      "bass-a-uncertain": [
+        {
+          "dimension": "texture",
+          "label": "excellent",
+          "confidence": 0.9
+        }
+      ]
+    },
+    "expects": {
+      "mode": "hybrid",
+      "jev_status": "jev_partial",
+      "order": [
+        "bass-a-uncertain",
+        "bass-b"
+      ],
+      "unscored": [],
+      "alternatives": [
+        "bass-b"
+      ],
+      "candidates": {
+        "bass-a-uncertain": {
+          "rank": 1,
+          "compatibility": 1,
+          "confidence": 0.1,
+          "uncertain": true,
+          "warnings": [
+            "low_coverage"
+          ]
+        },
+        "bass-b": {
+          "rank": 2,
+          "compatibility": 0.9571428571428573,
+          "confidence": 0.7,
+          "uncertain": false,
+          "warnings": [
+            "candidate_no_jev_evidence"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "alternatives_none_ranked",
+    "note": "no candidate has any usable evidence: all unscored, no alternatives",
+    "kick": {
+      "bands": {
+        "sub": 0.5,
+        "bass": 0.3,
+        "low_mid": 0.1,
+        "mid": 0.05,
+        "high_mid": 0.03,
+        "high": 0.02
+      },
+      "attack": 10,
+      "decay": 250,
+      "strength": 0.8,
+      "position": 0,
+      "tonic": "C",
+      "mode": "major",
+      "key_confidence": 0.9,
+      "fundamental": 55,
+      "fundamental_confidence": 0.9
+    },
+    "candidates": [
+      {
+        "id": "bass-a",
+        "bands": {}
+      },
+      {
+        "id": "bass-b",
+        "bands": {}
+      }
+    ],
+    "evidence": {},
+    "expects": {
+      "mode": "dsp-only",
+      "jev_status": "jev_absent",
+      "order": [],
+      "unscored": [
+        "bass-a",
+        "bass-b"
+      ],
+      "alternatives": [],
+      "baseline_fallback": true
+    }
+  },
+  {
+    "name": "confidence_low",
+    "note": "the judgment confidence is 0.0: scores and order are untouched, uncertainty follows the threshold",
+    "kick": {
+      "bands": {
+        "sub": 0.5,
+        "bass": 0.3,
+        "low_mid": 0.1,
+        "mid": 0.05,
+        "high_mid": 0.03,
+        "high": 0.02
+      },
+      "attack": 10,
+      "decay": 250,
+      "strength": 0.8,
+      "position": 0,
+      "tonic": "C",
+      "mode": "major",
+      "key_confidence": 0.9,
+      "fundamental": 55,
+      "fundamental_confidence": 0.9
+    },
+    "candidates": [
+      {
+        "id": "bass-high",
+        "bands": {
+          "bass": 0.1,
+          "low_mid": 0.3,
+          "mid": 0.4,
+          "high_mid": 0.15,
+          "high": 0.05
+        },
+        "position": 300,
+        "tonic": "C",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 110,
+        "fundamental_confidence": 0.9
+      },
+      {
+        "id": "bass-low",
+        "bands": {}
+      }
+    ],
+    "evidence": {
+      "bass-high": [
+        {
+          "dimension": "frequency",
+          "label": "good",
+          "confidence": 0
+        }
+      ],
+      "bass-low": [
+        {
+          "dimension": "texture",
+          "label": "poor",
+          "confidence": 0.9
+        }
+      ]
+    },
+    "expects": {
+      "mode": "hybrid",
+      "jev_status": "jev_partial",
+      "order": [
+        "bass-high",
+        "bass-low"
+      ],
+      "unscored": [],
+      "alternatives": [
+        "bass-low"
+      ],
+      "compare_with": "confidence_high",
+      "candidates": {
+        "bass-high": {
+          "rank": 1,
+          "compatibility": 0.925,
+          "confidence": 0.7,
+          "uncertain": true,
+          "warnings": [
+            "low_jev_confidence"
+          ],
+          "dimensions": {
+            "frequency": {
+              "dsp": 0.9,
+              "jev": 0.75,
+              "combined": 0.825,
+              "jev_confidence": 0
+            }
+          }
+        },
+        "bass-low": {
+          "rank": 2,
+          "compatibility": 0.25,
+          "confidence": 0.1,
+          "uncertain": true,
+          "warnings": [
+            "low_coverage"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "confidence_high",
+    "note": "the same inputs with the judgment confidence at 1.0: identical scores, order and alternatives",
+    "kick": {
+      "bands": {
+        "sub": 0.5,
+        "bass": 0.3,
+        "low_mid": 0.1,
+        "mid": 0.05,
+        "high_mid": 0.03,
+        "high": 0.02
+      },
+      "attack": 10,
+      "decay": 250,
+      "strength": 0.8,
+      "position": 0,
+      "tonic": "C",
+      "mode": "major",
+      "key_confidence": 0.9,
+      "fundamental": 55,
+      "fundamental_confidence": 0.9
+    },
+    "candidates": [
+      {
+        "id": "bass-high",
+        "bands": {
+          "bass": 0.1,
+          "low_mid": 0.3,
+          "mid": 0.4,
+          "high_mid": 0.15,
+          "high": 0.05
+        },
+        "position": 300,
+        "tonic": "C",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 110,
+        "fundamental_confidence": 0.9
+      },
+      {
+        "id": "bass-low",
+        "bands": {}
+      }
+    ],
+    "evidence": {
+      "bass-high": [
+        {
+          "dimension": "frequency",
+          "label": "good",
+          "confidence": 1
+        }
+      ],
+      "bass-low": [
+        {
+          "dimension": "texture",
+          "label": "poor",
+          "confidence": 0.9
+        }
+      ]
+    },
+    "expects": {
+      "mode": "hybrid",
+      "jev_status": "jev_partial",
+      "order": [
+        "bass-high",
+        "bass-low"
+      ],
+      "unscored": [],
+      "alternatives": [
+        "bass-low"
+      ],
+      "compare_with": "confidence_low",
+      "candidates": {
+        "bass-high": {
+          "rank": 1,
+          "compatibility": 0.925,
+          "confidence": 0.7,
+          "uncertain": false,
+          "warnings": [],
+          "dimensions": {
+            "frequency": {
+              "dsp": 0.9,
+              "jev": 0.75,
+              "combined": 0.825,
+              "jev_confidence": 1
+            }
+          }
+        },
+        "bass-low": {
+          "rank": 2,
+          "compatibility": 0.25,
+          "confidence": 0.1,
+          "uncertain": true,
+          "warnings": [
+            "low_coverage"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "disagreement_frequency",
+    "note": "an excellent frequency judgment on a candidate whose bands compete in the low band",
+    "kick": {
+      "bands": {
+        "sub": 0.5,
+        "bass": 0.3,
+        "low_mid": 0.1,
+        "mid": 0.05,
+        "high_mid": 0.03,
+        "high": 0.02
+      },
+      "attack": 10,
+      "decay": 250,
+      "strength": 0.8,
+      "position": 0,
+      "tonic": "C",
+      "mode": "major",
+      "key_confidence": 0.9,
+      "fundamental": 55,
+      "fundamental_confidence": 0.9
+    },
+    "candidates": [
+      {
+        "id": "bass-complement",
+        "bands": {
+          "bass": 0.1,
+          "low_mid": 0.3,
+          "mid": 0.4,
+          "high_mid": 0.15,
+          "high": 0.05
+        },
+        "position": 300,
+        "tonic": "C",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 110,
+        "fundamental_confidence": 0.9
+      },
+      {
+        "id": "bass-conflict",
+        "bands": {
+          "sub": 0.6,
+          "bass": 0.3,
+          "low_mid": 0.05,
+          "mid": 0.03,
+          "high_mid": 0.01,
+          "high": 0.01
+        },
+        "position": 100,
+        "tonic": "F#",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 55,
+        "fundamental_confidence": 0.9
+      }
+    ],
+    "evidence": {
+      "bass-complement": [
+        {
+          "dimension": "frequency",
+          "label": "neutral",
+          "confidence": 0.9
+        }
+      ],
+      "bass-conflict": [
+        {
+          "dimension": "frequency",
+          "label": "excellent",
+          "confidence": 0.9
+        }
+      ]
+    },
+    "expects": {
+      "mode": "hybrid",
+      "jev_status": "jev_partial",
+      "order": [
+        "bass-complement",
+        "bass-conflict"
+      ],
+      "unscored": [],
+      "alternatives": [],
+      "candidates": {
+        "bass-complement": {
+          "rank": 1,
+          "compatibility": 0.8714285714285717,
+          "confidence": 0.7,
+          "uncertain": false,
+          "warnings": [],
+          "dimensions": {
+            "frequency": {
+              "dsp": 0.9,
+              "jev": 0.5,
+              "combined": 0.7
+            }
+          }
+        },
+        "bass-conflict": {
+          "rank": 2,
+          "compatibility": 0.4307692307692308,
+          "confidence": 0.7,
+          "uncertain": false,
+          "warnings": [
+            "dimension_disagreement"
+          ],
+          "dimensions": {
+            "frequency": {
+              "dsp": 0.2,
+              "jev": 1,
+              "combined": 0.6,
+              "unavailable_reason": null
+            },
+            "transient": {
+              "dsp": 0.5076923076923077
+            },
+            "tonal": {
+              "dsp": 0.1
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "empty_baseline",
+    "note": "no candidates at all: valid, finite and documented",
+    "kick": {
+      "bands": {
+        "sub": 0.5,
+        "bass": 0.3,
+        "low_mid": 0.1,
+        "mid": 0.05,
+        "high_mid": 0.03,
+        "high": 0.02
+      },
+      "attack": 10,
+      "decay": 250,
+      "strength": 0.8,
+      "position": 0,
+      "tonic": "C",
+      "mode": "major",
+      "key_confidence": 0.9,
+      "fundamental": 55,
+      "fundamental_confidence": 0.9
+    },
+    "candidates": [],
+    "evidence": {},
+    "expects": {
+      "mode": "dsp-only",
+      "jev_status": "jev_absent",
+      "order": [],
+      "unscored": [],
+      "alternatives": [],
+      "baseline_fallback": true
+    }
+  },
+  {
+    "name": "single_candidate_no_evidence",
+    "note": "one candidate with no evidence at all falls back to the baseline",
+    "kick": {
+      "bands": {
+        "sub": 0.5,
+        "bass": 0.3,
+        "low_mid": 0.1,
+        "mid": 0.05,
+        "high_mid": 0.03,
+        "high": 0.02
+      },
+      "attack": 10,
+      "decay": 250,
+      "strength": 0.8,
+      "position": 0,
+      "tonic": "C",
+      "mode": "major",
+      "key_confidence": 0.9,
+      "fundamental": 55,
+      "fundamental_confidence": 0.9
+    },
+    "candidates": [
+      {
+        "id": "bass-complement",
+        "bands": {
+          "bass": 0.1,
+          "low_mid": 0.3,
+          "mid": 0.4,
+          "high_mid": 0.15,
+          "high": 0.05
+        },
+        "position": 300,
+        "tonic": "C",
+        "mode": "major",
+        "key_confidence": 0.9,
+        "fundamental": 110,
+        "fundamental_confidence": 0.9
+      }
+    ],
+    "evidence": {},
+    "expects": {
+      "mode": "dsp-only",
+      "jev_status": "jev_absent",
+      "order": [
+        "bass-complement"
+      ],
+      "unscored": [],
+      "alternatives": [],
+      "baseline_fallback": true,
+      "candidates": {
+        "bass-complement": {
+          "rank": 1,
+          "compatibility": 0.957142857142857,
+          "confidence": 1,
+          "uncertain": false,
+          "warnings": []
+        }
+      }
+    }
+  },
+  {
+    "name": "single_jev_dimension",
+    "note": "a candidate whose only evidence is one Jev dimension is still ranked",
+    "kick": {
+      "bands": {
+        "sub": 0.5,
+        "bass": 0.3,
+        "low_mid": 0.1,
+        "mid": 0.05,
+        "high_mid": 0.03,
+        "high": 0.02
+      },
+      "attack": 10,
+      "decay": 250,
+      "strength": 0.8,
+      "position": 0,
+      "tonic": "C",
+      "mode": "major",
+      "key_confidence": 0.9,
+      "fundamental": 55,
+      "fundamental_confidence": 0.9
+    },
+    "candidates": [
+      {
+        "id": "bass-only-jev",
+        "bands": {}
+      }
+    ],
+    "evidence": {
+      "bass-only-jev": [
+        {
+          "dimension": "texture",
+          "label": "good",
+          "confidence": 0.85
+        }
+      ]
+    },
+    "expects": {
+      "mode": "hybrid",
+      "jev_status": "jev_partial",
+      "order": [
+        "bass-only-jev"
+      ],
+      "unscored": [],
+      "alternatives": [],
+      "candidates": {
+        "bass-only-jev": {
+          "rank": 1,
+          "compatibility": 0.75,
+          "confidence": 0.1,
+          "uncertain": true,
+          "warnings": [
+            "low_coverage"
+          ],
+          "jev_judgments": [
+            "texture"
+          ],
+          "dimensions": {
+            "texture": {
+              "weight": 0.1,
+              "dsp": null,
+              "jev": 0.75,
+              "combined": 0.75
+            }
+          }
+        }
+      }
+    }
+  }
+]
