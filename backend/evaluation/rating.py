@@ -245,6 +245,9 @@ def load_protocol(path):
     if type(order_seed) is not str or not order_seed or type(limit) is not float:
         raise RatingError("protocol_constants_missing",
                           "The protocol document is missing ORDER_SEED or MAX_RECOGNISED_RATE.")
+    if order_seed != ORDER_SEED:
+        raise RatingError("protocol_constants_missing",
+                          "The protocol document does not declare the pinned ORDER_SEED.")
     instructions = instruction_text(text)
     if not instructions:
         raise RatingError("protocol_constants_missing",
@@ -903,6 +906,9 @@ def start(arguments, stream, stdout):
         return 2
     pair_list = load_pair_list(arguments.pairs)
     if pair_list is None:
+        return 2
+    if pair_list["dataset_version"] != dataset["dataset_version"]:
+        report([preflight("dataset_version_mismatch", "pair_list")])
         return 2
     problems = check_assignments(dataset, pair_list)
     if problems:
