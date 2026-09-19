@@ -53,12 +53,14 @@ insufficient evidence — no held-out pair list exists (#65 has not landed the s
 | unresolved used samples | 0 | - |
 | dataset records used / synthetic | 0 / 0 | provenance_kind = real_library_sample |
 
-| Arm | Eligible queries | Intersection of eligible queries | Unscored share | Evidence source | Status |
-| --- | --- | --- | --- | --- | --- |
-| random | 0 of 0 | 0 | undefined (0 rated candidates) | none | insufficient (no_held_out_query) |
-| dsp-only | 0 of 0 | 0 | undefined (0 rated candidates) | none | insufficient (no_held_out_query) |
-| jev-only | 0 of 0 | 0 | undefined (0 rated candidates) | none | insufficient (no_held_out_query) |
-| hybrid | 0 of 0 | 0 | undefined (0 rated candidates) | none | insufficient (no_held_out_query) |
+| Arm | Eligible queries | Unscored share | Evidence source | Status |
+| --- | --- | --- | --- | --- |
+| random | 0 of 0 | undefined (0 rated candidates) | none | insufficient (no_held_out_query) |
+| dsp-only | 0 of 0 | undefined (0 rated candidates) | none | insufficient (no_held_out_query) |
+| jev-only | 0 of 0 | undefined (0 rated candidates) | none | insufficient (no_held_out_query) |
+| hybrid | 0 of 0 | undefined (0 rated candidates) | none | insufficient (no_held_out_query) |
+
+Intersection of the four arms' eligible queries: 0 of 0 sampled queries. Every arm received the same eligible candidate set per query (the sampled candidates that pass filter_candidates with FilterPolicy()); an arm ordering a different set is rejected with candidate_set_mismatch instead of being compared.
 
 ## Quality
 
@@ -150,7 +152,7 @@ Bootstrap: 10000 resamples of the eligible query kicks with replacement under BO
 
 The minimum detectable difference is the protocol's predeclared table: about 0.08 accuracy points for pairwise_accuracy (1.96 x 0.30 / sqrt(60)) and about 0.25 rating points for top1_margin (1.96 x 1.00 / sqrt(60)). Every gated lift is set at or above that floor (+0.10 over random, +0.10 over DSP, +0.30 top-1 margin). The top-k gates are not evaluable at this design and are reported insufficient.
 
-Determinism: re-running the recorded command reproduces run.json (sha256:02679389361325e23b6faac914f7ed5b50ab440dd45e37c4161273f30f3a413a), records.json (sha256:14f8ab5e44865a612a258fa818ca18a57a624d6d19e9073e2a8c23ef3edb2db1) and this report byte for byte. The run key covers the protocol version, the dataset version and identity digest, the split manifest version and digest, the pair-list digest, every seed, the analysis and ranking versions and weight-table ids, ADAPTER_VERSION, PROMPT_VERSION and the observed model versions.
+Determinism: re-running the recorded command reproduces run.json (sha256:45847fac075537a823fe805b5397dcd74d2a08494876d5aa7dffe05e9ea040ce), records.json (sha256:14f8ab5e44865a612a258fa818ca18a57a624d6d19e9073e2a8c23ef3edb2db1) and this report byte for byte. The run key covers the protocol version, the dataset version and identity digest, the split manifest version and digest, the pair-list digest, every seed, the analysis and ranking versions and weight-table ids, ADAPTER_VERSION, PROMPT_VERSION and the observed model versions.
 
 ## Agreement
 
@@ -210,6 +212,10 @@ Cold and warm totals are compared with MAX_COLD_RECOMMENDATION_P95_MS = 2000 and
 | analysis_manifests | analysis_manifest_missing | every held-out sample used resolves to one complete entry with a single analysis_version | 2 of 2 analysis manifests present |
 
 ## Deviations
+
+### Session rows
+
+No session exists, so no session row carries a validate exit status.
 
 - unscored candidates: random 0 of 0 rated candidates scored; dsp-only 0 of 0 rated candidates scored; jev-only 0 of 0 rated candidates scored; hybrid 0 of 0 rated candidates scored
 - identical orderings: random 0 query pairs; dsp-only 0 query pairs; jev-only 0 query pairs; hybrid 0 query pairs
