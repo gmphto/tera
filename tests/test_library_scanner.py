@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 import sqlite3
+import struct
 from pathlib import Path
 
 import numpy as np
@@ -20,6 +21,7 @@ from backend.analysis import batch, harmony, loudness, spectral, transient
 from backend.audio import AudioErrorCode, AudioReadError, load_wav_bytes
 from backend.contracts import MEASURES
 from backend.library import indexer, scanner
+from backend.library.errors import IncompleteFeatures, UnknownAnalysisVersion
 from backend.library.repository import LibraryRepository, transaction
 from backend.library.schema import open_database
 from tests.test_audio import wav
@@ -292,6 +294,37 @@ def test_a_too_short_snapshot_is_rejected_by_the_reader_as_invalid_audio():
     assert caught.value.code is AudioErrorCode.INVALID_AUDIO
 
 
+def _riff_container(body):
+    """A RIFF/WAVE container carrying exactly `body` after the 12-byte header."""
+
+    return b"RIFF" + struct.pack("<I", 4 + len(body)) + b"WAVE" + body
+
+
+@pytest.mark.parametrize("body", [
+    b"",
+    b"fmt " + struct.pack("<I", 4) + b"\0" * 4,
+    b"fmt " + struct.pack("<I", 15) + b"\0" * 15,
+])
+def test_a_passing_container_without_a_storable_header_is_unsupported_format(body):
+    """QA finding F3: the pre-filter accepts a container the header read refuses.
+
+    The snapshot passes the 12-byte pre-filter, so `snapshot_format_code`
+    accepts it, but it carries no `fmt `/`data` pair the schema could store:
+    `sample_rate_hz`, `channels` and `frame_count` are NOT NULL with real
+    constraints, so there is no honest row to write. The scan reports
+    `unsupported`/`unsupported_format` while `load_wav_bytes` refuses the same
+    bytes with the wider `invalid_audio`; `_docs/library-scan.md` records the
+    mapping.
+    """
+
+    data = _riff_container(body)
+    assert scanner.snapshot_format_code(data) is None
+    assert scanner.read_wav_header(data) == (None, "unsupported_format")
+    with pytest.raises(AudioReadError) as caught:
+        load_wav_bytes(data)
+    assert caught.value.code is AudioErrorCode.INVALID_AUDIO
+
+
 def test_a_scan_never_decodes_audio_or_runs_an_extractor(tmp_path, capsys, monkeypatch):
     root = build(tmp_path, {"a.wav": tone(110), "b.wav": tone(220), "empty.wav": wav(np.zeros((0, 1)))})
 
@@ -433,6 +466,68 @@ def test_a_modification_keeps_the_record_and_its_previous_analysis(tmp_path, cap
     assert previous.analysis_version == old_version
     assert len(previous.sample.features.measurements) == len(MEASURES)
     connection.close()
+
+
+def test_a_modification_invalidates_the_analysis_of_the_previous_bytes(tmp_path, capsys):
+    """QA finding F1: the new bytes must never look analysed.
+
+    The row already holds a legitimate analysis at the *current* version when
+    the file's bytes change. That analysis was measured from the previous
+    bytes, so the scan invalidates it in the same transaction as the content
+    update: `analysis` is `queued`, the row is back in `pending_analysis`, and
+    `get_sample` can no longer serve the old measurements under the new
+    content identity.
+    """
+
+    root = build(tmp_path, {"a.wav": tone(110)})
+    database = tmp_path / "library.sqlite3"
+    assert run_scan(capsys, root, database)[0] == 0
+    row = only_row(database)
+    store_analysis(database, row["sample_id"])
+    version = indexer.current_analysis_version()
+    connection = open_database(str(database))
+    library = LibraryRepository(connection)
+    assert library.get_sample(row["sample_id"]).analysis_version == version
+    assert indexer.pending_analysis(connection) == ()
+    connection.close()
+
+    (root / "a.wav").write_bytes(tone(330, frames=960))
+    code, summary = run_scan(capsys, root, database)
+    assert code == 0
+    assert summary["counts"]["modified"] == 1
+    record = summary["files"][0]
+    assert record["code"] == "modified" and record["analysis"] == "queued"
+    assert summary["counts"]["queued_analysis"] == 1
+    stored = only_row(database)
+    assert stored["sample_id"] == row["sample_id"]
+    assert stored["original_path"] == row["original_path"]
+    assert stored["imported_at"] == row["imported_at"]
+    fingerprint = hashlib.sha256(tone(330, frames=960)).hexdigest()
+    assert stored["content_sha256"] == fingerprint != row["content_sha256"]
+
+    connection = open_database(str(database))
+    for table in ("sample_features", "sample_keys"):
+        remaining = connection.execute(
+            "SELECT COUNT(*) FROM " + table + " WHERE sample_id = ?",
+            (row["sample_id"],)).fetchone()[0]
+        assert remaining == 0
+    library = LibraryRepository(connection)
+    assert library.has_current_analysis(fingerprint, version) is False
+    requests = indexer.pending_analysis(connection)
+    assert [(item.sample_id, item.fingerprint) for item in requests] == [
+        (row["sample_id"], fingerprint)]
+    with pytest.raises(IncompleteFeatures):
+        library.get_sample(row["sample_id"])
+    with pytest.raises(UnknownAnalysisVersion):
+        library.get_sample(row["sample_id"], version)
+    connection.close()
+
+    # The next scan re-reports the file as unchanged with the work still queued.
+    code, repeat = run_scan(capsys, root, database)
+    assert code == 0
+    assert repeat["counts"]["unchanged"] == 1
+    assert repeat["counts"]["queued_analysis"] == 1
+
 
 
 def test_a_renamed_file_keeps_its_record_and_queues_nothing(tmp_path, capsys):

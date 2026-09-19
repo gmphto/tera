@@ -717,16 +717,33 @@ class LibraryRepository:
         return _path_record(row)
 
     def update_path_record_content(self, sample_id: str, *, content_sha256, sample_rate_hz,
-                                   channels, frame_count, duration_ms, file_status="present"):
+                                   channels, frame_count, duration_ms, file_status="present",
+                                   invalidate_analysis_version=None):
         """Replace one row's content identity and audio metadata in place.
 
-        The stored `sample_id`, path, role, `imported_at` and every feature row
-        stay as they were: an edited file keeps its record identity and its
-        previous content's analysis stays readable under that content's
-        `analysis_version`. Raises the codes `insert_path_record` documents,
-        plus `UnknownSample` for an unknown row.
+        The stored `sample_id`, path, role and `imported_at` stay as they were:
+        an edited file keeps its record identity. When
+        `invalidate_analysis_version` names an analysis version, that sample's
+        `sample_features` and `sample_keys` rows at that version are deleted in
+        the *same* transaction as the update.
+
+        Why the deletion belongs here: a feature row is addressed by
+        (`sample_id`, `analysis_version`) and nothing records which bytes it was
+        measured from, so after a content change the rows stored at the version
+        that made the record look analysed would still be served by `get_sample`
+        at that version and would keep the new bytes out of `pending_analysis`.
+        Rows stored under other versions are left untouched and stay readable
+        when that version is named; whether the schema can keep the previous
+        content's analysis addressable after an edit is #166.
+
+        Raises the codes `insert_path_record` documents, plus `UnknownSample`
+        for an unknown row and `InvalidSample` for a malformed version argument.
         """
 
+        if invalidate_analysis_version is not None \
+                and not isinstance(invalidate_analysis_version, str):
+            raise InvalidSample(
+                "invalidate_analysis_version must be None or an analysis version string.")
         identity = _validated_metadata(content_sha256, sample_rate_hz, channels, frame_count,
                                        duration_ms)
         _require_file_status(file_status)
@@ -744,6 +761,16 @@ class LibraryRepository:
                 "WHERE sample_id = ?",
                 (identity, sample_rate_hz, channels, frame_count, duration_ms, file_status,
                  utc_now(), sample_id))
+            if invalidate_analysis_version is not None:
+                self._delete_analysis(sample_id, invalidate_analysis_version)
+
+    def _delete_analysis(self, sample_id: str, analysis_version: str) -> None:
+        """Delete one sample's stored analysis rows for one version (issue #22)."""
+
+        for table in ("sample_features", "sample_keys"):
+            self.connection.execute(
+                "DELETE FROM " + table + " WHERE sample_id = ? AND analysis_version = ?",
+                (sample_id, analysis_version))
 
     def relocate_path_record(self, sample_id: str, path, file_status="present"):
         """Point one row at its new local path and restore its availability.

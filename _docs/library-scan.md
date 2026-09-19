@@ -82,11 +82,25 @@ A regular `.wav` file whose byte snapshot is shorter than 12 bytes, or does not
 carry `RIFF` at offset 0 and `WAVE` at offset 8, is reported with
 reconciliation code `unsupported` and error code `unsupported_format`: no
 library row is created or changed and nothing is queued. `snapshot_format_code`
-is that pre-filter, and a conformance test asserts every snapshot it refuses is
-also refused by `backend.audio.load_wav_bytes`, so the pre-filter can never
-accept a file the reader rejects and can never reject one it accepts. For a
-snapshot under 12 bytes the reader reports the narrower `invalid_audio`; both
-refuse it.
+is that pre-filter, and a conformance test asserts that every snapshot it
+refuses is also refused by `backend.audio.load_wav_bytes`, so the pre-filter
+stays a strict subset of the reader's rejection rather than a second format
+authority. The two do not always refuse with the same code, so this table is the
+mapping the criteria ask the document to record:
+
+| Snapshot | Pre-filter / header read | Reader (`load_wav_bytes`) |
+| --- | --- | --- |
+| Fewer than 12 bytes (`b""`, `b"RIFF"`) | `unsupported_format` | `invalid_audio` |
+| 12 bytes or more without `RIFF` at offset 0 and `WAVE` at offset 8 (`fLaC`, `RIFX`, `RF64`, arbitrary bytes) | `unsupported_format` | `unsupported_format` |
+| `RIFF`/`WAVE` that passes the pre-filter but carries no storable `fmt ` / `data` pair (no chunks at all, `fmt ` shorter than 16 bytes) | `unsupported_format`, from `read_wav_header` | `invalid_audio` |
+| `RIFF`/`WAVE` with a storable `fmt ` / `data` pair, even one with 0 frames | Accepted, so the file is indexed and queued | May still be refused deeper (`empty_audio`, `invalid_audio`); that failure is analysis-time work owned by #23 |
+
+The first three rows are scan `unsupported` records: the pre-filter or the header
+read refuses them before any row exists, and the test named after each row pins
+the pair of codes. The last row is the no-decode boundary — a file whose header
+*is* storable is imported and queued even when the reader will refuse it at
+analysis time. A channel layout wider than the schema can store is a fourth
+refusal, reported as `unsupported_channels`; the limits below record it.
 
 The scanner never decodes audio. It reads the snapshot only with
 `backend.analysis.batch.snapshot` and hashes it; a test monkeypatches
@@ -95,34 +109,64 @@ The scanner never decodes audio. It reads the snapshot only with
 `transient` and `harmony` to fail if a scan calls them, and a full scan still
 reconciles.
 
-### The two documented limits of this version
+### The documented limits of this version
 
 The version-1 schema (#21, `library-storage.md`) stores four audio metadata
-columns per row and constrains two of them. Two behaviours the criteria of #22
-describe are impossible against it, and the scanner reports the honest outcome
-instead of writing a row it cannot justify:
+columns per row, constrains two of them, and addresses analysis by
+(`sample_id`, `analysis_version`) alone. Three behaviours the criteria of #22
+describe cannot all hold against it at once, and the scanner reports the honest
+outcome instead of writing a row or a state it cannot justify:
 
-1. **A duplicated content identity cannot get its own row.**
-   `samples.content_sha256` is `NOT NULL UNIQUE`, so the second path holding the
-   same bytes is refused with `UNIQUE constraint failed: samples.content_sha256`
-   (probe: two rows with one content identity). The scan therefore reports the
-   reconciliation code `duplicate` with the content identity as its
-   `sample_id`, leaves the holding row's path, role, availability and features
-   exactly as they were, and writes nothing for the second path. Two rows for one
-   content identity — and the same rule for a second root — need a migration
-   that drops that UNIQUE constraint.
+1. **One content identity has one row, so a duplicate gets no row of its own.**
+   The storage contract is content-addressed: `samples.content_sha256` is
+   `NOT NULL UNIQUE`, so one row stands for one content identity and a second
+   path holding the same bytes is refused with
+   `UNIQUE constraint failed: samples.content_sha256` (probe: two rows with one
+   content identity; through the repository it is `duplicate_content`). The scan
+   therefore reports the reconciliation code `duplicate` with the content
+   identity in `sample_id` and writes nothing for the second path — no second
+   row, no merge, no reindex — and the holding row's path, role, availability
+   and features are never changed, including when the holder is under another
+   scanned root, so a cross-root duplicate is a report rather than a reindex.
+   `analysis` follows the holder: `current` when the content identity already
+   has the current analysis, `queued` when at least one holder is available, and
+   `none` when every holder is unavailable (`missing`), because #23 cannot read
+   a file the last scan found gone. Whether two paths may instead hold one
+   content identity with their own roles is the product decision recorded in
+   [#167](https://github.com/gmphto/tera/issues/167).
 2. **A channel layout wider than two channels cannot be stored.** `samples`
    requires `channels IN (1, 2)`, so a three-channel file that passes the
-   pre-filter is reported as `unsupported` with the reader's own
-   `unsupported_channels` code rather than indexed under a false channel count.
+   pre-filter is reported with reconciliation code `unsupported` and the
+   reader's own `unsupported_channels` code as its `error_code` — no row is
+   written and nothing is queued — rather than indexed under a false channel
+   count. The reader refuses the same file, so the scan is not inventing a
+   second format authority; whether wider layouts may be stored at all is
+   [#167](https://github.com/gmphto/tera/issues/167) too.
+3. **A content change cannot keep the previous content's analysis readable and
+   honest at the same time.** `sample_features` and `sample_keys` are keyed by
+   (`sample_id`, `analysis_version`) and nothing records which byte sequence a
+   measurement came from, so a row that was analysed before its bytes changed
+   cannot both keep those rows and avoid serving them as the analysis of the new
+   bytes. The scan updates the content identity and, in the *same* transaction,
+   deletes that sample's analysis rows at the version that made the record look
+   analysed (`update_path_record_content(...,
+   invalidate_analysis_version=...)`). It therefore never reports `modified`
+   with `analysis: "current"`, always returns the row to `pending_analysis`, and
+   `get_sample` cannot serve the previous measurements under that version. Rows
+   stored under other analysis versions are untouched and stay readable when
+   that version is named, which is the criterion's history clause; because
+   `get_sample(sample_id)` without a version resolves the newest stored version,
+   such a row can still be read after an edit, but it is never reported
+   `current` for the new content identity, never enters `pending_analysis`, and
+   its `analysis_version` names the older descriptor. Closing that last gap —
+   keying analysis by content identity rather than deleting history — is
+   [#166](https://github.com/gmphto/tera/issues/166), owned by #21.
 
 For the same reason the four metadata columns are filled from the RIFF header of
 the snapshot the scan hashed — the chunk headers only, never sample data, never
-the reader. A file whose header carries no usable format/data pair is
-`unsupported` for the same reason: no storable metadata, no honest row. Deeper
-reader failures on files whose header *is* storable (`empty_audio`,
-`invalid_audio`) are analysis-time errors owned by #23: the scan indexes those
-files and queues them, and #23 records the failure.
+the reader. Deeper reader failures on files whose header *is* storable
+(`empty_audio`, `invalid_audio`) are analysis-time errors owned by #23: the scan
+indexes those files and queues them, and #23 records the failure.
 
 ## Content identity and analysis version
 
@@ -150,9 +194,9 @@ One code per file, from a closed set, decided in this order:
 | `inaccessible` | The entry was enumerated but its byte snapshot failed | An existing row is kept and marked unavailable; no row is created for a new path | `none` |
 | `unsupported` | The snapshot failed the pre-filter, or its header cannot supply storable metadata | No row is created or changed | `none` |
 | `unchanged` | A row matches this path with the same content identity | Nothing, unless the stored availability was not `present` (a returning file), which is restored | `current` or `queued` |
-| `modified` | A row matches this path with a different content identity | That row's content identity and metadata are updated; row identity, path, role, `imported_at` and the previous content's analysis are kept | `current` or `queued` |
+| `modified` | A row matches this path with a different content identity | That row's content identity and metadata are updated; row identity, path, role and `imported_at` are kept; the sample's analysis rows at the current version are invalidated in the same transaction (limit 3) | `queued` |
 | `moved` | The same content identity was held by a row this run did not enumerate, or the stored path differs from the enumerated one only by case or Unicode form | The existing row's path is updated, its identity and features are kept, availability is restored and nothing is queued by the move | `current` or `queued` |
-| `duplicate` | The content identity is already held by a row at another path, under this root, under another root or by another file in this scan | Nothing (see the documented limit above); the holding row is untouched | `current`, `queued` or `none` |
+| `duplicate` | The content identity is already held by a row at another path, under this root, under another root or by another file in this scan | Nothing (limit 1); the holding row is untouched | `current`, `queued` or `none`, chosen per limit 1 |
 | `added` | No row matches this path and no row holds this content identity | One row is inserted for (root, path, role, content identity) with no analysis | `queued` |
 | `missing` | A row inside the root was not enumerated this run and enumeration completed | The row is kept with its identity, path, role, content identity and features, and its availability is set unavailable | `none` |
 
@@ -184,6 +228,12 @@ Precedence and pairing rules:
   is available, so it appears in `pending_analysis`;
 - `none` — the file is unavailable (`missing`, `inaccessible`), unsupported, or
   the content identity is held only by unavailable rows.
+
+A content change invalidates the analysis stored at the current version in the
+same transaction as the update (limit 3), so a `modified` record is never
+`current`: the row is `queued` again until #23 stores an analysis for the new
+content identity. A `duplicate` whose only holder is unavailable is `none`
+rather than `queued`, because #23 cannot read a missing file.
 
 Queueing is expressed only as the derived query
 `backend/library/indexer.py: pending_analysis(connection)`, which returns one
@@ -269,7 +319,8 @@ unchanged; the gaps it does not cover are added to that file:
 | Content lookup by fingerprint | `find_path_records_by_content(content_sha256)` for rows without analysis (new); `find_by_content` needs a complete analysis and raises `incomplete_features` for a scan-created row |
 | Path lookup scoped to a root | `list_path_records(root)` (new); `find_sample_by_path(path)` is the single-path form and needs a complete analysis |
 | Insert of a path row | `insert_path_record(path, *, role, content_sha256, sample_rate_hz, channels, frame_count, duration_ms, file_status, sample_id)` (new) |
-| Content-identity update | `update_path_record_content(sample_id, *, content_sha256, ...)` (new) |
+| Content-identity update | `update_path_record_content(sample_id, *, content_sha256, ..., invalidate_analysis_version=<version>)` (new) |
+| Stale-analysis invalidation on a content change | The `invalidate_analysis_version` keyword of that same operation (new): it deletes the sample's `sample_features` and `sample_keys` rows at that version inside the update's single transaction, so the scan needs neither a second call nor its own SQL against a library table |
 | Availability update | `mark_file_status(sample_id, file_status)` (existing, reused) |
 | Path update for a move | `relocate_path_record(sample_id, path, file_status)` (new) |
 | Current-analysis check at a version | `has_current_analysis(content_sha256, analysis_version)` (new) |
@@ -277,7 +328,8 @@ unchanged; the gaps it does not cover are added to that file:
 
 `LibraryPathRecord` is the row-level read those operations return. Every write
 runs in exactly one `transaction`, so an interruption or a failure can never
-leave a half-applied row; the connection comes from
+leave a half-applied row, and a content update and its analysis invalidation
+commit or roll back together; the connection comes from
 `backend.library.schema.open_database`, never from a hand-rolled
 `sqlite3.connect`.
 
@@ -293,7 +345,7 @@ identical command; nothing was deleted in the meantime.
 | `inaccessible` with `source_changed` | The file was being written; re-run once the writing process has finished. A file whose bytes were replaced after the snapshot keeps the identity of the bytes that were hashed |
 | `unsupported` | Delete or move the bad file, or convert it to a supported RIFF/WAVE layout; no row is affected |
 | `missing` | Restore the file at its stored path, or leave it: the row keeps its identity, role, content identity and features so a palette reference can still resolve to a recoverable record |
-| `duplicate` | Nothing to repair: the bytes are already in the library at another path (see the documented limit; the second path is not indexed by this version) |
+| `duplicate` | Nothing to repair: the bytes are already in the library at another path (limit 1; the second path is not indexed by this version) |
 
 An interrupted run leaves the state a later run continues from: re-running the
 identical command re-reports the files that were already committed as
@@ -324,11 +376,14 @@ Both files build synthetic trees with the `wav(...)` helper from
 created by the #21 migrations. `tests/test_library_scanner.py` covers the entry
 point and exit codes, the summary schema and its code sets, the traversal
 conformance with `batch.discover`, the pre-filter and its conformance with the
-reader, the no-decode boundary, ignored entries, `unsupported` snapshots,
-reader-rejected files that are still indexed and queued, `added`, `unchanged`,
-`modified`, `moved` (including a case-only rename), `duplicate` inside one scan
-and across two roots, repeat scans that write no row, the derived queue and the
-analysis states, and the untouched table set.
+reader including the refusal-code mapping table above, the no-decode boundary,
+ignored entries, `unsupported` snapshots, reader-rejected files that are still
+indexed and queued, `added`, `unchanged`, `modified` (both the record and its
+stale-analysis invalidation: a row analysed at the current version, then edited,
+must come back as `queued`, re-enter `pending_analysis`, and stop answering
+`get_sample`), `moved` (including a case-only rename), `duplicate` inside one
+scan and across two roots, repeat scans that write no row, the derived queue
+and the analysis states, and the untouched table set.
 `tests/test_library_scan_recovery.py` covers `missing` and its recovery,
 `inaccessible` from a vanishing file, a denied read and a source that changed
 while reading, the precedence of `inaccessible` over `moved`, a duplicate of an
@@ -338,35 +393,64 @@ with an explicit reason on a platform that cannot create the link).
 
 ## Local verification
 
-Both commands were run from the repository root with the project interpreter.
+Every command below was run from the repository root with the project interpreter.
 `uv run` cannot capture a subprocess in this sandbox (it fails with
 `PermissionError [WinError 5]` at `_winapi.CreatePipe`), so each run put a
 `sitecustomize.py` on `PYTHONPATH`, passed `-p no:cacheprovider` and a
 `--basetemp` outside the repository. Every tree and database was temporary.
 
 ```text
-.venv\Scripts\python.exe -m pytest tests/test_library_scanner.py tests/test_library_scan_recovery.py --basetemp <tmp>\bt-focus3 -p no:cacheprovider -q -rf
-  -> 49 passed in 6.90s
+.venv\Scripts\python.exe -m pytest tests/test_library_scanner.py tests/test_library_scan_recovery.py --basetemp <tmp>\bt-run -p no:cacheprovider -q -rf
+  -> 53 passed in 3.48s
 
 .venv\Scripts\python.exe -m pytest tests/test_library_scanner.py tests/test_library_scan_recovery.py --collect-only -q -p no:cacheprovider
-  -> 49 tests collected in 0.81s
+  -> 53 tests collected in 1.39s (40 in tests/test_library_scanner.py, 13 in tests/test_library_scan_recovery.py)
 
-.venv\Scripts\python.exe -m pytest --basetemp <tmp>\bt-full -p no:cacheprovider -q -rf
-  -> 4 failed, 1771 passed, 1 skipped in 459.58s (0:07:39)
+.venv\Scripts\python.exe -m pytest tests/test_library_schema.py tests/test_library_repository.py --basetemp <tmp>\bt-run -p no:cacheprovider -q -rf
+  -> 56 passed in 4.70s
+
+.venv\Scripts\python.exe -m pytest --basetemp <tmp>\bt-full3 -p no:cacheprovider -q -rf
+  -> 4 failed, 1775 passed, 1 skipped in 495.28s (0:08:15)
 ```
 
-The baseline at `97c7b5f` before this change was `4 failed, 1722 passed,
-1 skipped`, the four failures being the known sandbox-only `PermissionError
+The baseline at the reviewed commit `8b32d90` is `49 passed` in the focused pair
+and `4 failed, 1771 passed, 1 skipped` in the full suite. Both re-runs after this
+change keep the same four known sandbox-only failures, all `PermissionError
 [WinError 5]` at `_winapi.CreatePipe`:
 `tests/test_batch.py::test_cli_empty_and_invalid_inputs`,
 `tests/test_batch.py::test_cli_fresh_and_resume`,
 `tests/test_evaluation_manifest.py::test_cli_build_validate_and_synthetic_shortfall`
 and
 `tests/test_evaluation_prepare.py::test_preparation_idempotence_source_preservation_and_collisions`.
-The change adds 49 passing tests (`1771 - 1722 = 49`, matching the 49 collected
-in the two new files), the same four sandbox-only failures and no new failure;
-the link fixture passed here rather than skipping, so the platform could create
-the symbolic link.
+The change adds four focused tests (`53 - 49 = 4`, and `1775 - 1771 = 4` in the
+full suite): the `modified` invalidation sequence and the three
+pre-filter/reader refusal-mapping cases. The #21 storage pair was re-run because
+`update_path_record_content` gained a keyword, and it stayed at `56 passed`. The
+link fixture passed here rather than skipping, so the platform could create the
+symbolic link.
+
+The `modified` defect QA reported was reproduced by the new test before the fix:
+
+```text
+tests/test_library_scanner.py::test_a_modification_invalidates_the_analysis_of_the_previous_bytes
+  -> AssertionError: assert ('modified' == 'modified' and 'current' == 'queued')
+```
+
+The refusal mapping in the table above was measured with a synthetic probe over
+`scanner.snapshot_format_code`, `scanner.read_wav_header` and
+`backend.audio.load_wav_bytes`:
+
+```text
+fixture                            bytes  scan                 reader
+b""                                  0    unsupported_format   invalid_audio
+b"RIFF"                              4    unsupported_format   invalid_audio
+fLaC + zeroes                       44    unsupported_format   unsupported_format
+RIFF/WAVE, no chunks                12    unsupported_format   invalid_audio
+RIFF/WAVE, fmt size 4               24    unsupported_format   invalid_audio
+RIFF/WAVE, fmt size 15              35    unsupported_format   invalid_audio
+RIFF/WAVE, fmt + empty data         44    accepted             empty_audio
+RIFF/WAVE, data before fmt          48    accepted             invalid_audio
+```
 
 One concrete probe result, against the version-1 schema of #21 (`open_database`
 on a fresh temporary database, then two inserts with synthetic
@@ -379,6 +463,8 @@ three-channel reader metadata     -> refused: CHECK constraint failed: channels 
 unknown rate metadata             -> refused: CHECK constraint failed: sample_rate_hz > 0
 ```
 
-That refusal is why the duplicate case is reported rather than stored and why a
-channel layout wider than two channels is `unsupported` instead of indexed under
-a false channel count; see "The two documented limits of this version" above.
+Those refusals are why a duplicate is reported rather than stored, why a channel
+layout wider than two channels is `unsupported` instead of indexed under a false
+channel count, and — with `sample_features` and `sample_keys` addressing analysis
+by (`sample_id`, `analysis_version`) only — why a content change deletes the stale
+analysis rows; see "The documented limits of this version" above.

@@ -380,9 +380,15 @@ class _Scan:
                         self.repository.mark_file_status(row.sample_id, "present")
                     self._record(relative, UNCHANGED, self._analysis(fingerprint), identity)
             else:
+                # The bytes changed, so the analysis stored for the previous
+                # bytes is invalidated in the same transaction as the content
+                # update: otherwise the row would look analysed for the new
+                # content and `get_sample` would serve the previous
+                # measurements (QA finding F1, criterion `modified`).
                 try:
                     self.repository.update_path_record_content(
                         row.sample_id, content_sha256=fingerprint, file_status="present",
+                        invalidate_analysis_version=self.version,
                         **_metadata_fields(metadata))
                 except DuplicateContent:
                     self._record(relative, DUPLICATE, self._analysis(fingerprint), identity,
