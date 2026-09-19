@@ -127,11 +127,14 @@ def test_custom_weight_table_is_recorded_and_used():
 
 
 def test_frequency_complementary_and_conflicting_pairs_order_and_evidence():
+    absent = bass("bass-absent-low", band_sub=0.0, band_bass=0.0)
     complementary = bass("bass-complement", **COMPLEMENT_BANDS)
     conflicting = bass("bass-conflict", **CONFLICT_BANDS)
-    result = rank([conflicting, complementary])
-    assert [record.candidate_id for record in result.ranked] == ["bass-complement", "bass-conflict"]
-    first, second = result.ranked
+    result = rank([conflicting, absent, complementary])
+    assert [record.candidate_id for record in result.ranked] == [
+        "bass-absent-low", "bass-complement", "bass-conflict"]
+    assert entries(result.ranked[0])["frequency"].compatibility == 1.0
+    first, second = result.ranked[1], result.ranked[2]
     # kick low 0.50+0.30 of 1.00 -> 0.80; candidate low 0.00+0.10 of 1.00 -> 0.10;
     # shared = min(0.80, 0.10) = 0.10 -> 1 - 0.10.
     assert entries(first)["frequency"].compatibility == pytest.approx(1 - min(0.80, 0.10), abs=1e-12)
@@ -175,13 +178,19 @@ def test_transient_zero_strength_and_degenerate_window_score_one(overrides):
     assert entry.compatibility == 1.0 and entry.unavailable_reason is None
 
 
-@pytest.mark.parametrize("tonic,expected", [("C", 1.00), ("A", 0.75), ("F#", 0.10)])
-def test_tonal_matching_and_clashing_reliable_keys(tonic, expected):
-    result = rank([bass("bass-key", tonal=musical_key(tonic, "minor", 0.85))])
-    entry = entries(result.ranked[0])["tonal"]
+@pytest.mark.parametrize("name,tonic,expected", [("matching", "C", 1.00), ("third", "A", 0.75),
+                                                     ("clashing", "F#", 0.10)])
+def test_tonal_matching_and_clashing_reliable_keys(name, tonic, expected):
+    candidates = [bass("bass-" + item, tonal=musical_key(value, "minor", 0.85))
+                  for item, value in (("matching", "C"), ("third", "A"), ("clashing", "F#"))]
+    result = rank(candidates)
+    assert [record.candidate_id for record in result.ranked] == [
+        "bass-matching", "bass-third", "bass-clashing"]
+    record = next(item for item in result.ranked if item.candidate_id == "bass-" + name)
+    entry = entries(record)["tonal"]
     assert entry.compatibility == pytest.approx(expected, abs=1e-12)
     assert entry.unavailable_reason is None
-    reason = result.ranked[0].reasons[2]
+    reason = record.reasons[2]
     assert "kick key C major" in reason and f"candidate key {tonic} minor" in reason
     assert "interval class" in reason and f"compatibility {expected:.3f}" in reason
 
