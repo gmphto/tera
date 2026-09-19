@@ -1,0 +1,291 @@
+{
+  "note": "Hand-computed per-query metric cases. Every expected value was computed from the protocol's formulas by hand, not read back from the runner: the per-pair aggregate is the median with the lower middle value on an even count, pairwise_accuracy counts decided within-query pairs over the rated subset, top1_margin is the arm's top ranked rated candidate minus the rated mean, and topk_mean uses k = min(10, rated subset size).",
+  "cases": [
+    {
+      "name": "three rated candidates and three decided pairs",
+      "queries": [
+        {
+          "query": "q1",
+          "pairs": {
+            "c1": [
+              3,
+              3
+            ],
+            "c2": [
+              1,
+              1
+            ],
+            "c3": [
+              2,
+              2
+            ]
+          },
+          "orders": {
+            "dsp-only": [
+              "c1",
+              "c2",
+              "c3"
+            ],
+            "hybrid": [
+              "c1",
+              "c3",
+              "c2"
+            ]
+          },
+          "expected_aggregates": {
+            "c1": 3,
+            "c2": 1,
+            "c3": 2
+          },
+          "expected": {
+            "dsp-only": {
+              "rated_size": 3,
+              "scored_in_rated": 3,
+              "decided_pairs": 3,
+              "pairwise_accuracy": 0.6666666666666666,
+              "top1_margin": 1,
+              "topk_mean": 2,
+              "k": 3,
+              "descriptive_k": true
+            },
+            "hybrid": {
+              "rated_size": 3,
+              "scored_in_rated": 3,
+              "decided_pairs": 3,
+              "pairwise_accuracy": 1,
+              "top1_margin": 1,
+              "topk_mean": 2,
+              "k": 3,
+              "descriptive_k": true
+            }
+          }
+        }
+      ],
+      "expected_arm": {
+        "dsp-only": {
+          "pairwise_accuracy": 0.6666666666666666,
+          "pairwise_queries": 1,
+          "top1_margin": 1,
+          "top1_queries": 1,
+          "topk_mean": 2,
+          "topk_queries": 1
+        },
+        "hybrid": {
+          "pairwise_accuracy": 1,
+          "pairwise_queries": 1,
+          "top1_margin": 1,
+          "top1_queries": 1,
+          "topk_mean": 2,
+          "topk_queries": 1
+        }
+      }
+    },
+    {
+      "name": "two ratings take the lower middle value and two rated candidates have no accuracy",
+      "queries": [
+        {
+          "query": "q1",
+          "pairs": {
+            "c1": [
+              3,
+              1
+            ],
+            "c2": [
+              0,
+              3
+            ]
+          },
+          "orders": {
+            "dsp-only": [
+              "c1",
+              "c2"
+            ]
+          },
+          "expected_aggregates": {
+            "c1": 1,
+            "c2": 0
+          },
+          "expected": {
+            "dsp-only": {
+              "rated_size": 2,
+              "scored_in_rated": 2,
+              "decided_pairs": 1,
+              "pairwise_accuracy": null,
+              "top1_margin": 0.5,
+              "topk_mean": 0.5,
+              "k": 2,
+              "descriptive_k": true
+            }
+          }
+        }
+      ],
+      "expected_arm": {
+        "dsp-only": {
+          "pairwise_accuracy": null,
+          "pairwise_queries": 0,
+          "top1_margin": 0.5,
+          "top1_queries": 1,
+          "topk_mean": 0.5,
+          "topk_queries": 1
+        }
+      }
+    },
+    {
+      "name": "equal aggregate ratings are never decided pairs",
+      "queries": [
+        {
+          "query": "q1",
+          "pairs": {
+            "c1": [
+              2,
+              2
+            ],
+            "c2": [
+              2,
+              2
+            ],
+            "c3": [
+              2,
+              2
+            ]
+          },
+          "orders": {
+            "dsp-only": [
+              "c3",
+              "c2",
+              "c1"
+            ]
+          },
+          "expected_aggregates": {
+            "c1": 2,
+            "c2": 2,
+            "c3": 2
+          },
+          "expected": {
+            "dsp-only": {
+              "rated_size": 3,
+              "scored_in_rated": 3,
+              "decided_pairs": 0,
+              "pairwise_accuracy": null,
+              "top1_margin": 0,
+              "topk_mean": 2,
+              "k": 3,
+              "descriptive_k": true
+            }
+          }
+        }
+      ],
+      "expected_arm": {
+        "dsp-only": {
+          "pairwise_accuracy": null,
+          "pairwise_queries": 0,
+          "top1_margin": 0,
+          "top1_queries": 1,
+          "topk_mean": 2,
+          "topk_queries": 1
+        }
+      }
+    },
+    {
+      "name": "k is capped at ten of twelve rated candidates",
+      "queries": [
+        {
+          "query": "q1",
+          "pairs": {
+            "c01": [
+              3,
+              3
+            ],
+            "c02": [
+              3,
+              3
+            ],
+            "c03": [
+              3,
+              3
+            ],
+            "c04": [
+              3,
+              3
+            ],
+            "c05": [
+              3,
+              3
+            ],
+            "c06": [
+              3,
+              3
+            ],
+            "c07": [
+              3,
+              3
+            ],
+            "c08": [
+              3,
+              3
+            ],
+            "c09": [
+              3,
+              3
+            ],
+            "c10": [
+              3,
+              3
+            ],
+            "c11": [
+              3,
+              3
+            ],
+            "c12": [
+              0,
+              0
+            ]
+          },
+          "orders": {
+            "dsp-only": [
+              "c01",
+              "c02",
+              "c03",
+              "c04",
+              "c05",
+              "c06",
+              "c07",
+              "c08",
+              "c09",
+              "c10",
+              "c11",
+              "c12"
+            ]
+          },
+          "expected_aggregates": {
+            "c01": 3,
+            "c11": 3,
+            "c12": 0
+          },
+          "expected": {
+            "dsp-only": {
+              "rated_size": 12,
+              "scored_in_rated": 12,
+              "decided_pairs": 11,
+              "pairwise_accuracy": 1,
+              "top1_margin": 0.25,
+              "topk_mean": 3,
+              "k": 10,
+              "descriptive_k": false
+            }
+          }
+        }
+      ],
+      "expected_arm": {
+        "dsp-only": {
+          "pairwise_accuracy": 1,
+          "pairwise_queries": 1,
+          "top1_margin": 0.25,
+          "top1_queries": 1,
+          "topk_mean": 3,
+          "topk_queries": 1
+        }
+      }
+    }
+  ]
+}

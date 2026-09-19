@@ -1,0 +1,68 @@
+{
+  "note": "Scored-share and tail cases. The scored share of one query for one arm is the number of rated-subset candidates the arm scored divided by the rated-subset size; a query below 0.50 is ineligible for that arm and never scored as zero. An unscored candidate is never counted in a metric.",
+  "share_cases": [
+    {
+      "name": "share at the floor is eligible",
+      "rated_size": 4,
+      "scored_in_rated": 2,
+      "expected_share": 0.5,
+      "expected_eligible": true,
+      "expected_reason": null
+    },
+    {
+      "name": "share below the floor is ineligible",
+      "rated_size": 4,
+      "scored_in_rated": 1,
+      "expected_share": 0.25,
+      "expected_eligible": false,
+      "expected_reason": "scored_share_below_minimum"
+    },
+    {
+      "name": "no rated subset is ineligible",
+      "rated_size": 0,
+      "scored_in_rated": 0,
+      "expected_share": null,
+      "expected_eligible": false,
+      "expected_reason": "rated_subset_below_minimum_ratings"
+    },
+    {
+      "name": "one rated candidate is ineligible",
+      "rated_size": 1,
+      "scored_in_rated": 1,
+      "expected_share": 1,
+      "expected_eligible": false,
+      "expected_reason": "rated_subset_below_minimum_ratings"
+    },
+    {
+      "name": "every rated candidate scored is eligible",
+      "rated_size": 3,
+      "scored_in_rated": 3,
+      "expected_share": 1,
+      "expected_eligible": true,
+      "expected_reason": null
+    }
+  ],
+  "tail_case": {
+    "name": "a scored candidate precedes every unscored candidate, and the tail sorts by id",
+    "eligible": [
+      "b4",
+      "b1",
+      "b3",
+      "b2"
+    ],
+    "scored": [
+      "b2",
+      "b1"
+    ],
+    "expected_order": [
+      "b2",
+      "b1",
+      "b3",
+      "b4"
+    ],
+    "expected_unscored": [
+      "b3",
+      "b4"
+    ]
+  }
+}

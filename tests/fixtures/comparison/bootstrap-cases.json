@@ -1,0 +1,124 @@
+{
+  "note": "The cluster bootstrap resamples the eligible query kicks with replacement and recomputes the mean. Each draw is seeded independently from sha256(BOOTSTRAP_SEED, label, draw index), so the pinned endpoints below are a regression pin for that documented algorithm, not an assumed value. The degenerate case is hand-checkable: every draw of a constant vector is that constant.",
+  "cases": [
+    {
+      "name": "a constant vector has that constant as both endpoints",
+      "values": [
+        1,
+        1,
+        1
+      ],
+      "label": "fixture-constant",
+      "resamples": 8,
+      "expected": {
+        "value": 1,
+        "low": 1,
+        "high": 1,
+        "draws": 8
+      }
+    },
+    {
+      "name": "a four-query vector under the frozen seed and label",
+      "values": [
+        0,
+        0.5,
+        1,
+        1
+      ],
+      "label": "fixture-regression",
+      "resamples": 200,
+      "expected": {
+        "value": 0.625,
+        "low": 0.25,
+        "high": 1.0,
+        "draws": 200
+      }
+    },
+    {
+      "name": "no eligible query has no interval",
+      "values": [],
+      "label": "fixture-empty",
+      "resamples": 100,
+      "expected": {
+        "value": null,
+        "low": null,
+        "high": null,
+        "draws": 0
+      }
+    }
+  ],
+  "verdict_cases": [
+    {
+      "name": "point meets the minimum, lift interval above zero",
+      "value": 0.2,
+      "interval": [
+        0.05,
+        0.35
+      ],
+      "minimum": 0.1,
+      "evidence_met": true,
+      "lift": true,
+      "expected": "supported"
+    },
+    {
+      "name": "interval entirely below the minimum",
+      "value": 0.02,
+      "interval": [
+        -0.1,
+        0.05
+      ],
+      "minimum": 0.1,
+      "evidence_met": true,
+      "lift": true,
+      "expected": "not supported"
+    },
+    {
+      "name": "interval contains zero",
+      "value": 0.12,
+      "interval": [
+        -0.02,
+        0.3
+      ],
+      "minimum": 0.1,
+      "evidence_met": true,
+      "lift": true,
+      "expected": "inconclusive"
+    },
+    {
+      "name": "point below the minimum while the interval reaches it",
+      "value": 0.05,
+      "interval": [
+        0,
+        0.2
+      ],
+      "minimum": 0.1,
+      "evidence_met": true,
+      "lift": true,
+      "expected": "inconclusive"
+    },
+    {
+      "name": "an evidence minimum is unmet",
+      "value": 0.9,
+      "interval": [
+        0.8,
+        0.95
+      ],
+      "minimum": 0.1,
+      "evidence_met": false,
+      "lift": true,
+      "expected": "insufficient"
+    },
+    {
+      "name": "a level gate whose interval starts at zero is not supported",
+      "value": 0.35,
+      "interval": [
+        0,
+        0.6
+      ],
+      "minimum": 0.3,
+      "evidence_met": true,
+      "lift": false,
+      "expected": "inconclusive"
+    }
+  ]
+}

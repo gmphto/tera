@@ -1,0 +1,59 @@
+{
+  "note": "A query where two arms produce the identical ordering is counted, contributes a zero per-query difference and stays in every denominator.",
+  "cases": [
+    {
+      "name": "two arms order one query identically",
+      "arms": {
+        "dsp-only": [
+          "a",
+          "b",
+          "c"
+        ],
+        "hybrid": [
+          "a",
+          "b",
+          "c"
+        ]
+      },
+      "rated": {
+        "a": 3,
+        "b": 2,
+        "c": 1
+      },
+      "expected_identical": 1,
+      "expected_difference": {
+        "pairwise_accuracy": 0,
+        "top1_margin": 0,
+        "topk_mean": 0
+      },
+      "expected_denominator": 1
+    },
+    {
+      "name": "two arms differ on one query",
+      "arms": {
+        "dsp-only": [
+          "a",
+          "b",
+          "c"
+        ],
+        "hybrid": [
+          "c",
+          "b",
+          "a"
+        ]
+      },
+      "rated": {
+        "a": 3,
+        "b": 2,
+        "c": 1
+      },
+      "expected_identical": 0,
+      "expected_difference": {
+        "pairwise_accuracy": 1,
+        "top1_margin": 2,
+        "topk_mean": 0
+      },
+      "expected_denominator": 1
+    }
+  ]
+}
