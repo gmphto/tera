@@ -708,6 +708,13 @@ def test_two_analysis_versions_across_the_run_are_a_mechanism_failure(workspace,
     assert not workspace.report.exists()
 
 
+def test_child_output_uses_single_files_not_a_temporary_directory():
+    """A refused directory cleanup must never turn a validate result into a crash."""
+    source = MODULE.read_text(encoding="utf-8")
+    assert "TemporaryDirectory" not in source
+    assert "mkstemp" in source
+
+
 def test_a_validated_session_is_evidence_and_a_broken_one_is_not(workspace):
     assignments = assignments_for(workspace, "evaluator-alpha")
     directory = write_session(workspace, "session-one", "evaluator-alpha", assignments,

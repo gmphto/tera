@@ -734,14 +734,25 @@ def child_workspace(directory):
 
 
 def run_validate(directory):
-    """Run #17's own validate command line with file-backed stdio; return (exit, report)."""
-    with tempfile.TemporaryDirectory() as scratch:
-        output = Path(scratch) / "validate.out"
-        error = Path(scratch) / "validate.err"
+    """Run #17's own validate command line with file-backed stdio; return (exit, report).
+
+    The two output files are single mkstemp files, never a temporary directory: a
+    directory's cleanup calls chmod and scandir, which a confined sandbox may refuse,
+    and a refused cleanup must not turn a session's validate result into a crash.
+    """
+    output = error = None
+    try:
+        for name in ("out", "err"):
+            descriptor, path = tempfile.mkstemp(prefix="tera-validate-", suffix="." + name)
+            os.close(descriptor)
+            if name == "out":
+                output = path
+            else:
+                error = path
         environment = dict(os.environ)
         environment["PYTHONPATH"] = os.pathsep.join(
             [str(REPOSITORY_ROOT), environment.get("PYTHONPATH", "")])
-        with output.open("wb") as out, error.open("wb") as err:
+        with open(output, "wb") as out, open(error, "wb") as err:
             try:
                 result = subprocess.run(
                     [sys.executable, "-m", "backend.evaluation.rating", "validate",
@@ -749,7 +760,14 @@ def run_validate(directory):
                     stdout=out, stderr=err, env=environment, timeout=VALIDATE_S)
             except (OSError, subprocess.SubprocessError):
                 return None, None
-        text = output.read_text(encoding="utf-8", errors="replace").strip()
+        text = Path(output).read_text(encoding="utf-8", errors="replace").strip()
+    finally:
+        for path in (output, error):
+            if path is not None:
+                try:
+                    os.unlink(path)
+                except OSError:
+                    pass
     try:
         return result.returncode, json.loads(text)
     except ValueError:
