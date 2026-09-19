@@ -1,0 +1,223 @@
+[
+  {
+    "name": "judged",
+    "state": "judged",
+    "dimension": "frequency",
+    "script": {
+      "judgment": {
+        "probabilities": [
+          0.05,
+          0.05,
+          0.1,
+          0.6,
+          0.2
+        ],
+        "confidence": 0.9,
+        "model_version": "flow-double-1"
+      }
+    },
+    "config": {
+      "max_attempts": 1
+    },
+    "expects": {
+      "evidence": "judgment",
+      "label": "good",
+      "jev_score": 0.75,
+      "unavailable_reason": null,
+      "warning_codes": [],
+      "mode": "hybrid",
+      "jev_status": "jev_present"
+    }
+  },
+  {
+    "name": "abstained",
+    "state": "abstained",
+    "dimension": "tonal",
+    "script": {
+      "abstain": {
+        "model_version": "flow-double-1"
+      }
+    },
+    "config": {
+      "max_attempts": 1
+    },
+    "expects": {
+      "evidence": "judgment",
+      "label": null,
+      "jev_score": null,
+      "unavailable_reason": "jev_abstained",
+      "warning_codes": [],
+      "mode": "hybrid",
+      "jev_status": "jev_partial"
+    }
+  },
+  {
+    "name": "not_asked",
+    "state": "not_asked",
+    "dimension": "texture",
+    "question": "unavailable",
+    "config": {
+      "max_attempts": 1
+    },
+    "expects": {
+      "evidence": "reason",
+      "label": null,
+      "jev_score": null,
+      "unavailable_reason": "question_code",
+      "warning_codes": [
+        "jev_evidence_unavailable"
+      ],
+      "mode": "hybrid",
+      "jev_status": "jev_partial"
+    }
+  },
+  {
+    "name": "not_attempted_cancelled",
+    "state": "not_attempted",
+    "dimension": "arrangement",
+    "script": {
+      "judgment": {
+        "probabilities": [
+          0.05,
+          0.05,
+          0.1,
+          0.6,
+          0.2
+        ],
+        "confidence": 0.9,
+        "model_version": "flow-double-1"
+      }
+    },
+    "cancel_after": 4,
+    "config": {
+      "max_attempts": 1
+    },
+    "expects": {
+      "evidence": "reason",
+      "label": null,
+      "jev_score": null,
+      "unavailable_reason": "cancelled",
+      "warning_codes": [
+        "jev_evidence_unavailable"
+      ],
+      "mode": "hybrid",
+      "jev_status": "jev_partial"
+    }
+  },
+  {
+    "name": "not_attempted_deadline",
+    "state": "not_attempted",
+    "dimension": "arrangement",
+    "clock": [
+      0,
+      0.1,
+      0.1,
+      0.1,
+      0.1,
+      0.1,
+      0.1,
+      0.1,
+      0.1,
+      2
+    ],
+    "config": {
+      "max_attempts": 1,
+      "max_batch_seconds": 1
+    },
+    "expects": {
+      "evidence": "reason",
+      "label": null,
+      "jev_score": null,
+      "unavailable_reason": "batch_deadline_exceeded",
+      "warning_codes": [
+        "jev_evidence_unavailable"
+      ],
+      "mode": "hybrid",
+      "jev_status": "jev_partial"
+    }
+  },
+  {
+    "name": "invalid_result",
+    "state": "invalid_result",
+    "dimension": "arrangement",
+    "script": {
+      "text": "this is not a Jev response"
+    },
+    "config": {
+      "max_attempts": 1
+    },
+    "expects": {
+      "evidence": "reason",
+      "label": null,
+      "jev_score": null,
+      "unavailable_reason": "invalid_response",
+      "warning_codes": [
+        "jev_evidence_unavailable"
+      ],
+      "mode": "hybrid",
+      "jev_status": "jev_partial"
+    }
+  },
+  {
+    "name": "service_error",
+    "state": "service_error",
+    "dimension": "frequency",
+    "script": {
+      "error": "service_unavailable"
+    },
+    "config": {
+      "max_attempts": 1
+    },
+    "expects": {
+      "evidence": "reason",
+      "label": null,
+      "jev_score": null,
+      "unavailable_reason": "service_unavailable",
+      "warning_codes": [
+        "jev_evidence_unavailable"
+      ],
+      "mode": "hybrid",
+      "jev_status": "jev_partial"
+    }
+  },
+  {
+    "name": "timed_out",
+    "state": "timed_out",
+    "dimension": "frequency",
+    "script": {
+      "error": "timeout"
+    },
+    "config": {
+      "max_attempts": 1
+    },
+    "expects": {
+      "evidence": "reason",
+      "label": null,
+      "jev_score": null,
+      "unavailable_reason": "timeout",
+      "warning_codes": [
+        "jev_evidence_unavailable"
+      ],
+      "mode": "hybrid",
+      "jev_status": "jev_partial"
+    }
+  },
+  {
+    "name": "unavailable",
+    "state": "unavailable",
+    "dimension": "frequency",
+    "credentials": "absent",
+    "config": {
+      "max_attempts": 1
+    },
+    "expects": {
+      "evidence": "reason",
+      "label": null,
+      "jev_score": null,
+      "unavailable_reason": "credentials_absent",
+      "warning_codes": [],
+      "mode": "dsp-only",
+      "jev_status": "jev_absent"
+    }
+  }
+]
