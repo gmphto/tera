@@ -786,7 +786,7 @@ def test_the_report_carries_a_session_row_per_session(workspace, fast_run):
     text = workspace.report.read_text(encoding="utf-8")
     assert "### Session rows" in text
     assert "| 1 | 0 | yes |" in text
-    assert "Intersection of the four arms' eligible queries:" in text
+    assert "Intersection of the eligible queries across the" in text
 
 
 def test_the_report_carries_no_private_identifier(tmp_path, fast_run):
@@ -831,6 +831,25 @@ def double_run(workspace, source, model_version="fixture-model-1"):
     """One recorded Jev run over a whole workspace; a double run is never evidence."""
     outcomes = []
     for record in workspace.records:
+        label = "good" if int(record["bass_sample_id"][-3:]) % 2 == 0 else "poor"
+        for dimension in comparison.DIMENSIONS:
+            request_id = comparison.jev_key(record["kick_sample_id"],
+                                            record["bass_sample_id"], dimension)
+            outcomes.append(JevOutcome(request_id=request_id, question_id=None,
+                                       dimension=dimension, state="judged", code=None, attempts=1,
+                                       judgment=judgement(dimension, label), elapsed_ms=1))
+    return JevScoringRun(adapter_version=ADAPTER_VERSION, source=source,
+                         interface_name="fixture-interface" if source == "interface" else None,
+                         prompt_version=PROMPT_VERSION, model_versions=(model_version,),
+                         cancelled=False, outcomes=tuple(outcomes), elapsed_ms=1)
+
+
+def partial_double_run(workspace, source, keep=3, model_version="fixture-model-1"):
+    """A double run that judged only the first keep basses of every query."""
+    outcomes = []
+    for record in workspace.records:
+        if int(record["bass_sample_id"][-3:]) > keep:
+            continue
         label = "good" if int(record["bass_sample_id"][-3:]) % 2 == 0 else "poor"
         for dimension in comparison.DIMENSIONS:
             request_id = comparison.jev_key(record["kick_sample_id"],
@@ -946,7 +965,11 @@ def test_the_report_lists_a_random_lift_row_for_every_arm(workspace, fast_run):
     assert len(rows) == 4
     for arm in ("random", "dsp-only", "jev-only", "hybrid"):
         assert any("| " + arm + " |" in row for row in rows), arm
-    assert "| random | +0.0000 | [0.0000, 0.0000] | not supported | structurally zero" in text
+    # No eligible query exists here, so the identical arm's row is an unevaluable gate: it
+    # carries its exact shortfall and no invented interval, and it is never a failure.
+    assert ("| MIN_LIFT_OVER_RANDOM = 0.1 | minimum (gate) | random | not computed"
+            " | not computed | insufficient | 0 of 60 paired eligible queries |") in text
+    assert "not supported | structurally zero" not in text
 
 
 def test_the_gate_class_column_carries_the_protocols_class_string(workspace, fast_run):
@@ -972,6 +995,61 @@ def test_a_workspace_where_every_query_holds_eleven_rated_candidates_gates_the_t
     rows = [line for line in text.splitlines() if line.startswith("| MIN_TOP_K_MEAN = 2.0 |")]
     assert len(rows) == 4
     assert not any("not computed" in row for row in rows)
+
+
+def test_the_random_self_lift_is_a_note_and_never_a_failure(workspace, fast_run):
+    """With paired queries the identical arm's row is a note, so a pass stays reachable."""
+    for evaluator in EVALUATORS[:2]:
+        write_session(workspace, "session-" + evaluator, evaluator,
+                      assignments_for(workspace, evaluator), ("good", "excellent", "poor"))
+    run(workspace_arguments(workspace, "report"))
+    text = workspace.report.read_text(encoding="utf-8")
+    row = next(line for line in text.splitlines()
+               if line.startswith("| MIN_LIFT_OVER_RANDOM = 0.1 | minimum (gate) | random |"))
+    assert "not applicable (the identical arm)" in row
+    assert "structural zero" in row
+    assert "not supported" not in row
+    arm_row = next(line for line in text.splitlines()
+                   if line.startswith("| random | dsp-baseline-v1 |"))
+    assert "| not supported |" not in arm_row
+    assert "| insufficient |" in arm_row
+
+
+def test_a_partial_double_jev_run_leaks_no_value_into_the_report(workspace, fast_run):
+    """QA's repro: a double run judging 3 of 4 candidates must not move any published value."""
+    for evaluator in EVALUATORS[:2]:
+        write_session(workspace, "session-" + evaluator, evaluator,
+                      assignments_for(workspace, evaluator), ("good", "excellent", "poor"))
+    path = workspace.tmp / "partial-double.json"
+    path.write_text(partial_double_run(workspace, "double", keep=3).to_json(), encoding="utf-8")
+    code, _ = run(workspace_arguments(workspace, "report", jev_runs=(path,)))
+    assert code == 1
+    run_directory = list(workspace.runs.iterdir())[0]
+    document = json.loads((run_directory / "run.json").read_text(encoding="utf-8"))
+    assert document["arms"]["jev-only"]["unscored_share"] == 0.25
+    text = workspace.report.read_text(encoding="utf-8")
+    assert "0.7500" not in text
+    assert "worst eligible query 1.0000 scored share" in text
+    for arm in ("jev-only", "hybrid"):
+        row = next(line for line in text.splitlines() if line.startswith("| " + arm + " |"))
+        assert row.split("|")[2].strip() == "not reported (no live Jev outcomes)", arm
+    latency = [line for line in text.splitlines() if line.startswith("| MIN_LATENCY")]
+    assert latency and "no_live_jev_outcomes" in latency[0]
+    assert "hybrid fallback on not reported" not in text
+
+
+def test_a_reachable_top_ten_run_does_not_print_the_k_equals_five_boilerplate(
+        tmp_path, fast_run):
+    workspace = build_workspace(tmp_path, kick_count=6, bass_count=12, candidates=11,
+                                assign_to=EVALUATORS[:2])
+    for evaluator in EVALUATORS[:2]:
+        write_session(workspace, "session-" + evaluator, evaluator,
+                      assignments_for(workspace, evaluator), ("good", "excellent", "poor"))
+    run(workspace_arguments(workspace, "report"))
+    text = workspace.report.read_text(encoding="utf-8")
+    assert "queries_with_11_rated_candidates: 6 of 6" in text
+    assert "the literal top-10 rule holds" in text
+    assert "With k = 5 the top-k means are descriptive" not in text
 
 
 def test_the_jev_only_covered_weight_confidence_is_persisted(tmp_path, fast_run):
@@ -1037,7 +1115,9 @@ def test_honest_evidence_strings_have_no_template_or_invented_minimum(tmp_path):
     assert gate_rows and not any("n of " in row for row in gate_rows)
     assert "0 of 1 session" not in text
     assert "0 of 60 paired eligible queries" in text
-    assert "0 of 30 valid samples on the least-sampled arm" in text
+    assert "0 of 30 valid samples on the least-sampled published arm" in text
+    assert "0 of 60 paired eligible queries" in text
+    assert "not supported | structurally zero" not in text
 
 
 def test_latency_arm_rows_report_the_measured_p95_of_each_state(tmp_path):
@@ -1061,16 +1141,20 @@ def test_latency_arm_rows_report_the_measured_p95_of_each_state(tmp_path):
     assert (tmp_path / "latency.json").is_file()
     gate = comparison.latency_gate("MAX_COLD_RECOMMENDATION_P95_MS", table)
     assert "2 of 30" in gate.value and gate.verdict == "insufficient"
-    assert gate.shortfall == "2 of 30 valid latency samples per arm"
+    assert gate.shortfall == ("2 of 30 valid latency samples on the least-sampled published"
+                              " arm")
 
 
 def test_the_latency_gate_uses_the_real_sample_counts(tmp_path, fast_run):
     workspace = build_workspace(tmp_path)
     run(workspace_arguments(workspace, "report"))
     text = workspace.report.read_text(encoding="utf-8")
-    assert ("| MIN_LATENCY_REQUESTS_PER_ARM = 30 | minimum (gate) | random, dsp-only, jev-only,"
-            " hybrid | 30 of 30 valid samples on the least-sampled arm | not applicable"
-            " (evidence minimum) | met | - |") in text
+    # The Jev arms have no live outcome, so the latency evidence gate is insufficient with
+    # its real count and names the cause; the published arms' counts are the measured ones.
+    assert ("| MIN_LATENCY_REQUESTS_PER_ARM = 30 | minimum (gate) | random, dsp-only | 30 of 30"
+            " valid samples on the least-sampled published arm | not applicable (evidence"
+            " minimum) | insufficient | 30 of 30 valid latency samples on the least-sampled"
+            " published arm; no_live_jev_outcomes |") in text
     row = next(line for line in text.splitlines() if line.startswith("| random | 30 of 30 |"))
     cells = [cell.strip() for cell in row.strip("|").split("|")]
     assert cells[2] == "6 of 10"

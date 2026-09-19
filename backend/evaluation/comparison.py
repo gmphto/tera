@@ -2324,8 +2324,9 @@ def analyse(findings, paths, *, latency, outcome_table):
                      "unscored_share": summary["unscored_share"]["value"],
                      "variant_disagreements": variant_disagreements,
                      "publishable": evidence_source == "live" if arm in JEV_ARMS else True}
+    published_arms = [arm for arm in ARM_NAMES if arms[arm]["publishable"]]
     eligible_sets = [{item.query_id for item in arms[arm]["evaluations"] if item.eligible}
-                     for arm in ARM_NAMES]
+                     for arm in published_arms]
     intersection = set.intersection(*eligible_sets) if eligible_sets else set()
     lifts = build_lifts(arms)
     identical = count_identical_orderings({arm: {item.query_id: item.order
@@ -2345,6 +2346,7 @@ def analyse(findings, paths, *, latency, outcome_table):
             "leave_one_out": (), "queries_with_11_rated_candidates": queries_with_11,
             "jev_variant_disagreements": arms["jev-only"]["variant_disagreements"],
             "intersection": len(intersection),
+            "published_arms": published_arms,
             "eligible_queries": len([query for query in findings.query if query.eligible]),
             "topk_reachable": topk_reachable, "double_runs": sum(1 for run in runs
                                                                  if run.source == "double")}
@@ -2452,8 +2454,8 @@ def leave_one_evaluator_out(findings, arms, gates):
         values = recompute_with_aggregates(findings, arms, aggregates)
         flipped = []
         for gate in gates:
-            if not gate.gating or gate.metric is None or gate.metric_arm is None \
-                    or gate.minimum is None:
+            if not gate.gating or not gate.applicable or gate.metric is None \
+                    or gate.metric_arm is None or gate.minimum is None:
                 continue
             variant = values[gate.metric_arm][gate.metric]["value"]
             if point_class(variant, gate.minimum) != point_class(gate.point, gate.minimum):
@@ -2479,6 +2481,7 @@ class Gate:
     metric_arm: str | None = None
     metric: str | None = None
     point: float | None = None
+    applicable: bool = True
 
     @property
     def cls(self):
@@ -2494,7 +2497,8 @@ class Gate:
         return {"constant": self.constant, "value": FROZEN_CONSTANTS[self.constant][0],
                 "class": self.cls, "arms": list(self.arms), "observed": self.value,
                 "interval": self.interval, "verdict": self.verdict,
-                "shortfall": self.shortfall, "source": self.source}
+                "shortfall": self.shortfall, "source": self.source,
+                "applicable": self.applicable}
 
 
 def shown(value, points=4):
@@ -2566,10 +2570,33 @@ def shown_interval(interval, points=4):
         + format(interval[1], "." + str(points) + "f") + "]"
 
 
-def evidence_gate(constant, value, threshold, *, ok, shortfall):
+def evidence_gate(constant, value, threshold, *, ok, shortfall, arms=ALL_ARMS):
     verdict = "met" if ok else "insufficient"
-    return Gate(constant, ALL_ARMS, value, "not applicable (evidence minimum)", verdict,
-                shortfall, "evidence", float(threshold))
+    return Gate(constant, tuple(arms), value, "not applicable (evidence minimum)", verdict,
+                "" if ok else shortfall, "evidence", float(threshold))
+
+
+def identical_arm_lift(analysis):
+    """The random arm's lift over itself: structurally zero, never a gating verdict.
+
+    With no paired eligible query there is nothing to evaluate, so the row is insufficient
+    with its exact shortfall and carries no invented interval. With paired queries the
+    identical orderings contribute a measured zero difference and the row is a note,
+    because a gate the identical arm can never meet must not make a pass unreachable.
+    """
+    paired = [item for item in analysis["arms"]["random"]["evaluations"] if item.eligible]
+    if not paired:
+        return Gate("MIN_LIFT_OVER_RANDOM", ("random",), "not computed", "not computed",
+                    "insufficient",
+                    "0 of " + str(MIN_HELDOUT_QUERIES) + " paired eligible queries",
+                    "note", MIN_LIFT_OVER_RANDOM, "random", "pairwise_accuracy", None,
+                    applicable=False)
+    interval = bootstrap_values([0.0] * len(paired), label="random-over-random")["interval"]
+    return Gate("MIN_LIFT_OVER_RANDOM", ("random",), shown_signed(0.0),
+                shown_interval(interval) + " (structural zero by construction)",
+                "not applicable (the identical arm)",
+                "structurally zero: the identical arm", "note", MIN_LIFT_OVER_RANDOM,
+                "random", "pairwise_accuracy", 0.0, applicable=False)
 
 
 def build_gates(findings, analysis, latency):
@@ -2635,7 +2662,8 @@ def build_gates(findings, analysis, latency):
                                shortfall="0 of " + str(MIN_AGREEMENT_PAIRS)
                                + " pairs with at least two valid ratings" if deviation is None
                                else ""))
-    shares = [analysis["arms"][arm]["summary"]["unscored_share"]["value"] for arm in ARM_NAMES]
+    shares = [analysis["arms"][arm]["summary"]["unscored_share"]["value"]
+              for arm in analysis["published_arms"]]
     scored_share = None if any(share is None for share in shares) else 1.0 - max(shares)
     gates.append(evidence_gate("MIN_SCORED_SHARE_PER_QUERY",
                                "no eligible query" if scored_share is None
@@ -2645,24 +2673,29 @@ def build_gates(findings, analysis, latency):
                                ok=scored_share is not None
                                and scored_share >= MIN_SCORED_SHARE_PER_QUERY,
                                shortfall="0 of " + str(counts["eligible_queries"])
-                               + " eligible queries"))
+                               + " eligible queries",
+                               arms=analysis["published_arms"]))
     gates.append(evidence_gate("MAX_RECOGNISED_RATE",
                                "0 sessions to check" if not counts["sessions"]
                                else str(counts["recognised_ratings"]) + " flagged of "
                                + str(counts["valid_ratings"]) + " ratings",
                                MAX_RECOGNISED_RATE, ok=bool(counts["sessions"]),
                                shortfall=""))
-    sample_counts = [entry["valid_samples"] for entry in latency["arms"].values()]
+    sample_counts = [latency["arms"][arm]["valid_samples"]
+                     for arm in analysis["published_arms"]]
     least_samples = min(sample_counts) if sample_counts else 0
+    latency_live = len(analysis["published_arms"]) == len(ARM_NAMES)
+    latency_shortfall = (str(least_samples) + " of " + str(MIN_LATENCY_REQUESTS_PER_ARM)
+                         + " valid latency samples on the least-sampled published arm")
+    if not latency_live:
+        latency_shortfall += "; " + NO_LIVE_JEV_REASON
     gates.append(evidence_gate("MIN_LATENCY_REQUESTS_PER_ARM",
                                str(least_samples) + " of " + str(MIN_LATENCY_REQUESTS_PER_ARM)
-                               + " valid samples on the least-sampled arm",
+                               + " valid samples on the least-sampled published arm",
                                MIN_LATENCY_REQUESTS_PER_ARM,
-                               ok=least_samples >= MIN_LATENCY_REQUESTS_PER_ARM,
-                               shortfall="" if least_samples >= MIN_LATENCY_REQUESTS_PER_ARM
-                               else str(least_samples) + " of "
-                               + str(MIN_LATENCY_REQUESTS_PER_ARM)
-                               + " valid latency samples per arm"))
+                               ok=least_samples >= MIN_LATENCY_REQUESTS_PER_ARM and latency_live,
+                               shortfall=latency_shortfall,
+                               arms=analysis["published_arms"]))
     gates.append(metric_gate("MIN_DSP_PAIRWISE_ACCURACY", "dsp-only", "pairwise_accuracy",
                              analysis=analysis, minimum=MIN_DSP_PAIRWISE_ACCURACY))
     gates.append(metric_gate("MIN_JEV_ONLY_PAIRWISE_ACCURACY", "jev-only", "pairwise_accuracy",
@@ -2670,12 +2703,7 @@ def build_gates(findings, analysis, latency):
                              inconclusive=bool(analysis["jev_variant_disagreements"])))
     gates.append(metric_gate("MIN_PAIRWISE_ACCURACY", "hybrid", "pairwise_accuracy",
                              analysis=analysis, minimum=MIN_PAIRWISE_ACCURACY))
-    gates.append(Gate("MIN_LIFT_OVER_RANDOM", ("random",), shown_signed(0.0),
-                      "[0.0000, 0.0000]",
-                      verdict_for(0.0, [0.0, 0.0], MIN_LIFT_OVER_RANDOM, evidence_met=True,
-                                  lift=True),
-                      "structurally zero: the identical arm", "lift", MIN_LIFT_OVER_RANDOM,
-                      "random", "pairwise_accuracy", 0.0))
+    gates.append(identical_arm_lift(analysis))
     for arm in ARM_NAMES:
         if arm == "random":
             continue
@@ -2729,14 +2757,19 @@ def latency_gate(constant, latency, analysis=None):
             if analysis is None or analysis["arms"][arm]["publishable"]] or present
     counts = [latency["arms"][arm]["valid_samples"] for arm in arms]
     least = min(counts) if counts else 0
-    enough = bool(counts) and all(value >= MIN_LATENCY_REQUESTS_PER_ARM for value in counts)
+    live = analysis is None or len(arms) == len(present)
+    enough = (live and bool(counts)
+              and all(value >= MIN_LATENCY_REQUESTS_PER_ARM for value in counts))
     if not enough:
-        return Gate(constant, ALL_ARMS,
+        shortfall = (str(least) + " of " + str(MIN_LATENCY_REQUESTS_PER_ARM)
+                     + " valid latency samples on the least-sampled published arm")
+        if not live:
+            shortfall += "; " + NO_LIVE_JEV_REASON
+        return Gate(constant, tuple(arms),
                     "not measured (least-sampled arm " + str(least) + " of "
                     + str(MIN_LATENCY_REQUESTS_PER_ARM) + " valid samples)",
                     "not applicable (no complete sample set)", "insufficient",
-                    str(least) + " of " + str(MIN_LATENCY_REQUESTS_PER_ARM)
-                    + " valid latency samples per arm", "latency", threshold)
+                    shortfall, "latency", threshold)
     observed = max(latency["arms"][arm]["stages"]["total"]["p95"] or 0.0 for arm in arms)
     verdict = "supported" if observed <= threshold else "not supported"
     return Gate(constant, tuple(arms),
@@ -3010,18 +3043,24 @@ def render_report(findings, analysis, gates, latency, key, identity, others, dig
               "| --- | --- | --- | --- | --- |"]
     for arm in ARM_NAMES:
         entry = analysis["arms"][arm]
-        lines.append("| " + arm + " | " + str(entry["summary"]["eligible_queries"]) + " of "
-                     + str(counts["sampled_queries"]) + " | "
+        lines.append("| " + arm + " | "
+                     + publish(arm, str(entry["summary"]["eligible_queries"]) + " of "
+                               + str(counts["sampled_queries"])) + " | "
                      + (publish(arm, shown(entry["unscored_share"]))
                         if entry["unscored_share"] is not None
                         else "undefined (0 rated candidates)")
                      + " | " + entry["evidence_source"] + " | " + entry["status"]
                      + ("" if entry["reason"] is None else " (" + entry["reason"] + ")") + " |")
-    lines += ["", "Intersection of the four arms' eligible queries: " + str(analysis["intersection"])
-              + " of " + str(counts["sampled_queries"]) + " sampled queries. Every arm received"
-              " the same eligible candidate set per query (the sampled candidates that pass"
+    lines += ["", "Intersection of the eligible queries across the "
+              + (str(len(analysis["published_arms"])) + " published arms (" 
+                 + ", ".join(analysis["published_arms"]) + ")"
+                 if len(analysis["published_arms"]) != len(ARM_NAMES)
+                 else "four arms") + ": " + str(analysis["intersection"]) + " of "
+              + str(counts["sampled_queries"]) + " sampled queries. Every arm received the same"
+              " eligible candidate set per query (the sampled candidates that pass"
               " filter_candidates with FilterPolicy()); an arm ordering a different set is"
-              " rejected with candidate_set_mismatch instead of being compared."]
+              " rejected with candidate_set_mismatch instead of being compared. An arm whose"
+              " evidence is not live is excluded from every published count."]
     lines += ["", "## Quality", "",
               "Arm mechanics, latency and determinism are reported here and below; none of that",
               "evidence carries a rating, so this section cannot support any lift or quality",
@@ -3069,11 +3108,19 @@ def render_report(findings, analysis, gates, latency, key, identity, others, dig
         [gate.constant + " = " + str(FROZEN_CONSTANTS[gate.constant][0]), gate.cls,
          ", ".join(gate.arms) or "none (not a comparison gate)", gate.value, gate.interval,
          gate.verdict, gate.shortfall or "-"] for gate in gates])
-    lines += ["", "queries_with_11_rated_candidates: "
-              + str(analysis["queries_with_11_rated_candidates"]) + " of "
-              + str(analysis["eligible_queries"]) + " eligible queries. With k = 5 the top-k"
-              " means are descriptive values, not top-10 values, and no k = 5 mean is compared"
-              " with a top-10 constant.", ""]
+    if analysis["topk_reachable"]:
+        lines += ["", "queries_with_11_rated_candidates: "
+                  + str(analysis["queries_with_11_rated_candidates"]) + " of "
+                  + str(analysis["eligible_queries"]) + " eligible queries. Every eligible query"
+                  " holds at least " + str(MIN_RATED_CANDIDATES_FOR_TOP10_GATE) + " rated"
+                  " candidates, so the literal top-10 rule holds and the three top-k minima above"
+                  " are gated on their computed top-10 values.", ""]
+    else:
+        lines += ["", "queries_with_11_rated_candidates: "
+                  + str(analysis["queries_with_11_rated_candidates"]) + " of "
+                  + str(analysis["eligible_queries"]) + " eligible queries. With k = 5 the top-k"
+                  " means are descriptive values, not top-10 values, and no k = 5 mean is compared"
+                  " with a top-10 constant.", ""]
     lines += ["## Uncertainty", "",
               "Bootstrap: " + str(BOOTSTRAP_RESAMPLES) + " resamples of the eligible query"
               " kicks with replacement under BOOTSTRAP_SEED = " + BOOTSTRAP_SEED + "; each draw"
@@ -3252,9 +3299,13 @@ def render_report(findings, analysis, gates, latency, key, identity, others, dig
                         " and the Jev-dependent rows of this report carry"
                         " 'not reported (no live Jev outcomes)' instead of a value derived from it")
     if analysis["arms"]["hybrid"]["mode_counts"]:
-        rendered.append("hybrid fallback on " + publish(
-            "hybrid", str(analysis["arms"]["hybrid"]["mode_counts"].get(MODE_DSP_ONLY, 0))
-            + " queries") + ": " + FALLBACK_REASON)
+        if analysis["arms"]["hybrid"]["publishable"]:
+            rendered.append("hybrid fallback on " + str(analysis["arms"]["hybrid"]["mode_counts"]
+                                                        .get(MODE_DSP_ONLY, 0)) + " queries: "
+                            + FALLBACK_REASON)
+        else:
+            rendered.append("hybrid fallback: " + FALLBACK_REASON + " (the query count is not"
+                            " published without live Jev outcomes)")
     rendered.append("the #65 split-manifest and evaluator-assignment schemas are this runner's"
                     " declared expectation, because #65 has not landed: schema_version 1.0,"
                     " dataset_version, the three seeds, tuning and held_out with kicks and"
@@ -3332,7 +3383,8 @@ def prepare_runs(findings, paths):
 
 def arm_verdict(arm, gates):
     """The protocol's global rule applied to one arm's applicable minimum-class gates."""
-    applicable = [gate for gate in gates if arm in gate.arms and gate.gating]
+    applicable = [gate for gate in gates
+                  if arm in gate.arms and gate.gating and gate.applicable]
     verdicts = [gate.verdict for gate in applicable]
     if not verdicts:
         return "not evaluated"
