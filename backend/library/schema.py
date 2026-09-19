@@ -12,9 +12,11 @@ Design rules:
   tuple of `(version, script)` pairs. A fresh database applies every migration
   in ascending version order and stores the highest version in
   `PRAGMA user_version`; a database already at that version is left untouched.
-- The stored version is read before any DDL runs. A database whose version is
-  newer than every available migration is refused rather than reset, and a
-  header-valid file that fails an integrity check is refused the same way.
+- The stored version is read before any DDL runs and before the journal mode
+  is switched. A database whose version is newer than every available migration
+  is refused rather than reset, and that refusal leaves the file's bytes
+  untouched even when it is not in WAL. A header-valid file that fails an
+  integrity check is refused the same way.
 - Every migration runs inside one transaction, so a failing migration leaves
   the version, the tables and every row exactly as they were.
 - Only the standard library and `backend.contracts` / `backend.analysis.batch`
@@ -208,12 +210,7 @@ def migrate(connection: sqlite3.Connection, migrations=MIGRATIONS) -> int:
     """
 
     ordered = _ordered(migrations)
-    target = ordered[-1][0] if ordered else 0
-    current = _user_version(connection)
-    if current > target:
-        raise SchemaVersionNewer(
-            f"Database schema version {current} is newer than the supported version {target}."
-        )
+    current = _refuse_newer_schema(connection, _target(ordered))
     for version, script in ordered:
         if version > current:
             _apply(connection, version, script)
@@ -229,7 +226,9 @@ def open_database(path) -> sqlite3.Connection:
     created when missing. A new or zero-byte file becomes the current schema; a
     file that is not SQLite raises `not_a_database`; one that fails an
     integrity check raises `database_corrupt`; one whose stored version is
-    newer than every migration raises `SchemaVersionNewer` and is never reset.
+    newer than every migration raises `SchemaVersionNewer` and is never reset;
+    that refusal runs before the connection is reconfigured, so a database that
+    is not in WAL keeps its bytes exactly as they were.
     """
 
     resolved = _resolve(path)
@@ -241,6 +240,10 @@ def open_database(path) -> sqlite3.Connection:
         problems = verify(connection)
         if problems:
             raise DatabaseCorrupt("; ".join(problems))
+        # Checked before the pragmas: switching the journal mode is the first
+        # write and rewrites the file header, so a refusal must not touch a
+        # database that is not already in WAL.
+        _refuse_newer_schema(connection, _target(MIGRATIONS))
         _configure(connection)
         migrate(connection)
     except BaseException:
@@ -290,6 +293,27 @@ def _configure(connection: sqlite3.Connection) -> None:
             connection.execute(statement)
     except sqlite3.Error as error:
         raise InvalidDatabasePath(f"The database cannot be opened for writing: {error}") from error
+
+
+def _target(migrations) -> int:
+    """The highest migration version, or 0 when there are none."""
+
+    return max((version for version, _script in migrations), default=0)
+
+
+def _refuse_newer_schema(connection: sqlite3.Connection, target: int) -> int:
+    """The stored schema version, refusing one newer than `target`.
+
+    Reading the version is the only step here, so the caller can run this
+    before any write; a refusal leaves the database's bytes unchanged.
+    """
+
+    current = _user_version(connection)
+    if current > target:
+        raise SchemaVersionNewer(
+            f"Database schema version {current} is newer than the supported version {target}."
+        )
+    return current
 
 
 def _user_version(connection: sqlite3.Connection) -> int:

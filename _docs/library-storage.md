@@ -315,3 +315,56 @@ features, tag normalisation and uniqueness, the pack link and its
 `ON DELETE SET NULL` behaviour, a missing file keeping its rows, cascading
 deletion, a reader seeing committed state only, the second writer timing out,
 and an import that never opens or stats the audio file.
+
+## Local verification
+
+Both commands were run from the repository root with the project interpreter.
+`uv run pytest` cannot capture a subprocess in this sandbox (it fails with
+`PermissionError [WinError 5]` at `_winapi.CreatePipe`), so each run put a
+`sitecustomize.py` on `PYTHONPATH`, passed `-p no:cacheprovider` and a
+`--basetemp` outside the repository. Every database was a temporary file.
+
+```text
+.venv\Scripts\python.exe -m pytest tests/test_library_schema.py tests/test_library_repository.py --basetemp <tmp>\bt-focus -p no:cacheprovider -q -rf
+  -> 56 passed in 6.47s
+
+.venv\Scripts\python.exe -m pytest --basetemp <tmp>\bt-full -p no:cacheprovider -q -rf
+  -> 4 failed, 1722 passed, 1 skipped in 363.84s
+```
+
+The baseline measured in this workspace under the same sandbox before commit
+`3369304` was `4 failed, 1666 passed, 1 skipped`. The four failures are the
+known sandbox-only ones, all `PermissionError [WinError 5]` at
+`_winapi.CreatePipe`:
+`tests/test_batch.py::test_cli_empty_and_invalid_inputs`,
+`tests/test_batch.py::test_cli_fresh_and_resume`,
+`tests/test_evaluation_manifest.py::test_cli_build_validate_and_synthetic_shortfall`
+and
+`tests/test_evaluation_prepare.py::test_preparation_idempotence_source_preservation_and_collisions`.
+The change adds 56 passing tests (`1722 - 1666 = 56`, and the two files collect
+56) and no new failure.
+
+One `verify()` result, printed by a probe that opened a fresh temporary
+database with `open_database`:
+
+```text
+verify(): ()
+user_version: 1
+user_tables: analysis_versions, sample_features, sample_keys, sample_packs, sample_tags, samples
+journal_mode: wal
+synchronous: 2
+foreign_keys: 1
+busy_timeout: 5000
+isolation_level: None
+row_factory: sqlite3.Row
+```
+
+`tests/test_library_schema.py::test_a_newer_schema_version_is_refused_unchanged`
+additionally asserts that a `schema_version_newer` refusal leaves the database
+file byte-identical while it is in WAL and after it has been switched to
+`journal_mode = delete`: the stored version is read before the connection
+pragmas run, so refusing a newer schema never rewrites the header of a file
+that is not in WAL. A probe against the pre-change module
+(`git show HEAD:backend/library/schema.py` from commit `3369304`) reproduced
+the opposite result on the same database: the same error code, but the bytes
+differed.

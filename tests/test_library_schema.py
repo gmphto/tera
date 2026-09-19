@@ -100,6 +100,22 @@ def close_and_checkpoint(connection):
     connection.close()
 
 
+def journal_mode(path):
+    connection = sqlite3.connect(str(path), isolation_level=None)
+    try:
+        return connection.execute("PRAGMA journal_mode").fetchone()[0]
+    finally:
+        connection.close()
+
+
+def set_journal_mode(path, mode):
+    connection = sqlite3.connect(str(path), isolation_level=None)
+    try:
+        return connection.execute(f"PRAGMA journal_mode = {mode}").fetchone()[0]
+    finally:
+        connection.close()
+
+
 def seed(connection):
     connection.execute(
         "INSERT INTO sample_packs (pack_id, name, vendor, created_at) VALUES (?, ?, ?, ?)",
@@ -244,10 +260,23 @@ def test_a_newer_schema_version_is_refused_unchanged(tmp_path):
     connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION + 1}")
     before = snapshot(connection)
     close_and_checkpoint(connection)
+    raw = path.read_bytes()
 
     with pytest.raises(SchemaVersionNewer) as raised:
         open_library(path)
     assert raised.value.code == "schema_version_newer"
+    assert inspect(path) == before
+    assert path.read_bytes() == raw  # Already in WAL: the refusal writes nothing.
+
+    # A database that is not in WAL is refused before the pragmas switch the
+    # journal mode, so its bytes are untouched as well.
+    assert set_journal_mode(path, "delete") == "delete"
+    raw = path.read_bytes()
+    with pytest.raises(SchemaVersionNewer) as raised:
+        open_library(path)
+    assert raised.value.code == "schema_version_newer"
+    assert journal_mode(path) == "delete"
+    assert path.read_bytes() == raw
     assert inspect(path) == before
 
 
