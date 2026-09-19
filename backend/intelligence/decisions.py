@@ -161,7 +161,8 @@ def validate_response(question, response) -> JevJudgment:
         raise JevResponseError("invalid_question", "Expected a JevQuestion.")
     payload = _payload(response)
     unknown = payload.keys() - set(RESPONSE_FIELDS)
-    _require(not unknown, "unexpected_field", f"Unexpected response fields: {sorted(unknown)}.")
+    _require(not unknown, "unexpected_field",
+             f"Unexpected response fields: {sorted(map(repr, unknown))}.")
     missing = set(RESPONSE_FIELDS) - payload.keys()
     _require(not missing, "missing_field", f"Missing response fields: {sorted(missing)}.")
     _require(payload["question_id"] == question.question_id, "question_id_mismatch",
