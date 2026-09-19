@@ -24,6 +24,7 @@ Files this module writes -- the only files it ever creates, replaces or deletes:
   _docs/ranking-comparison-19.md                            the committed report
   .local-evaluation/ranking-comparison/runs/<run_key>/run.json
   .local-evaluation/ranking-comparison/runs/<run_key>/records.json
+  .local-evaluation/ranking-comparison/runs/<run_key>/latency.json
   .local-evaluation/ranking-comparison/runs/<run_key>/latency/<request>.json
   .local-evaluation/ranking-comparison/runs/<run_key>/latency/<request>.out.json
   .local-evaluation/ranking-comparison/tuning/<digest>.json   (only with --tuning-claim)
@@ -218,6 +219,48 @@ FROZEN_CONSTANTS = {
     "MIN_RETENTION_SELECTIONS": (MIN_RETENTION_SELECTIONS, "minimum"),
 }
 
+GATE_CLASSES = {
+    "MIN_POOL_KICKS": "minimum (gate)",
+    "MIN_POOL_BASSES": "minimum (gate)",
+    "MIN_EVALUATORS": "minimum (gate)",
+    "TARGET_EVALUATORS": "target (non-gating)",
+    "MIN_RATINGS_PER_PAIR": "minimum (gate)",
+    "TARGET_RATINGS_PER_PAIR": "target (non-gating)",
+    "MIN_HELDOUT_QUERIES": "minimum (gate)",
+    "TARGET_HELDOUT_QUERIES": "target (non-gating)",
+    "MIN_HELDOUT_PAIRS": "minimum (gate)",
+    "MIN_TUNING_PAIRS": "minimum (gate)",
+    "MIN_PAIR_COVERAGE": "minimum (gate)",
+    "MIN_AGREEMENT_PAIRS": "minimum (gate)",
+    "MAX_MEAN_ABSOLUTE_DEVIATION": "minimum (gate)",
+    "MAX_RECOGNISED_RATE": "minimum (gate)",
+    "MIN_SCORED_SHARE_PER_QUERY": "minimum (gate)",
+    "MIN_LATENCY_REQUESTS_PER_ARM": "minimum (gate)",
+    "MIN_PAIRWISE_ACCURACY": "minimum (gate)",
+    "TARGET_PAIRWISE_ACCURACY": "target (non-gating)",
+    "MIN_LIFT_OVER_RANDOM": "minimum (gate)",
+    "TARGET_LIFT_OVER_RANDOM": "target (non-gating)",
+    "MIN_LIFT_OVER_DSP": "minimum (gate)",
+    "TARGET_LIFT_OVER_DSP": "target (non-gating)",
+    "MIN_DSP_PAIRWISE_ACCURACY": "minimum (gate)",
+    "MIN_JEV_ONLY_PAIRWISE_ACCURACY": "minimum (gate)",
+    "MIN_TOP1_MARGIN": "minimum (gate)",
+    "TARGET_TOP1_MARGIN": "target (non-gating)",
+    "MIN_TOP_K_MEAN": "minimum (gate, literal top-10 only)",
+    "TARGET_TOP_K_MEAN": "target (non-gating)",
+    "MIN_TOP_K_MEAN_LIFT_OVER_RANDOM": "minimum (gate, literal top-10 only)",
+    "MIN_TOP_K_MEAN_LIFT_OVER_DSP": "minimum (gate, literal top-10 only)",
+    "MAX_COLD_RECOMMENDATION_P95_MS": "minimum (gate)",
+    "TARGET_COLD_RECOMMENDATION_P95_MS": "target (non-gating)",
+    "MAX_WARM_RECOMMENDATION_P95_MS": "minimum (gate)",
+    "TARGET_WARM_RECOMMENDATION_P95_MS": "target (non-gating)",
+    "MAX_AUDITION_START_P95_MS": "minimum (gate, Phase 1, #39)",
+    "RETENTION_WINDOW_DAYS": "fixed (not a gate)",
+    "MIN_RETENTION_RATE": "minimum (gate, Phase 1)",
+    "TARGET_RETENTION_RATE": "target (non-gating, Phase 1)",
+    "MIN_RETENTION_SELECTIONS": "minimum (gate, Phase 1)",
+}
+
 SEEDS = {"SPLIT_SEED": SPLIT_SEED, "PAIR_SAMPLER_SEED": PAIR_SAMPLER_SEED,
          "ASSIGNMENT_SEED": ASSIGNMENT_SEED, "ORDER_SEED": ORDER_SEED,
          "RANDOM_ARM_SEED": RANDOM_ARM_SEED, "BOOTSTRAP_SEED": BOOTSTRAP_SEED}
@@ -289,11 +332,16 @@ GAP_CODES = ("protocol_document_missing", "split_manifest_missing", "pair_list_m
 
 
 class ComparisonError(Exception):
-    """A mechanism failure: a stable code and the exit status 2 it produces."""
+    """A mechanism failure: a stable code, the input it names and the exit status 2 it causes."""
 
-    def __init__(self, code, message):
+    def __init__(self, code, message, source=None):
         self.code = code
+        self.source = source
         super().__init__(message)
+
+    @property
+    def detail(self):
+        return str(self)
 
 
 class EvidenceGap(Exception):
@@ -640,20 +688,22 @@ class SessionSummary:
 
 
 def git_tracks(path):
-    """Whether git tracks the given path; file-backed stdio, never a pipe."""
+    """Whether git tracks the given path or anything under it.
+
+    No pipe, no capture and no temporary file: git writes nothing and its exit status
+    answers the question, so the check works under a confined sandbox too.
+    """
     root = Path(path).resolve()
-    parent = root if root.is_dir() else root.parent
     if not (REPOSITORY_ROOT / ".git").exists():
         return False
-    with tempfile.TemporaryDirectory() as scratch:
-        output = Path(scratch) / "ls-files.out"
-        error = Path(scratch) / "ls-files.err"
-        with output.open("wb") as out, error.open("wb") as err:
-            result = subprocess.run(["git", "-c", "safe.directory=*", "ls-files", "--",
-                                     str(root)], cwd=str(REPOSITORY_ROOT), stdout=out, stderr=err)
-        if result.returncode != 0:
-            return False
-        return bool(output.read_text(encoding="utf-8", errors="replace").strip())
+    try:
+        result = subprocess.run(["git", "-c", "safe.directory=*", "ls-files",
+                                 "--error-unmatch", "--", str(root)],
+                                cwd=str(REPOSITORY_ROOT), stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL, timeout=VALIDATE_S)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.returncode == 0
 
 
 def rating_source_problem(directory):
@@ -826,6 +876,7 @@ class Paths:
     tuning_ratings: Path
     tuning_claim: bool
     jev_live: bool
+    fresh_latency: bool = False
 
 
 def default_paths():
@@ -834,7 +885,7 @@ def default_paths():
                  DEFAULT_PAIR_ROOT / "assignment.json", DEFAULT_PAIR_ROOT / "sessions",
                  (DEFAULT_ANALYSIS_ROOT / "kicks-manifest.json",
                   DEFAULT_ANALYSIS_ROOT / "basses-manifest.json"),
-                 (), REPORT_PATH, RUNS_DIRECTORY, TUNING_DIRECTORY, False, False)
+                 (), REPORT_PATH, RUNS_DIRECTORY, TUNING_DIRECTORY, False, False, False)
 
 
 @dataclass(frozen=True)
@@ -908,7 +959,8 @@ class Findings:
 
     @property
     def exit_code(self):
-        if any(item.mechanism for item in self.items):
+        """Exit 2 for any mechanism failure, 1 for any evidence gap, else 0."""
+        if self.mechanism or any(item.mechanism for item in self.items):
             return EXIT_FAILURE
         if any(item.failed for item in self.items):
             return EXIT_INSUFFICIENT
@@ -1172,6 +1224,7 @@ class ArmOrder:
     weight_table_id: str
     mode: str | None = None
     jev_status: str | None = None
+    scores: tuple = ()
 
 
 def random_order(kick_id, candidates, dataset_version):
@@ -1263,7 +1316,9 @@ def build_arm(name, *, kick, candidates, samples, dataset_version, baseline=None
         ranked = tuple(record.candidate_id for record in result.ranked)
         unscored = tuple(record.candidate_id for record in result.unscored)
         return ArmOrder(name, ranked + unscored, ranked, result.ranking_version,
-                        result.weight_table_id)
+                        result.weight_table_id, scores=tuple(
+                            (record.candidate_id, record.compatibility, record.confidence)
+                            for record in result.ranked))
     if name == "hybrid":
         if baseline is None:
             baseline = rank_candidates(kick, candidate_samples, policy=RankingPolicy())
@@ -1273,7 +1328,9 @@ def build_arm(name, *, kick, candidates, samples, dataset_version, baseline=None
         ranked = tuple(record.candidate_id for record in result.ranked)
         unscored = tuple(record.candidate_id for record in result.unscored)
         return ArmOrder(name, ranked + unscored, ranked, result.ranking_version,
-                        result.weight_table_id, result.mode, result.jev_status)
+                        result.weight_table_id, result.mode, result.jev_status,
+                        tuple((record.candidate_id, record.compatibility, record.confidence)
+                              for record in result.ranked))
     if name == "jev-only":
         if outcome_table is None:
             outcome_table = {}
@@ -1282,7 +1339,11 @@ def build_arm(name, *, kick, candidates, samples, dataset_version, baseline=None
                                                                 candidate_id)))
         unscored = tuple(sorted(candidate_id for candidate_id in candidates
                                 if candidate_id not in scores))
-        return ArmOrder(name, ranked + unscored, ranked, "jev-only-v1", "equal-1/6-weights")
+        # The covered weight is the confidence the protocol records for every candidate.
+        return ArmOrder(name, ranked + unscored, ranked, "jev-only-v1", "equal-1/6-weights",
+                        scores=tuple((candidate_id, scores[candidate_id]["score"],
+                                      scores[candidate_id]["confidence"])
+                                     for candidate_id in ranked))
     raise ComparisonError("schema_mismatch", "unknown arm name " + repr(name))
 
 
@@ -1295,9 +1356,16 @@ def mean(values):
     return sum(values) / len(values) if values else None
 
 
-def query_metrics(rated, order):
-    """The protocol's per-query metrics over one arm's order and one rated subset."""
-    subset = [candidate for candidate in order if candidate in rated]
+def query_metrics(rated, order, scored=None):
+    """The protocol's per-query metrics over one arm's scored candidates in one rated subset.
+
+    An unscored candidate is never counted in a quality metric: the decided pairs, the
+    top-ranked candidate and the top-k set all come from the arm's scored candidates that
+    are also in the rated subset. The rated-subset size stays the share denominator.
+    """
+    scored_ids = set(order) if scored is None else set(scored)
+    subset = [candidate for candidate in order
+              if candidate in rated and candidate in scored_ids]
     values = [rated[candidate] for candidate in subset]
     decided, correct = 0, 0
     for first in range(len(subset)):
@@ -1312,9 +1380,10 @@ def query_metrics(rated, order):
     return {
         "rated_size": len(rated),
         "scored_in_rated": len(subset),
+        "unscored_in_rated": len(rated) - len(subset),
         "decided_pairs": decided,
-        "pairwise_accuracy": (correct / decided) if decided and len(subset) >= 3 else None,
-        "top1_margin": (rated[subset[0]] - mean(values)) if len(subset) >= 2 else None,
+        "pairwise_accuracy": (correct / decided) if decided and len(rated) >= 3 else None,
+        "top1_margin": (rated[subset[0]] - mean(values)) if subset and len(rated) >= 2 else None,
         "topk_mean": mean([rated[candidate] for candidate in subset[:k]]) if subset else None,
         "k": k,
         "rating_mean": mean(values),
@@ -1340,6 +1409,7 @@ class QueryEvaluation:
     reason: str | None
     error_code: str | None
     metrics: dict
+    scores: tuple = ()
 
     def as_dict(self):
         return {"arm": self.arm, "eligible": self.eligible, "reason": self.reason,
@@ -1347,7 +1417,9 @@ class QueryEvaluation:
                 "eligible_candidates": self.eligible_size, "rated": self.rated_size,
                 "order": list(self.order), "scored": list(self.scored),
                 "unscored": list(self.unscored), "scored_share": self.scored_share,
-                "unscored_share": self.unscored_share, "metrics": self.metrics}
+                "unscored_share": self.unscored_share, "metrics": self.metrics,
+                "scores": {candidate: {"score": score, "confidence": confidence}
+                           for candidate, score, confidence in self.scores}}
 
 
 def evaluate_query(arm_order, query):
@@ -1360,6 +1432,7 @@ def evaluate_query(arm_order, query):
     rated_size = len(query.rated)
     scored_in_rated = sum(1 for candidate in query.rated if candidate in set(scored))
     share = (scored_in_rated / rated_size) if rated_size else None
+    unscored_value = ((rated_size - scored_in_rated) / rated_size) if rated_size else None
     reason = None
     eligible = True
     if query.filter_error is not None:
@@ -1370,11 +1443,11 @@ def evaluate_query(arm_order, query):
         eligible, reason = False, "rated_subset_below_minimum_ratings"
     elif share is None or share < MIN_SCORED_SHARE_PER_QUERY:
         eligible, reason = False, "scored_share_below_minimum"
-    metrics = query_metrics(query.rated, arm_order.order)
+    metrics = query_metrics(query.rated, arm_order.order, arm_order.scored)
     return QueryEvaluation(arm_order.arm, query.kick_id, len(query.sampled),
                            len(query.eligible), rated_size, arm_order.order, scored, unscored,
-                           share, None if share is None else 1.0 - share, eligible, reason,
-                           query.filter_error, metrics)
+                           share, unscored_value, eligible, reason,
+                           query.filter_error, metrics, arm_order.scores)
 
 
 def arm_summary(evaluations):
@@ -1387,7 +1460,7 @@ def arm_summary(evaluations):
     scored_in_rated = sum(item.metrics["scored_in_rated"] for item in evaluations if item.eligible)
     rated_total = sum(item.metrics["rated_size"] for item in evaluations if item.eligible)
     summary["unscored_share"] = {
-        "value": (1.0 - scored_in_rated / rated_total) if rated_total else None,
+        "value": ((rated_total - scored_in_rated) / rated_total) if rated_total else None,
         "scored_in_rated": scored_in_rated, "rated_total": rated_total}
     summary["eligible_queries"] = sum(1 for item in evaluations if item.eligible)
     summary["queries"] = len(evaluations)
@@ -1472,12 +1545,25 @@ def agreement_table(table):
     }
 # --- one evaluation of the declared inputs ---------------------------------
 
+def replace_error(error, source):
+    """The same stable code with the declared input it belongs to."""
+    return ComparisonError(error.code, str(error), source=source)
+
+
+def code_for(mechanism, source, default="schema_mismatch"):
+    """The stable code one declared input's mechanism failure carries."""
+    for error in mechanism:
+        if error.source == source:
+            return error.code
+    return default
+
+
 def load_or_record(name, path, mechanism, *, reader=read_json):
     """Load one declared input; a malformed document is recorded, never repaired."""
     try:
         document = load_document(name, path, reader=reader)
     except ComparisonError as error:
-        mechanism.append(error)
+        mechanism.append(ComparisonError(error.code, str(error), source=name))
         return Document(name, str(path), True, None, None, malformed=True)
     return document
 
@@ -1521,43 +1607,47 @@ def evaluate(paths):
     split = load_or_record("split_manifest", paths.split_manifest, mechanism)
     pairs = load_or_record("pair_list", paths.pairs, mechanism)
     assignment = load_or_record("assignment", paths.assignment, mechanism)
-    analysis_documents, analysis_missing = [], []
+    analysis_documents, analysis_missing, analysis_malformed = [], [], 0
     for path in paths.analyses:
         target = Path(path)
         if not target.is_file():
             analysis_missing.append(str(path))
             continue
         document = load_or_record("analysis_manifest", path, mechanism)
-        if document.value is not None:
-            try:
-                inspect_analysis(document.value, str(path))
-            except ComparisonError as error:
-                mechanism.append(error)
-                continue
-            analysis_documents.append((document.value, str(path)))
+        if document.malformed:
+            analysis_malformed += 1
+            continue
+        try:
+            inspect_analysis(document.value, str(path))
+        except ComparisonError as error:
+            mechanism.append(ComparisonError(error.code, str(error),
+                                             source="analysis_manifest"))
+            analysis_malformed += 1
+            continue
+        analysis_documents.append((document.value, str(path)))
     if dataset.value is not None and not dataset.malformed:
         try:
             inspect_dataset(dataset.value)
         except ComparisonError as error:
-            mechanism.append(error)
+            mechanism.append(replace_error(error, "dataset"))
             dataset = replace(dataset, value=None, malformed=True)
     if split.value is not None and not split.malformed:
         try:
             inspect_split(split.value)
         except ComparisonError as error:
-            mechanism.append(error)
+            mechanism.append(replace_error(error, "split_manifest"))
             split = replace(split, value=None, malformed=True)
     if dataset.value is not None and pairs.value is not None and not pairs.malformed:
         try:
             inspect_pair_list(pairs.value, dataset_version=dataset.value["dataset_version"])
         except ComparisonError as error:
-            mechanism.append(error)
+            mechanism.append(replace_error(error, "pair_list"))
             pairs = replace(pairs, value=None, malformed=True)
     if assignment.value is not None and not assignment.malformed:
         try:
             inspect_assignment(assignment.value)
         except ComparisonError as error:
-            mechanism.append(error)
+            mechanism.append(replace_error(error, "assignment"))
             assignment = replace(assignment, value=None, malformed=True)
     sessions = list(load_sessions(paths.sessions) or ())
     expected_version = (dataset.value or {}).get("dataset_version")
@@ -1574,16 +1664,19 @@ def evaluate(paths):
     try:
         jev_runs = load_jev_runs(paths.jev_runs)
     except ComparisonError as error:
-        mechanism.append(error)
+        mechanism.append(replace_error(error, "jev_run"))
         jev_runs = ()
     # A ratings source inside the repository or tests/ may never be evidence.
-    if sessions:
-        for summary in sessions:
-            try:
-                rating_source_problem(summary.directory)
-            except ComparisonError as error:
-                mechanism.append(error)
-                break
+    try:
+        rating_source_problem(paths.sessions)
+    except ComparisonError as error:
+        mechanism.append(error)
+    for summary in sessions:
+        try:
+            rating_source_problem(summary.directory)
+        except ComparisonError as error:
+            mechanism.append(error)
+            break
     paired = pair_records(pairs.value)
     roles = dataset_roles(dataset.value)
     partitions = split_partitions(split.value) if split.value is not None else None
@@ -1653,9 +1746,9 @@ def evaluate(paths):
         items.append(Finding("split_manifest", "split_manifest_missing",
                              "schema_version 1.0 and split_manifest_digest", "absent", "missing"))
     elif split.malformed:
-        items.append(Finding("split_manifest", "schema_mismatch",
-                             "schema_version 1.0 and split_manifest_digest", "malformed",
-                             "malformed"))
+        items.append(Finding("split_manifest", code_for(mechanism, "split_manifest"),
+                             "schema_version 1.0 and split_manifest_digest",
+                             "present but malformed", "malformed"))
     else:
         items.append(Finding("split_manifest", "ok", "schema_version 1.0 and split_manifest_digest",
                              str(digest_value), "ok"))
@@ -1667,10 +1760,10 @@ def evaluate(paths):
                              + (str(digest_value) if digest_value else "the split manifest's"),
                              "absent", "missing"))
     elif pairs.malformed:
-        items.append(Finding("pair_list", "schema_mismatch",
+        items.append(Finding("pair_list", code_for(mechanism, "pair_list"),
                              "schema_version 1.0 and split_manifest_digest = "
                              + (str(digest_value) if digest_value else "the split manifest's"),
-                             "malformed", "malformed"))
+                             "present but malformed", "malformed"))
     elif digest_value is not None and pair_digest != digest_value:
         items.append(Finding("pair_list", "split_manifest_digest_mismatch",
                              "split_manifest_digest = " + str(digest_value), str(pair_digest),
@@ -1699,9 +1792,9 @@ def evaluate(paths):
                              "every pair assigned to at least " + str(MIN_RATINGS_PER_PAIR)
                              + " distinct evaluators", "absent", "missing"))
     elif assignment.malformed:
-        items.append(Finding("evaluator_assignment", "schema_mismatch",
+        items.append(Finding("evaluator_assignment", code_for(mechanism, "assignment"),
                              "every pair assigned to at least " + str(MIN_RATINGS_PER_PAIR)
-                             + " distinct evaluators", "malformed", "malformed"))
+                             + " distinct evaluators", "present but malformed", "malformed"))
     elif assignment_problems:
         items.append(Finding("evaluator_assignment", "pair_unassigned",
                              "every pair assigned to at least " + str(MIN_RATINGS_PER_PAIR)
@@ -1729,7 +1822,13 @@ def evaluate(paths):
                              + str(MIN_HELDOUT_QUERIES) + " held-out query kicks",
                              str(sampled_count) + " sampled pairs; " + str(query_count)
                              + " query kicks", "ok"))
-    if not sessions:
+    public_source = any(error.code == "public_rating_source" for error in mechanism)
+    if public_source:
+        items.append(Finding("rated_pairs", "public_rating_source",
+                             "every rated pair is a sampled pair",
+                             "a ratings source resolves under tests/ or is tracked by git,"
+                             " so no rating from it is evidence", "inconsistent"))
+    elif not sessions:
         items.append(Finding("rated_pairs", "ratings_missing",
                              "every rated pair is a sampled pair",
                              "0 sessions, 0 rated pairs", "missing"))
@@ -1742,12 +1841,20 @@ def evaluate(paths):
         items.append(Finding("rated_pairs", "ok", "every rated pair is a sampled pair",
                              str(len(table)) + " of " + str(len(table)) + " rated pairs sampled",
                              "ok"))
-    if not analysis_documents:
+    if analysis_malformed:
+        items.append(Finding("analysis_manifests",
+                             code_for(mechanism, "analysis_manifest"),
+                             "every held-out sample used resolves to one complete entry with a"
+                             " single analysis_version",
+                             str(analysis_malformed) + " of " + str(len(paths.analyses))
+                             + " declared analysis manifests are present but malformed",
+                             "malformed"))
+    elif not analysis_documents:
         items.append(Finding("analysis_manifests", "analysis_manifest_missing",
                              "every held-out sample used resolves to one complete entry with a"
                              " single analysis_version",
                              str(len(analysis_missing)) + " of " + str(len(paths.analyses))
-                             + " analysis manifests present", "missing"))
+                             + " declared analysis manifests are absent", "missing"))
     elif missing_entries:
         items.append(Finding("analysis_manifests", "missing_analysis_entry",
                              "every held-out sample used resolves to one complete entry with a"
@@ -1771,7 +1878,11 @@ def evaluate(paths):
         if dataset.value is not None else []
     synthetic = [record for record in used_records
                  if record.get("provenance_kind") != "real_library_sample"]
-    if dataset.value is None:
+    if dataset.malformed:
+        items.append(Finding("dataset_provenance", code_for(mechanism, "dataset"),
+                             "every dataset record used has provenance_kind = real_library_sample",
+                             "present but malformed", "malformed"))
+    elif dataset.value is None:
         items.append(Finding("dataset_provenance", "dataset_missing",
                              "every dataset record used has provenance_kind = real_library_sample",
                              "absent", "missing"))
@@ -1848,6 +1959,10 @@ class LatencyMemo:
                           "analysis_version": analysis_version,
                           "ranking_version": ranking_version})
 
+    def peek(self, key):
+        """Whether the memo holds an entry, without counting a hit or a miss."""
+        return self.values.get(key)
+
     def get(self, key):
         if key in self.values:
             self.hits += 1
@@ -1865,11 +1980,14 @@ class LatencyMemo:
                 "note": "evaluation-scoped memo; not the #26 product decision cache"}
 
 
-def time_request(arm, query, samples, *, dataset_version, outcome_table, memo=None):
+def time_request(arm, query, samples, *, dataset_version, outcome_table, memo=None,
+                 memo_key=None):
     """The runner's request function: feature load, filter, retrieval, Jev and ranking.
 
     This is the timed path. It is the only thing the latency numbers measure: no client,
-    no IPC and no audition start is included.
+    no IPC and no audition start is included. With a memo and its key the ranking stage is
+    served from the runner's evaluation-scoped memo and memo_hit is true; the cold path
+    computes it.
     """
     stages, total_start = {}, time.perf_counter()
     started = time.perf_counter()
@@ -1889,14 +2007,21 @@ def time_request(arm, query, samples, *, dataset_version, outcome_table, memo=No
         jev_requests_for((query,), samples)
     stages["jev"] = (time.perf_counter() - started) * 1000.0 if arm in JEV_ARMS else None
     started = time.perf_counter()
-    order = None
-    if kick is not None and candidates:
-        order = build_arm(arm, kick=kick, candidates=query.eligible, samples=samples,
+    order, memo_hit = None, False
+    cached = memo.get(memo_key) if memo is not None and memo_key is not None else None
+    if cached is not None:
+        memo_hit = True
+        order = list(cached["order"])
+    elif kick is not None and candidates:
+        built = build_arm(arm, kick=kick, candidates=query.eligible, samples=samples,
                           dataset_version=dataset_version, outcome_table=outcome_table)
+        order = list(built.order)
+        if memo is not None and memo_key is not None:
+            memo.put(memo_key, {"order": order})
     stages["ranking"] = (time.perf_counter() - started) * 1000.0
     stages["total"] = (time.perf_counter() - total_start) * 1000.0
-    return {"arm": arm, "query": query.kick_id, "stages": stages,
-            "order": list(order.order) if order is not None else []}
+    return {"arm": arm, "query": query.kick_id, "stages": stages, "memo_hit": memo_hit,
+            "order": order or []}
 
 
 def latency_child_command(request_path, output_path):
@@ -1946,8 +2071,21 @@ def hardware_block():
 
 
 def measure_latency(plan, queries, samples, *, dataset_version, outcome_table, run_directory,
-                    analysis_manifests=(), jev_runs=(), spawn=None, memo=None):
-    """Run the latency plan; invalid samples are counted, never invented or replaced."""
+                    analysis_manifests=(), jev_runs=(), spawn=None, memo=None, fresh=False):
+    """Run the latency plan; invalid samples are counted, never invented or replaced.
+
+    The measured table is captured at <run_directory>/latency.json and reused on a re-run,
+    so the committed report and the run artifact reproduce byte for byte with the same
+    measured values. Pass fresh=True to measure again.
+    """
+    capture = Path(run_directory) / "latency.json"
+    if not fresh and capture.is_file():
+        try:
+            recorded = json.loads(capture.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            recorded = None
+        if type(recorded) is dict and "arms" in recorded and "memo" in recorded:
+            return recorded
     spawn = default_spawn if spawn is None else spawn
     memo = LatencyMemo({}, 0, 0) if memo is None else memo
     table = {"arms": {}, "samples": [], "invalid": [], "memo": memo,
@@ -1968,12 +2106,16 @@ def measure_latency(plan, queries, samples, *, dataset_version, outcome_table, r
                            ranking_version=RANKING_VERSION if arm != "hybrid"
                            else HYBRID_RANKING_VERSION)
             if state == "warm":
-                cached = memo.get(key)
-                if cached is None:
+                if memo.peek(key) is None:
                     invalid.append({"arm": arm, "query": query.kick_id, "state": state,
                                     "reason": INVALID_WARM})
                     continue
-                record = dict(cached)
+                record = time_request(arm, query, samples, dataset_version=dataset_version,
+                                      outcome_table=outcome_table, memo=memo, memo_key=key)
+                if not record["memo_hit"]:
+                    invalid.append({"arm": arm, "query": query.kick_id, "state": state,
+                                    "reason": INVALID_WARM})
+                    continue
                 record["state"] = "warm"
                 samples_list.append(record)
                 continue
@@ -1999,29 +2141,40 @@ def measure_latency(plan, queries, samples, *, dataset_version, outcome_table, r
                 continue
             record["state"] = "cold"
             record["command"] = list(command)
-            memo.put(key, record)
+            memo.put(key, {"order": list(record.get("order") or [])})
             samples_list.append(record)
         table["arms"][arm] = summarize_latency(arm, samples_list, invalid)
         table["samples"].extend(samples_list)
         table["invalid"].extend(invalid)
     table["memo"] = memo.as_dict()
+    table["capture"] = "recorded"
+    write_text(capture, canonical(table) + "\n")
     return table
 
 
 def summarize_latency(arm, samples_list, invalid):
-    """Per-arm p50/p95 per stage, the sample counts and the insufficiency reasons."""
+    """Per-arm and per-state p50/p95 per stage, the sample counts and the reasons."""
     valid = [record for record in samples_list]
     kicks = {record["query"] for record in valid}
     summary = {"arm": arm, "valid_samples": len(valid), "cold_samples":
                sum(1 for record in valid if record["state"] == "cold"),
                "warm_samples": sum(1 for record in valid if record["state"] == "warm"),
                "distinct_query_kicks": len(kicks), "invalid_samples": len(invalid),
-               "stages": {}, "reasons": []}
+               "stages": {}, "states": {}, "reasons": []}
     for stage in LATENCY_STAGES + ("total",):
         values = [record["stages"].get(stage) for record in valid
                   if type(record["stages"].get(stage)) in (int, float)]
         summary["stages"][stage] = {"p50": percentile(values, 0.50),
                                     "p95": percentile(values, 0.95), "count": len(values)}
+    for state in ("cold", "warm"):
+        records = [record for record in valid if record["state"] == state]
+        stages = {}
+        for stage in LATENCY_STAGES + ("total",):
+            values = [record["stages"].get(stage) for record in records
+                      if type(record["stages"].get(stage)) in (int, float)]
+            stages[stage] = {"p50": percentile(values, 0.50),
+                             "p95": percentile(values, 0.95), "count": len(values)}
+        summary["states"][state] = {"valid_samples": len(records), "stages": stages}
     if summary["valid_samples"] < MIN_LATENCY_REQUESTS_PER_ARM:
         summary["reasons"].append("latency_samples_below_minimum")
     if summary["distinct_query_kicks"] < MIN_LATENCY_QUERY_KICKS:
@@ -2281,7 +2434,7 @@ def leave_one_evaluator_out(findings, arms, gates):
         values = recompute_with_aggregates(findings, arms, aggregates)
         flipped = []
         for gate in gates:
-            if gate.cls != "minimum" or gate.metric is None or gate.metric_arm is None \
+            if not gate.gating or gate.metric is None or gate.metric_arm is None \
                     or gate.minimum is None:
                 continue
             variant = values[gate.metric_arm][gate.metric]["value"]
@@ -2311,7 +2464,13 @@ class Gate:
 
     @property
     def cls(self):
-        return FROZEN_CONSTANTS[self.constant][1]
+        """The protocol document's own class string for this constant."""
+        return GATE_CLASSES.get(self.constant, FROZEN_CONSTANTS[self.constant][1])
+
+    @property
+    def gating(self):
+        """Whether this constant is a minimum-class gate rather than a target."""
+        return FROZEN_CONSTANTS[self.constant][1] == "minimum"
 
     def as_dict(self):
         return {"constant": self.constant, "value": FROZEN_CONSTANTS[self.constant][0],
@@ -2324,8 +2483,21 @@ def shown(value, points=4):
     return "not computed" if value is None else format(value, "." + str(points) + "f")
 
 
-def metric_gate(constant, arm, metric, *, analysis, minimum, inconclusive=False):
+def not_publishable(analysis, arm):
+    """A Jev-dependent arm whose only outcomes are double-run values has nothing to print."""
+    return not analysis["arms"][arm]["publishable"]
+
+
+def metric_gate(constant, arm, metric, *, analysis, minimum, inconclusive=False,
+                reachable=True, shortfall=None):
     """One metric gate: the arm's point estimate and its bootstrap interval."""
+    if not reachable:
+        return Gate(constant, (arm,), "not computed (k = 5 is descriptive)",
+                    "not computed", "insufficient", shortfall or "", "metric", minimum, arm,
+                    metric, None)
+    if not_publishable(analysis, arm):
+        return Gate(constant, (arm,), "not reported (no live Jev outcomes)", "not reported",
+                    "insufficient", NO_LIVE_JEV_REASON, "metric", minimum, arm, metric, None)
     summary = analysis["arms"][arm]["summary"][metric]
     value = summary["value"]
     interval = None
@@ -2338,19 +2510,30 @@ def metric_gate(constant, arm, metric, *, analysis, minimum, inconclusive=False)
     verdict = verdict_for(value, interval, minimum, evidence_met=evidence,
                           inconclusive=inconclusive)
     return Gate(constant, (arm,), shown(value), shown_interval(interval), verdict,
-                "not computed" if value is None else "n of " + str(summary["queries"])
-                + " eligible queries", "metric", minimum, arm, metric, value)
+                str(summary["queries"]) + " of " + str(MIN_HELDOUT_QUERIES)
+                + " eligible held-out queries" if value is None
+                else str(summary["queries"]) + " eligible queries", "metric", minimum, arm,
+                metric, value)
 
 
-def lift_gate(constant, arm, other, metric, *, analysis, minimum):
+def lift_gate(constant, arm, other, metric, *, analysis, minimum, reachable=True,
+              shortfall=None):
     """One lift gate: the per-query paired difference and its interval."""
+    if not reachable:
+        return Gate(constant, (arm,), "not computed (k = 5 is descriptive)",
+                    "not computed", "insufficient", shortfall or "", "lift", minimum, arm,
+                    metric, None)
+    if not_publishable(analysis, arm) or not_publishable(analysis, other):
+        return Gate(constant, (arm,), "not reported (no live Jev outcomes)", "not reported",
+                    "insufficient", NO_LIVE_JEV_REASON, "lift", minimum, arm, metric, None)
     entry = analysis["lifts"].get(arm + " over " + other, {}).get(metric)
     value = entry["value"] if entry else None
     interval = entry["interval"] if entry else None
     evidence = analysis["arms"][arm]["status"] != "insufficient"
     verdict = verdict_for(value, interval, minimum, evidence_met=evidence, lift=True)
+    paired = entry["queries"] if entry else 0
     return Gate(constant, (arm,), shown_signed(value), shown_interval(interval), verdict,
-                "n of " + str(entry["queries"]) + " paired queries" if entry else "0 paired queries",
+                str(paired) + " of " + str(MIN_HELDOUT_QUERIES) + " paired eligible queries",
                 "lift", minimum, arm, metric, value)
 
 
@@ -2446,18 +2629,21 @@ def build_gates(findings, analysis, latency):
                                shortfall="0 of " + str(counts["eligible_queries"])
                                + " eligible queries"))
     gates.append(evidence_gate("MAX_RECOGNISED_RATE",
-                               "0 sessions" if not counts["sessions"]
+                               "0 sessions to check" if not counts["sessions"]
                                else str(counts["recognised_ratings"]) + " flagged of "
                                + str(counts["valid_ratings"]) + " ratings",
                                MAX_RECOGNISED_RATE, ok=bool(counts["sessions"]),
-                               shortfall="0 of 1 session" if not counts["sessions"] else ""))
+                               shortfall=""))
+    sample_counts = [entry["valid_samples"] for entry in latency["arms"].values()]
+    least_samples = min(sample_counts) if sample_counts else 0
     gates.append(evidence_gate("MIN_LATENCY_REQUESTS_PER_ARM",
-                               str(latency["arms"]["random"]["valid_samples"]) + " of "
-                               + str(MIN_LATENCY_REQUESTS_PER_ARM) + " valid samples on the"
-                               " least-sampled arm", MIN_LATENCY_REQUESTS_PER_ARM,
-                               ok=all(entry["valid_samples"] >= MIN_LATENCY_REQUESTS_PER_ARM
-                                      for entry in latency["arms"].values()),
-                               shortfall="0 of " + str(MIN_LATENCY_REQUESTS_PER_ARM)
+                               str(least_samples) + " of " + str(MIN_LATENCY_REQUESTS_PER_ARM)
+                               + " valid samples on the least-sampled arm",
+                               MIN_LATENCY_REQUESTS_PER_ARM,
+                               ok=least_samples >= MIN_LATENCY_REQUESTS_PER_ARM,
+                               shortfall="" if least_samples >= MIN_LATENCY_REQUESTS_PER_ARM
+                               else str(least_samples) + " of "
+                               + str(MIN_LATENCY_REQUESTS_PER_ARM)
                                + " valid latency samples per arm"))
     gates.append(metric_gate("MIN_DSP_PAIRWISE_ACCURACY", "dsp-only", "pairwise_accuracy",
                              analysis=analysis, minimum=MIN_DSP_PAIRWISE_ACCURACY))
@@ -2466,26 +2652,41 @@ def build_gates(findings, analysis, latency):
                              inconclusive=bool(analysis["jev_variant_disagreements"])))
     gates.append(metric_gate("MIN_PAIRWISE_ACCURACY", "hybrid", "pairwise_accuracy",
                              analysis=analysis, minimum=MIN_PAIRWISE_ACCURACY))
-    gates.append(lift_gate("MIN_LIFT_OVER_RANDOM", "hybrid", "random", "pairwise_accuracy",
-                           analysis=analysis, minimum=MIN_LIFT_OVER_RANDOM))
+    gates.append(Gate("MIN_LIFT_OVER_RANDOM", ("random",), shown_signed(0.0),
+                      "[0.0000, 0.0000]",
+                      verdict_for(0.0, [0.0, 0.0], MIN_LIFT_OVER_RANDOM, evidence_met=True,
+                                  lift=True),
+                      "structurally zero: the identical arm", "lift", MIN_LIFT_OVER_RANDOM,
+                      "random", "pairwise_accuracy", 0.0))
+    for arm in ARM_NAMES:
+        if arm == "random":
+            continue
+        gates.append(lift_gate("MIN_LIFT_OVER_RANDOM", arm, "random", "pairwise_accuracy",
+                               analysis=analysis, minimum=MIN_LIFT_OVER_RANDOM))
     gates.append(lift_gate("MIN_LIFT_OVER_DSP", "hybrid", "dsp-only", "pairwise_accuracy",
                            analysis=analysis, minimum=MIN_LIFT_OVER_DSP))
     gates.append(metric_gate("MIN_TOP1_MARGIN", "hybrid", "top1_margin", analysis=analysis,
                              minimum=MIN_TOP1_MARGIN))
     reachable = analysis["topk_reachable"]
-    for constant, minimum in (("MIN_TOP_K_MEAN", MIN_TOP_K_MEAN),
-                              ("MIN_TOP_K_MEAN_LIFT_OVER_RANDOM",
-                               MIN_TOP_K_MEAN_LIFT_OVER_RANDOM),
-                              ("MIN_TOP_K_MEAN_LIFT_OVER_DSP", MIN_TOP_K_MEAN_LIFT_OVER_DSP)):
-        verdict = "insufficient" if not reachable else "inconclusive"
-        gates.append(Gate(constant, ALL_ARMS, "not computed (k = 5 is descriptive)",
-                          "not computed", verdict,
-                          str(analysis["queries_with_11_rated_candidates"]) + " of "
-                          + str(analysis["eligible_queries"]) + " eligible queries hold "
-                          + str(MIN_RATED_CANDIDATES_FOR_TOP10_GATE) + " rated candidates",
-                          "metric", minimum, "hybrid", "topk_mean"))
-    gates.append(latency_gate("MAX_COLD_RECOMMENDATION_P95_MS", latency))
-    gates.append(latency_gate("MAX_WARM_RECOMMENDATION_P95_MS", latency))
+    reach_shortfall = (str(analysis["queries_with_11_rated_candidates"]) + " of "
+                       + str(analysis["eligible_queries"]) + " eligible queries hold "
+                       + str(MIN_RATED_CANDIDATES_FOR_TOP10_GATE) + " rated candidates")
+    for arm in ARM_NAMES:
+        gates.append(metric_gate("MIN_TOP_K_MEAN", arm, "topk_mean", analysis=analysis,
+                                 minimum=MIN_TOP_K_MEAN, reachable=reachable,
+                                 shortfall=reach_shortfall))
+        if arm != "random":
+            gates.append(lift_gate("MIN_TOP_K_MEAN_LIFT_OVER_RANDOM", arm, "random",
+                                   "topk_mean", analysis=analysis,
+                                   minimum=MIN_TOP_K_MEAN_LIFT_OVER_RANDOM, reachable=reachable,
+                                   shortfall=reach_shortfall))
+        if arm != "dsp-only":
+            gates.append(lift_gate("MIN_TOP_K_MEAN_LIFT_OVER_DSP", arm, "dsp-only", "topk_mean",
+                                   analysis=analysis,
+                                   minimum=MIN_TOP_K_MEAN_LIFT_OVER_DSP, reachable=reachable,
+                                   shortfall=reach_shortfall))
+    gates.append(latency_gate("MAX_COLD_RECOMMENDATION_P95_MS", latency, analysis))
+    gates.append(latency_gate("MAX_WARM_RECOMMENDATION_P95_MS", latency, analysis))
     for constant in ("TARGET_EVALUATORS", "TARGET_RATINGS_PER_PAIR", "TARGET_HELDOUT_QUERIES",
                      "TARGET_PAIRWISE_ACCURACY", "TARGET_LIFT_OVER_RANDOM",
                      "TARGET_LIFT_OVER_DSP", "TARGET_TOP1_MARGIN", "TARGET_TOP_K_MEAN",
@@ -2502,21 +2703,27 @@ def build_gates(findings, analysis, latency):
     return tuple(gates)
 
 
-def latency_gate(constant, latency):
+def latency_gate(constant, latency, analysis=None):
     """One cold or warm p95 gate: insufficient until every arm has its 30 samples."""
     threshold = FROZEN_CONSTANTS[constant][0]
-    enough = all(entry["valid_samples"] >= MIN_LATENCY_REQUESTS_PER_ARM
-                 for entry in latency["arms"].values())
+    present = [arm for arm in ARM_NAMES if arm in latency["arms"]]
+    arms = [arm for arm in present
+            if analysis is None or analysis["arms"][arm]["publishable"]] or present
+    counts = [latency["arms"][arm]["valid_samples"] for arm in arms]
+    least = min(counts) if counts else 0
+    enough = bool(counts) and all(value >= MIN_LATENCY_REQUESTS_PER_ARM for value in counts)
     if not enough:
-        return Gate(constant, ALL_ARMS, "not measured (0 of "
-                    + str(MIN_LATENCY_REQUESTS_PER_ARM) + " valid samples per arm)",
-                    "not applicable (no samples)", "insufficient",
-                    "0 of " + str(MIN_LATENCY_REQUESTS_PER_ARM)
+        return Gate(constant, ALL_ARMS,
+                    "not measured (least-sampled arm " + str(least) + " of "
+                    + str(MIN_LATENCY_REQUESTS_PER_ARM) + " valid samples)",
+                    "not applicable (no complete sample set)", "insufficient",
+                    str(least) + " of " + str(MIN_LATENCY_REQUESTS_PER_ARM)
                     + " valid latency samples per arm", "latency", threshold)
-    observed = max(entry["stages"]["total"]["p95"] or 0.0 for entry in latency["arms"].values())
+    observed = max(latency["arms"][arm]["stages"]["total"]["p95"] or 0.0 for arm in arms)
     verdict = "supported" if observed <= threshold else "not supported"
-    return Gate(constant, ALL_ARMS, shown(observed, 1) + " ms p95", "not applicable (p95)",
-                verdict, "", "latency", threshold)
+    return Gate(constant, tuple(arms),
+                shown(observed, 1) + " ms p95 on the slowest published arm",
+                "not applicable (p95)", verdict, "", "latency", threshold)
 
 
 def apply_leave_one_out(gates, variants):
@@ -2712,6 +2919,11 @@ def report_table(headers, rows):
 def render_report(findings, analysis, gates, latency, key, identity, others, digests):
     """The committed report: the twelve sections in the contract's order, aggregates only."""
     counts = findings.accounting
+
+    def publish(arm, text):
+        """A Jev arm with no live outcome publishes no value derived from a double run."""
+        return (text if analysis["arms"][arm]["publishable"]
+                else "not reported (no live Jev outcomes)")
     lines = ["# Ranking comparison report", "",
              "Comparison of the four frozen arms (random, dsp-only, jev-only, hybrid) over the",
              "held-out split of the frozen protocol. Every value below traces to a recorded",
@@ -2782,7 +2994,8 @@ def render_report(findings, analysis, gates, latency, key, identity, others, dig
         entry = analysis["arms"][arm]
         lines.append("| " + arm + " | " + str(entry["summary"]["eligible_queries"]) + " of "
                      + str(counts["sampled_queries"]) + " | "
-                     + (shown(entry["unscored_share"]) if entry["unscored_share"] is not None
+                     + (publish(arm, shown(entry["unscored_share"]))
+                        if entry["unscored_share"] is not None
                         else "undefined (0 rated candidates)")
                      + " | " + entry["evidence_source"] + " | " + entry["status"]
                      + ("" if entry["reason"] is None else " (" + entry["reason"] + ")") + " |")
@@ -2806,11 +3019,12 @@ def render_report(findings, analysis, gates, latency, key, identity, others, dig
          analysis["arms"][arm]["weight_table_id"] if analysis["arms"][arm]["evaluations"]
          else declared[arm][1] + " (declared)",
          analysis["arms"][arm].get("verdict", "not evaluated"),
-         canonical(analysis["arms"][arm]["mode_counts"]) if
+         publish(arm, canonical(analysis["arms"][arm]["mode_counts"])) if
          analysis["arms"][arm]["mode_counts"] else "(no ordering produced)",
-         canonical(analysis["arms"][arm]["status_counts"]) if
+         publish(arm, canonical(analysis["arms"][arm]["status_counts"])) if
          analysis["arms"][arm]["status_counts"] else "(no ordering produced)",
-         analysis["arms"][arm]["identical_orderings"],
+         publish(arm, analysis["arms"][arm]["identical_orderings"])
+         if analysis["arms"][arm]["evaluations"] else "(no ordering produced)",
          ", ".join(analysis["arms"][arm]["error_codes"]) or "none"]
         for arm in ARM_NAMES])
     hybrid = analysis["arms"]["hybrid"]
@@ -2823,10 +3037,10 @@ def render_report(findings, analysis, gates, latency, key, identity, others, dig
     lines += ["", "The random arm's analytic expectations are pairwise accuracy 0.50, top-1"
               " margin 0.00 and a top-k mean equal to the rated subset's mean; every random"
               " value above is reported beside them.", ""]
-    lines += ["Jev-only variants: the primary label-based variant and the predeclared"
-              " probability-weighted variant disagree on "
-              + str(analysis["jev_variant_disagreements"]) + " of "
-              + str(analysis["eligible_queries"]) + " eligible queries; when they disagree the"
+    lines += ["Jev-only variants: " + publish(
+        "jev-only", "the primary label-based variant and the predeclared probability-weighted"
+        " variant disagree on " + str(analysis["jev_variant_disagreements"]) + " of "
+        + str(analysis["eligible_queries"]) + " eligible queries") + "; when they disagree the"
               " Jev-only gate is inconclusive, never the better of the two.", ""]
     lines += ["Jev evidence: " + ADAPTER_VERDICT + ". The #14 live integration check"
               " (tests/test_jev_integration.py) is skipped and is recorded UNVERIFIED, never as a"
@@ -2855,9 +3069,10 @@ def render_report(findings, analysis, gates, latency, key, identity, others, dig
                       if item.eligible and item.metrics[metric] is not None]
             uncertainty_rows.append([
                 metric + " (" + arm + ")",
-                shown(analysis["arms"][arm]["summary"][metric]["value"]),
-                shown_interval(bootstrap_values(values, label=arm + "-" + metric)["interval"]),
-                analysis["arms"][arm]["summary"][metric]["queries"]])
+                publish(arm, shown(analysis["arms"][arm]["summary"][metric]["value"])),
+                publish(arm, shown_interval(bootstrap_values(values,
+                                                             label=arm + "-" + metric)["interval"])),
+                publish(arm, analysis["arms"][arm]["summary"][metric]["queries"])])
     for other in ("random", "dsp-only"):
         for arm in ARM_NAMES:
             if arm == other:
@@ -2868,11 +3083,15 @@ def render_report(findings, analysis, gates, latency, key, identity, others, dig
             values = [difference for query, name, difference in paired_differences(
                 analysis["arms"][arm]["evaluations"], analysis["arms"][other]["evaluations"])
                 if name == "pairwise_accuracy"]
+            hidden = not (analysis["arms"][arm]["publishable"]
+                          and analysis["arms"][other]["publishable"])
             uncertainty_rows.append(["pairwise_accuracy lift " + arm + " over " + other,
-                                     shown_signed(entry["value"]),
-                                     shown_interval(bootstrap_values(
-                                         values, label=arm + " over " + other)["interval"]),
-                                     entry["queries"]])
+                                     "not reported (no live Jev outcomes)" if hidden
+                                     else shown_signed(entry["value"]),
+                                     "not reported" if hidden else shown_interval(
+                                         bootstrap_values(values,
+                                                          label=arm + " over " + other)["interval"]),
+                                     "not reported" if hidden else entry["queries"]])
     lines += report_table(["Gated metric", "Point estimate", "95% interval", "Queries"],
                           uncertainty_rows)
     lines += ["", "The minimum detectable difference is the protocol's predeclared table: about"
@@ -2932,16 +3151,24 @@ def render_report(findings, analysis, gates, latency, key, identity, others, dig
         ["Retrieval stage", RETRIEVAL_NOT_IMPLEMENTED],
     ])
     lines += ["", ""]
+    def state_p95(entry, state):
+        value = entry["states"][state]["stages"]["total"]["p95"]
+        return "not measured" if value is None else shown(value, 1) + " ms"
+
     lines += report_table(["Arm", "Valid samples", "Distinct query kicks", "Cold p95", "Warm p95",
                            "Reasons"], [
-        [arm, str(latency["arms"][arm]["valid_samples"]) + " of "
-         + str(MIN_LATENCY_REQUESTS_PER_ARM), str(latency["arms"][arm]["distinct_query_kicks"])
-         + " of " + str(MIN_LATENCY_QUERY_KICKS), "not measured", "not measured",
+        [arm, publish(arm, str(latency["arms"][arm]["valid_samples"]) + " of "
+                      + str(MIN_LATENCY_REQUESTS_PER_ARM)),
+         str(latency["arms"][arm]["distinct_query_kicks"]) + " of "
+         + str(MIN_LATENCY_QUERY_KICKS), publish(arm, state_p95(latency["arms"][arm], "cold")),
+         publish(arm, state_p95(latency["arms"][arm], "warm")),
          ", ".join(latency["arms"][arm]["reasons"]) or "none"] for arm in ARM_NAMES])
     lines += ["", ""]
     stage_rows = []
+    published_arms = [arm for arm in ARM_NAMES if analysis["arms"][arm]["publishable"]]
     for stage in LATENCY_STAGES + ("total",):
-        best = max(latency["arms"].values(), key=lambda entry: entry["valid_samples"])
+        best = max((latency["arms"][arm] for arm in published_arms or ARM_NAMES),
+                   key=lambda entry: entry["valid_samples"])
         entry = best["stages"].get(stage, {})
         if stage == "retrieval":
             stage_rows.append([stage, RETRIEVAL_NOT_IMPLEMENTED, RETRIEVAL_NOT_IMPLEMENTED,
@@ -2959,7 +3186,9 @@ def render_report(findings, analysis, gates, latency, key, identity, others, dig
               + " and TARGET_WARM_RECOMMENDATION_P95_MS = "
               + str(TARGET_WARM_RECOMMENDATION_P95_MS) + " are non-gating. Per-stage p50 and p95"
               " for feature load, filter, retrieval, Jev calls (Jev arms only) and ranking are"
-              " recorded in the private run artifact.", ""]
+              " recorded in the private run artifact, whose measured table is captured at"
+              " latency.json and reused so a re-run reproduces this report byte for byte"
+              " (--fresh-latency measures again).", ""]
     lines += ["## Evidence gaps", ""]
     lines += report_table(["Check", "Code", "Expected", "Actual"], [
         [item.name, item.code, item.expected, item.actual] for item in findings.gaps])
@@ -2976,33 +3205,38 @@ def render_report(findings, analysis, gates, latency, key, identity, others, dig
         lines += ["No session exists, so no session row carries a validate exit status."]
     lines += [""]
     rendered = []
+    index_of = {summary.session_id: str(index)
+                for index, summary in enumerate(findings.sessions, start=1)}
     for deviation in findings.deviations:
-        rendered.append("session " + str(deviation["session_id"]) + ": validate exit "
-                        + str(deviation["validate_exit"]) + ", codes "
+        rendered.append("session " + index_of.get(deviation["session_id"], "(unnumbered)")
+                        + ": validate exit " + str(deviation["validate_exit"]) + ", codes "
                         + (", ".join(deviation["violations"]) or "none") + " (excluded, never"
-                        " repaired)")
+                        " repaired; the session id stays in the private run artifact)")
     for arm in ARM_NAMES:
         entry = analysis["arms"][arm]
         if entry["error_codes"]:
             rendered.append(arm + ": arm error codes " + ", ".join(entry["error_codes"]))
     rendered.append("unscored candidates: " + "; ".join(
-        arm + " " + str(analysis["arms"][arm]["summary"]["unscored_share"]["scored_in_rated"])
-        + " of " + str(analysis["arms"][arm]["summary"]["unscored_share"]["rated_total"])
-        + " rated candidates scored" for arm in ARM_NAMES))
-    rendered.append("identical orderings: " + "; ".join(
-        arm + " " + str(analysis["arms"][arm]["identical_orderings"]) + " query pairs"
+        arm + " " + publish(arm, str(analysis["arms"][arm]["summary"]["unscored_share"]
+                                     ["scored_in_rated"])
+                            + " of " + str(analysis["arms"][arm]["summary"]["unscored_share"]
+                                            ["rated_total"]) + " rated candidates scored")
         for arm in ARM_NAMES))
+    rendered.append("identical orderings: " + "; ".join(
+        arm + " " + publish(arm, str(analysis["arms"][arm]["identical_orderings"])
+                            + " query pairs") for arm in ARM_NAMES))
     rendered.append("unrated queries: " + str(sum(
         1 for item in analysis["arms"]["dsp-only"]["evaluations"]
         if not item.eligible and item.reason == "rated_subset_below_minimum_ratings")))
     if analysis["double_runs"]:
         rendered.append("a source=double Jev run was present: it exercised the pipeline only,"
                         " is labelled '" + DOUBLE_NOT_EVIDENCE + "' in the private run artifact,"
-                        " and no value derived from it appears in this report")
+                        " and the Jev-dependent rows of this report carry"
+                        " 'not reported (no live Jev outcomes)' instead of a value derived from it")
     if analysis["arms"]["hybrid"]["mode_counts"]:
-        rendered.append("hybrid fallback on " + str(analysis["arms"]["hybrid"]["mode_counts"]
-                                                    .get(MODE_DSP_ONLY, 0)) + " queries: "
-                        + FALLBACK_REASON)
+        rendered.append("hybrid fallback on " + publish(
+            "hybrid", str(analysis["arms"]["hybrid"]["mode_counts"].get(MODE_DSP_ONLY, 0))
+            + " queries") + ": " + FALLBACK_REASON)
     rendered.append("the #65 split-manifest and evaluator-assignment schemas are this runner's"
                     " declared expectation, because #65 has not landed: schema_version 1.0,"
                     " dataset_version, the three seeds, tuning and held_out with kicks and"
@@ -3057,6 +3291,8 @@ def preflight(paths, stdout):
     summary = {"command": "preflight", "protocol_version": findings.protocol.version,
                "protocol_document": findings.protocol.path,
                "items": [item.as_dict() for item in findings.items],
+               "mechanism": [{"code": error.code, "source": error.source,
+                              "detail": error.detail} for error in findings.mechanism],
                "exit": findings.exit_code}
     print(canonical(summary), file=stdout, flush=True)
     return findings.exit_code
@@ -3078,7 +3314,7 @@ def prepare_runs(findings, paths):
 
 def arm_verdict(arm, gates):
     """The protocol's global rule applied to one arm's applicable minimum-class gates."""
-    applicable = [gate for gate in gates if arm in gate.arms and gate.cls == "minimum"]
+    applicable = [gate for gate in gates if arm in gate.arms and gate.gating]
     verdicts = [gate.verdict for gate in applicable]
     if not verdicts:
         return "not evaluated"
@@ -3110,7 +3346,8 @@ def run_report(paths, stdout):
     latency = measure_latency(latency_plan(findings.query, ARM_NAMES), findings.query,
                               findings.samples, dataset_version=dataset_version,
                               outcome_table=outcome_table, run_directory=run_directory,
-                              analysis_manifests=paths.analyses, jev_runs=paths.jev_runs)
+                              analysis_manifests=paths.analyses, jev_runs=paths.jev_runs,
+                              fresh=paths.fresh_latency)
     analysis = analyse(findings, paths, latency=latency, outcome_table=outcome_table)
     gates = build_gates(findings, analysis, latency)
     variants = leave_one_evaluator_out(findings, analysis["arms"], gates)
@@ -3149,6 +3386,9 @@ def build_parser():
             command.add_argument("--runs", default=str(RUNS_DIRECTORY))
             command.add_argument("--jev-live", action="store_true",
                                  help="make the one explicitly configured live Jev call")
+            command.add_argument("--fresh-latency", action="store_true",
+                                 help="measure the latency samples again instead of reusing"
+                                      " the run directory's captured table")
             command.add_argument("--tuning-claim", action="store_true")
             command.add_argument("--tuning-ratings", default=str(TUNING_DIRECTORY))
     request = commands.add_parser("latency-request",
@@ -3184,7 +3424,8 @@ def paths_from(arguments):
                  Path(getattr(arguments, "runs", RUNS_DIRECTORY)),
                  Path(getattr(arguments, "tuning_ratings", TUNING_DIRECTORY)),
                  bool(getattr(arguments, "tuning_claim", False)),
-                 bool(getattr(arguments, "jev_live", False)))
+                 bool(getattr(arguments, "jev_live", False)),
+                 bool(getattr(arguments, "fresh_latency", False)))
 
 
 def main(argv=None, stdout=None):

@@ -42,6 +42,27 @@
       "expected_reason": null
     }
   ],
+  "rated_unscored_case": {
+    "name": "a rated but unscored candidate is never counted in any quality metric",
+    "sampled": ["bass-001", "bass-002", "bass-blank"],
+    "eligible": ["bass-001", "bass-002", "bass-blank"],
+    "rated": {"bass-001": 3.0, "bass-002": 0.0, "bass-blank": 3.0},
+    "scored": ["bass-001", "bass-002"],
+    "order": ["bass-001", "bass-002", "bass-blank"],
+    "expected": {
+      "rated_size": 3,
+      "scored_in_rated": 2,
+      "unscored_in_rated": 1,
+      "decided_pairs": 1,
+      "pairwise_accuracy": 1.0,
+      "top1_margin": 1.5,
+      "topk_mean": 1.5,
+      "k": 2,
+      "scored_share": 0.6666666666666666,
+      "unscored_share": 0.3333333333333333,
+      "eligible": true
+    }
+  },
   "tail_case": {
     "name": "a scored candidate precedes every unscored candidate, and the tail sorts by id",
     "eligible": [

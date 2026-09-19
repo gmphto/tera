@@ -818,6 +818,261 @@ def test_the_top_k_gate_is_insufficient_with_its_n_of_m_count(workspace, fast_ru
     assert "k = 5" in text
 
 
+# --- QA regression cases: mechanism failures, honest counting, latency ------
+
+def double_run(workspace, source, model_version="fixture-model-1"):
+    """One recorded Jev run over a whole workspace; a double run is never evidence."""
+    outcomes = []
+    for record in workspace.records:
+        label = "good" if int(record["bass_sample_id"][-3:]) % 2 == 0 else "poor"
+        for dimension in comparison.DIMENSIONS:
+            request_id = comparison.jev_key(record["kick_sample_id"],
+                                            record["bass_sample_id"], dimension)
+            outcomes.append(JevOutcome(request_id=request_id, question_id=None,
+                                       dimension=dimension, state="judged", code=None, attempts=1,
+                                       judgment=judgement(dimension, label), elapsed_ms=1))
+    return JevScoringRun(adapter_version=ADAPTER_VERSION, source=source,
+                         interface_name="fixture-interface" if source == "interface" else None,
+                         prompt_version=PROMPT_VERSION, model_versions=(model_version,),
+                         cancelled=False, outcomes=tuple(outcomes), elapsed_ms=1)
+
+
+def stateful_spawn(command):
+    """A cold sample answers 6.0 ms and its warm repeat 3.0 ms."""
+    request_path = Path(command[command.index("--request") + 1])
+    out = Path(command[command.index("--out") + 1])
+    index = int(request_path.stem.split("-")[0])
+    stages = dict(FAKE_STAGES)
+    stages["total"] = 6.0 if index % 2 == 0 else 3.0
+    request = json.loads(request_path.read_text(encoding="utf-8"))
+    out.write_text(comparison.canonical({"arm": request["arm"], "query": request["query"],
+                                         "stages": stages, "order": [],
+                                         "memo_hit": False}) + "\n", encoding="utf-8")
+    return 0
+
+
+def test_a_malformed_dataset_is_a_mechanism_failure_with_exit_two(workspace):
+    document = json.loads(workspace.dataset.read_text(encoding="utf-8"))
+    document["schema_version"] = "2.0"
+    workspace.dataset.write_text(comparison.canonical(document) + "\n", encoding="utf-8")
+    code, output = run(workspace_arguments(workspace, "preflight"))
+    assert code == 2
+    summary = json.loads(output)
+    item = next(item for item in summary["items"] if item["name"] == "dataset_provenance")
+    assert (item["code"], item["status"]) == ("schema_mismatch", "malformed")
+    assert summary["mechanism"] and summary["mechanism"][0]["source"] == "dataset"
+
+
+def test_an_unparseable_dataset_is_a_mechanism_failure_with_exit_two(workspace):
+    workspace.dataset.write_text("{not json", encoding="utf-8")
+    code, output = run(workspace_arguments(workspace, "preflight"))
+    assert code == 2
+    summary = json.loads(output)
+    assert [item["code"] for item in summary["mechanism"]] == ["schema_mismatch"]
+    assert summary["mechanism"][0]["source"] == "dataset"
+    assert summary["exit"] == 2
+
+
+def test_a_malformed_analysis_manifest_is_a_mechanism_failure_with_exit_two(workspace):
+    document = json.loads(workspace.analyses[0].read_text(encoding="utf-8"))
+    document["manifest_schema"] = "9.9"
+    workspace.analyses[0].write_text(comparison.canonical(document) + "\n", encoding="utf-8")
+    code, output = run(workspace_arguments(workspace, "preflight"))
+    assert code == 2
+    summary = json.loads(output)
+    item = next(item for item in summary["items"] if item["name"] == "analysis_manifests")
+    assert (item["code"], item["status"]) == ("schema_mismatch", "malformed")
+    assert "1 of 2 declared analysis manifests are present but malformed" in item["actual"]
+
+
+def test_a_malformed_jev_run_is_a_mechanism_failure_named_in_the_summary(workspace):
+    path = workspace.tmp / "bad-jev-run.json"
+    path.write_text("{not json", encoding="utf-8")
+    code, output = run(workspace_arguments(workspace, "preflight", jev_runs=(path,)))
+    assert code == 2
+    summary = json.loads(output)
+    assert [entry["source"] for entry in summary["mechanism"]] == ["jev_run"]
+    assert summary["exit"] == 2
+
+
+def test_a_ratings_source_under_tests_is_a_mechanism_failure(workspace):
+    code, output = run(workspace_arguments(workspace, "preflight",
+                                           sessions=REPOSITORY_ROOT / "tests"))
+    assert code == 2
+    summary = json.loads(output)
+    item = next(item for item in summary["items"] if item["name"] == "rated_pairs")
+    assert (item["code"], item["status"]) == ("public_rating_source", "inconsistent")
+    assert any(entry["code"] == "public_rating_source" for entry in summary["mechanism"])
+
+
+def test_a_rated_but_unscored_candidate_is_never_counted_in_a_metric():
+    """QA's repro: the unscored candidate is rated 3.0 but must not enter any metric."""
+    case = fixture("unscored-cases.json")["rated_unscored_case"]
+    kick = kick_sample(1)
+    first, second = bass_sample(1), bass_sample(2)
+    blank = sample("bass-blank", role="bass", **{name: 0.0 for name in KICK_PROFILES[0]})
+    samples = {kick.sample_id: kick, first.sample_id: first, second.sample_id: second,
+               blank.sample_id: blank}
+    arm = comparison.build_arm("dsp-only", kick=kick, candidates=case["sampled"], samples=samples,
+                               dataset_version=DATASET_VERSION)
+    assert list(arm.scored) == case["scored"]
+    query = query_for("q1", case["sampled"], case["rated"], {name: 2 for name in case["rated"]})
+    evaluation = comparison.evaluate_query(arm, query)
+    for name, expected in case["expected"].items():
+        if name in ("scored_share", "unscored_share", "eligible"):
+            continue
+        assert evaluation.metrics[name] == expected, name
+    assert evaluation.scored_share == case["expected"]["scored_share"]
+    assert evaluation.unscored_share == case["expected"]["unscored_share"]
+    assert evaluation.eligible is case["expected"]["eligible"]
+    summary = comparison.arm_summary((evaluation,))
+    assert summary["unscored_share"]["value"] == case["expected"]["unscored_share"]
+    assert summary["unscored_share"]["scored_in_rated"] == 2
+    assert summary["unscored_share"]["rated_total"] == 3
+
+
+def test_the_report_lists_a_random_lift_row_for_every_arm(workspace, fast_run):
+    run(workspace_arguments(workspace, "report"))
+    text = workspace.report.read_text(encoding="utf-8")
+    rows = [line for line in text.splitlines()
+            if line.startswith("| MIN_LIFT_OVER_RANDOM = 0.1 |")]
+    assert len(rows) == 4
+    for arm in ("random", "dsp-only", "jev-only", "hybrid"):
+        assert any("| " + arm + " |" in row for row in rows), arm
+    assert "| random | +0.0000 | [0.0000, 0.0000] | not supported | structurally zero" in text
+
+
+def test_the_gate_class_column_carries_the_protocols_class_string(workspace, fast_run):
+    run(workspace_arguments(workspace, "report"))
+    text = workspace.report.read_text(encoding="utf-8")
+    rows = [line for line in text.splitlines() if line.startswith("| MIN_TOP_K_MEAN = 2.0 |")]
+    assert rows and all("minimum (gate, literal top-10 only)" in row for row in rows)
+    assert "| MIN_POOL_KICKS = 80 | minimum (gate) |" in text
+    assert "| TARGET_EVALUATORS = 8 | target (non-gating) |" in text
+
+
+def test_a_workspace_where_every_query_holds_eleven_rated_candidates_gates_the_top_ten(
+        tmp_path, fast_run):
+    workspace = build_workspace(tmp_path, kick_count=6, bass_count=12, candidates=11,
+                                assign_to=EVALUATORS[:2])
+    for evaluator in EVALUATORS[:2]:
+        write_session(workspace, "session-" + evaluator, evaluator,
+                      assignments_for(workspace, evaluator), ("good", "excellent", "poor"))
+    code, _ = run(workspace_arguments(workspace, "report"))
+    assert code == 1
+    text = workspace.report.read_text(encoding="utf-8")
+    assert "queries_with_11_rated_candidates: 6 of 6" in text
+    rows = [line for line in text.splitlines() if line.startswith("| MIN_TOP_K_MEAN = 2.0 |")]
+    assert len(rows) == 4
+    assert not any("not computed" in row for row in rows)
+
+
+def test_the_jev_only_covered_weight_confidence_is_persisted(tmp_path, fast_run):
+    workspace = build_workspace(tmp_path)
+    path = workspace.tmp / "double-run.json"
+    path.write_text(double_run(workspace, "double").to_json(), encoding="utf-8")
+    code, _ = run(workspace_arguments(workspace, "report", jev_runs=(path,)))
+    assert code == 1
+    run_dirs = list(workspace.runs.iterdir())
+    document = json.loads((run_dirs[0] / "records.json").read_text(encoding="utf-8"))
+    scores = [query["arms"]["jev-only"]["scores"] for query in document["queries"]]
+    assert any(entry for entry in scores)
+    checked = next(entry for entry in scores if entry)
+    assert all(set(value) == {"score", "confidence"} for value in checked.values())
+
+
+def test_a_double_only_jev_run_never_publishes_a_derived_value(workspace, fast_run):
+    for evaluator in EVALUATORS[:2]:
+        write_session(workspace, "session-" + evaluator, evaluator,
+                      assignments_for(workspace, evaluator), ("good", "excellent", "poor"))
+    path = workspace.tmp / "double-run.json"
+    path.write_text(double_run(workspace, "double").to_json(), encoding="utf-8")
+    code, _ = run(workspace_arguments(workspace, "report", jev_runs=(path,)))
+    assert code == 1
+    text = workspace.report.read_text(encoding="utf-8")
+    run_dirs = list(workspace.runs.iterdir())
+    document = json.loads((run_dirs[0] / "run.json").read_text(encoding="utf-8"))
+    assert document["double_runs"] == {"count": 1, "label": comparison.DOUBLE_NOT_EVIDENCE}
+    value = comparison.shown(document["arms"]["jev-only"]["metrics"]["pairwise_accuracy"]["value"])
+    assert value != "not computed"
+    assert "| pairwise_accuracy (jev-only) | " + value not in text
+    assert "| MIN_JEV_ONLY_PAIRWISE_ACCURACY = 0.55 | minimum (gate) | jev-only |" in text
+    assert "not reported (no live Jev outcomes)" in text
+    assert comparison.DOUBLE_NOT_EVIDENCE in text
+    assert document["arms"]["jev-only"]["metrics"]["pairwise_accuracy"]["value"] is not None
+
+
+def test_the_deviations_never_print_a_session_id(workspace, fast_run):
+    directory = write_session(workspace, "session-one", "evaluator-alpha",
+                              assignments_for(workspace, "evaluator-alpha"), ("good",))
+    (directory / "export.json").unlink()
+    code, _ = run(workspace_arguments(workspace, "report"))
+    assert code == 1
+    text = workspace.report.read_text(encoding="utf-8")
+    assert "session-one" not in text
+    assert "session 1: validate exit 1" in text
+    assert "the session id stays in the private run artifact" in text
+
+
+def test_the_evidence_gap_row_counts_the_absent_manifests_honestly(tmp_path):
+    report = tmp_path / "report.md"
+    run(absent_arguments(tmp_path, "report", report=report))
+    text = report.read_text(encoding="utf-8")
+    assert "2 of 2 declared analysis manifests are absent" in text
+    assert "0 of 2 analysis manifests present" not in text
+
+
+def test_honest_evidence_strings_have_no_template_or_invented_minimum(tmp_path):
+    report = tmp_path / "report.md"
+    run(absent_arguments(tmp_path, "report", report=report))
+    text = report.read_text(encoding="utf-8")
+    gate_rows = [line for line in text.splitlines() if line.startswith("| MIN_")]
+    assert gate_rows and not any("n of " in row for row in gate_rows)
+    assert "0 of 1 session" not in text
+    assert "0 of 60 paired eligible queries" in text
+    assert "0 of 30 valid samples on the least-sampled arm" in text
+
+
+def test_latency_arm_rows_report_the_measured_p95_of_each_state(tmp_path):
+    queries, samples = latency_fixture(tmp_path, count=1)
+    plan = comparison.latency_plan(queries, ("dsp-only",), per_arm=2, distinct_kicks=10)
+    table = comparison.measure_latency(plan, queries, samples, dataset_version=DATASET_VERSION,
+                                       outcome_table={}, run_directory=tmp_path,
+                                       spawn=stateful_spawn)
+    entry = table["arms"]["dsp-only"]
+    assert entry["valid_samples"] == 2
+    assert entry["states"]["cold"]["valid_samples"] == 1
+    assert entry["states"]["warm"]["valid_samples"] == 1
+    # The cold sample carries the spawned child's own stages; the warm repeat is timed here.
+    assert entry["states"]["cold"]["stages"]["total"]["p95"] == 6.0
+    assert entry["states"]["warm"]["stages"]["total"]["p95"] is not None
+    warm = [record for record in table["samples"] if record["state"] == "warm"]
+    cold = [record for record in table["samples"] if record["state"] == "cold"]
+    assert warm and all(record["memo_hit"] for record in warm)
+    assert cold and not any(record["memo_hit"] for record in cold)
+    assert table["capture"] == "recorded"
+    assert (tmp_path / "latency.json").is_file()
+    gate = comparison.latency_gate("MAX_COLD_RECOMMENDATION_P95_MS", table)
+    assert "2 of 30" in gate.value and gate.verdict == "insufficient"
+    assert gate.shortfall == "2 of 30 valid latency samples per arm"
+
+
+def test_the_latency_gate_uses_the_real_sample_counts(tmp_path, fast_run):
+    workspace = build_workspace(tmp_path)
+    run(workspace_arguments(workspace, "report"))
+    text = workspace.report.read_text(encoding="utf-8")
+    assert ("| MIN_LATENCY_REQUESTS_PER_ARM = 30 | minimum (gate) | random, dsp-only, jev-only,"
+            " hybrid | 30 of 30 valid samples on the least-sampled arm | not applicable"
+            " (evidence minimum) | met | - |") in text
+    row = next(line for line in text.splitlines() if line.startswith("| random | 30 of 30 |"))
+    cells = [cell.strip() for cell in row.strip("|").split("|")]
+    assert cells[2] == "6 of 10"
+    assert cells[3] == "6.0 ms"          # the spawned cold samples' own stage value
+    assert cells[4].endswith(" ms")      # a measured warm p95, never "not measured"
+    assert "| MAX_COLD_RECOMMENDATION_P95_MS = 2000 | minimum (gate) |" in text
+    assert "0 of 30 valid latency samples per arm" not in text
+
+
 # --- the latency harness ----------------------------------------------------
 
 FAKE_STAGES = {"feature_load": 1.0, "filter": 2.0, "retrieval": "not_implemented", "jev": None,
@@ -829,8 +1084,8 @@ def fake_spawn(command, *, stages=None):
     out = Path(command[command.index("--out") + 1])
     request = json.loads(Path(command[command.index("--request") + 1]).read_text(encoding="utf-8"))
     out.write_text(comparison.canonical({"arm": request["arm"], "query": request["query"],
-                                         "stages": dict(values), "order": []}) + "\n",
-                   encoding="utf-8")
+                                         "stages": dict(values), "order": [],
+                                         "memo_hit": False}) + "\n", encoding="utf-8")
     return 0
 
 
@@ -865,8 +1120,10 @@ def test_latency_samples_stages_and_the_memo_are_recorded(tmp_path):
     assert entry["valid_samples"] == 30
     assert entry["distinct_query_kicks"] == 10
     assert entry["reasons"] == []
-    assert entry["stages"]["total"] == {"p50": 6.0, "p95": 6.0, "count": 30}
-    assert entry["stages"]["feature_load"] == {"p50": 1.0, "p95": 1.0, "count": 30}
+    assert entry["states"]["cold"]["stages"]["total"] == {"p50": 6.0, "p95": 6.0, "count": 15}
+    assert entry["states"]["cold"]["stages"]["feature_load"] == {"p50": 1.0, "p95": 1.0,
+                                                                "count": 15}
+    assert table["capture"] == "recorded"
     assert table["retrieval"] == "not_implemented"
     assert table["memo"]["hits"] == 15 and table["memo"]["misses"] == 15
     assert table["memo"]["key_fields"] == ["arm", "query", "candidates", "dataset_version",
