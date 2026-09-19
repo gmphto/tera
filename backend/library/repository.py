@@ -30,13 +30,13 @@ be re-digested. No third-party package is imported.
 from __future__ import annotations
 
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import json
 import os
 from pathlib import PureWindowsPath
 import sqlite3
 
-from backend.analysis.batch import ROLES, canonical, digest
+from backend.analysis.batch import ROLES, analysis_descriptor, canonical, digest
 from backend.contracts import (
     AudioFeatures,
     AudioMetadata,
@@ -438,6 +438,75 @@ class LibraryRepository:
             "unavailable_reason = excluded.unavailable_reason",
             (sample.sample_id, sample.analysis_version, key.tonic, key.mode, key.confidence,
              key.unavailable_reason))
+
+    # -- analysis for an existing path row (issue #23) ---------------------
+
+    def store_analysis(self, sample, *, content_sha256, sample_id=None, descriptor=None) -> str:
+        """Store one analysis for an existing path row, in the caller's transaction.
+
+        #22 indexes a path before it is analysed, and #9's extractor assembles a
+        `Sample` whose identity is the *content* identity, while a scanned row's
+        identity is minted from its path. This operation therefore names the row it
+        writes for: `sample_id` defaults to the sample's own id and is the
+        `samples` row whose features are written. It writes the version's
+        `analysis_versions` row when `descriptor` is given, the 19
+        `sample_features` rows and the `sample_keys` row, and changes no column of
+        `samples`: the worker that stores an analysis never creates, moves or
+        updates a sample row.
+
+        The caller owns the transaction -- this method issues no BEGIN and no
+        COMMIT, so an item's features, its analysis version and the queue row that
+        records them commit or roll back together. It refuses to run outside one.
+        With `descriptor` the version must re-digest from it; without it the
+        version must already be registered.
+
+        Raises `InvalidSample`, `invalid_content_identity` when the row no longer
+        stores that content (the worker reads both that and `unknown_sample` as
+        `sample_missing`), `unknown_analysis_version`, `analysis_version_mismatch`
+        or `write_failed` outside a transaction.
+        """
+
+        if not self.connection.in_transaction:
+            raise WriteFailed(
+                "store_analysis must run inside a transaction(connection) block, so an "
+                "analysis and the queue row that records it commit together.")
+        validated = _validated_sample(sample)
+        identity = _content_identity(validated.sample_id, content_sha256)
+        target = validated.sample_id if sample_id is None else sample_id
+        if not isinstance(target, str) or not target:
+            raise InvalidSample("sample_id must be None or a non-empty string.")
+        row = self._one("SELECT sample_id, content_sha256 FROM samples WHERE sample_id = ?",
+                        (target,))
+        if row is None:
+            raise UnknownSample(f"No stored sample with sample_id {target}.")
+        if row["content_sha256"] != identity:
+            raise InvalidContentIdentity(
+                f"sample_id {target} no longer stores the content identity {identity}.")
+        version = validated.analysis_version
+        if descriptor is None:
+            self._require_version(version)
+        else:
+            try:
+                stored = canonical(descriptor)
+            except (TypeError, ValueError) as error:
+                raise InvalidSample(
+                    f"descriptor is not canonically serialisable: {error}") from error
+            if digest(descriptor) != version:
+                raise InvalidSample(
+                    f"descriptor does not re-digest to the sample's analysis version {version}.")
+            existing = self._one(
+                "SELECT descriptor FROM analysis_versions WHERE analysis_version = ?", (version,))
+            if existing is None:
+                self.connection.execute(
+                    "INSERT INTO analysis_versions (analysis_version, descriptor, created_at) "
+                    "VALUES (?, ?, ?)", (version, stored, utc_now()))
+            else:
+                self._descriptor(version, existing["descriptor"])
+        if target != validated.sample_id:
+            validated = replace(validated, sample_id=target)
+        self._write_features(validated)
+        self._write_key(validated)
+        return version
 
     def get_sample(self, sample_id: str, analysis_version=None):
         """One `StoredSample`, or None when `sample_id` is unknown.

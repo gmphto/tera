@@ -675,9 +675,13 @@ def test_a_scan_touches_only_the_library_tables(tmp_path, capsys):
     tables = [row[0] for row in connection.execute(
         "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' "
         "ORDER BY name")]
+    # The queue tables ship in the migration chain (issue #23); a scan writes no
+    # run and no item, so both stay empty.
+    assert connection.execute("SELECT COUNT(*) FROM job_runs").fetchone()[0] == 0
+    assert connection.execute("SELECT COUNT(*) FROM job_items").fetchone()[0] == 0
     connection.close()
-    assert tables == ["analysis_versions", "sample_features", "sample_keys", "sample_packs",
-                      "sample_tags", "samples"]
+    assert tables == ["analysis_versions", "job_items", "job_runs", "sample_features",
+                      "sample_keys", "sample_packs", "sample_tags", "samples"]
     assert table_dump(database)["sample_tags"] == []
     for name in ("projects", "palettes", "palette_items"):
         assert name not in tables

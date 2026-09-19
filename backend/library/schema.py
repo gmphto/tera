@@ -30,7 +30,7 @@ import os
 from pathlib import Path
 import sqlite3
 
-from backend.analysis.batch import BatchError, local_path
+from backend.analysis.batch import BatchError, ROLES, local_path
 from backend.contracts import MEASURES
 from backend.library.errors import (
     DatabaseCorrupt,
@@ -41,7 +41,7 @@ from backend.library.errors import (
 )
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SQLITE_MAGIC = b"SQLite format 3\x00"
 
@@ -142,7 +142,68 @@ CREATE TABLE sample_tags (
 );
 """
 
-MIGRATIONS = ((1, _MIGRATION_1),)
+
+# Migration 2 (issue #23): the persisted analysis job queue. The two tables are
+# the whole queue: what still needs analysis stays derived (#22's
+# pending_analysis), and these rows only record a run, its claims, its attempts
+# and its history. No column, constraint or index of a version-1 table is
+# touched, so an upgrade keeps every sample, feature and analysis-version row.
+# The role vocabulary is generated from #9's ROLES, so the CHECK cannot drift.
+_MIGRATION_2 = f"""
+CREATE TABLE job_runs (
+    run_id TEXT PRIMARY KEY CHECK (run_id = trim(run_id) AND run_id <> ''),
+    state TEXT NOT NULL
+        CHECK (state IN ('running', 'complete', 'cancelled', 'interrupted', 'failed')),
+    analysis_version TEXT NOT NULL
+        CHECK (length(analysis_version) = 64
+               AND analysis_version NOT GLOB '*[^0-9a-f]*'),
+    workers INTEGER NOT NULL CHECK (workers BETWEEN 1 AND 4),
+    max_attempts INTEGER NOT NULL CHECK (max_attempts BETWEEN 1 AND 10),
+    owner_token TEXT NOT NULL CHECK (owner_token <> ''),
+    heartbeat_at TEXT NOT NULL,
+    started_at TEXT NOT NULL,
+    finished_at TEXT NULL,
+    cancel_requested INTEGER NOT NULL DEFAULT 0 CHECK (cancel_requested IN (0, 1)),
+    CHECK ((state = 'running') = (finished_at IS NULL))
+);
+
+CREATE TABLE job_items (
+    item_id INTEGER PRIMARY KEY,
+    sample_id TEXT NOT NULL
+        CHECK (sample_id LIKE 'sha256:%' AND length(sample_id) = 71
+               AND substr(sample_id, 8) NOT GLOB '*[^0-9a-f]*'),
+    analysis_version TEXT NOT NULL
+        CHECK (length(analysis_version) = 64
+               AND analysis_version NOT GLOB '*[^0-9a-f]*'),
+    path TEXT NOT NULL CHECK (path <> ''),
+    role TEXT NOT NULL CHECK (role IN ({_quoted(ROLES)})),
+    state TEXT NOT NULL
+        CHECK (state IN ('pending', 'running', 'complete', 'failed', 'cancelled',
+                         'orphaned', 'superseded')),
+    disposition TEXT NULL CHECK (disposition IS NULL OR disposition IN ('analyzed', 'reused')),
+    attempts INTEGER NOT NULL CHECK (attempts >= 0),
+    run_id TEXT NULL,
+    claimed_at TEXT NULL,
+    finished_at TEXT NULL,
+    error_stage TEXT NULL
+        CHECK (error_stage IS NULL OR error_stage IN ('read', 'decode', 'extract', 'queue')),
+    error_code TEXT NULL,
+    error_message TEXT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE (sample_id, analysis_version),
+    CHECK ((error_stage IS NULL) = (error_code IS NULL)),
+    CHECK ((error_code IS NULL) = (error_message IS NULL)),
+    CHECK (state <> 'complete' OR disposition IN ('analyzed', 'reused')),
+    CHECK (state NOT IN ('failed', 'orphaned', 'superseded') OR error_code IS NOT NULL),
+    CHECK (state <> 'running' OR run_id IS NOT NULL)
+);
+
+CREATE INDEX idx_job_items_claim ON job_items(state, item_id);
+
+CREATE INDEX idx_job_items_run ON job_items(run_id, state);
+"""
+
+MIGRATIONS = ((1, _MIGRATION_1), (2, _MIGRATION_2))
 
 
 def utc_now() -> str:

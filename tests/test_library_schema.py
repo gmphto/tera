@@ -38,6 +38,8 @@ USER_TABLE_QUERY = (
 
 USER_TABLES = (
     "analysis_versions",
+    "job_items",
+    "job_runs",
     "sample_features",
     "sample_keys",
     "sample_packs",
@@ -47,6 +49,11 @@ USER_TABLES = (
 
 COLUMNS = {
     "analysis_versions": ("analysis_version", "descriptor", "created_at"),
+    "job_runs": ("run_id", "state", "analysis_version", "workers", "max_attempts", "owner_token",
+                 "heartbeat_at", "started_at", "finished_at", "cancel_requested"),
+    "job_items": ("item_id", "sample_id", "analysis_version", "path", "role", "state",
+                  "disposition", "attempts", "run_id", "claimed_at", "finished_at", "error_stage",
+                  "error_code", "error_message", "created_at"),
     "sample_packs": ("pack_id", "name", "vendor", "created_at"),
     "samples": ("sample_id", "schema_version", "content_sha256", "role", "original_path",
                 "path_key", "filename", "pack_id", "file_status", "sample_rate_hz", "channels",
@@ -61,7 +68,7 @@ COLUMNS = {
 ANALYSIS_VERSION = "0" * 64
 CREATED_AT = "2024-01-01T00:00:00Z"
 SYNTHETIC_PATH = "C:/tera-fixtures/sample-001.wav"
-UPGRADE = MIGRATIONS + ((2, "ALTER TABLE samples ADD COLUMN notes TEXT"),)
+UPGRADE = MIGRATIONS + ((SCHEMA_VERSION + 1, "ALTER TABLE samples ADD COLUMN notes TEXT"),)
 
 
 def open_library(path):
@@ -156,8 +163,8 @@ def column_names(connection, table):
 def test_a_fresh_database_reaches_the_current_version(tmp_path):
     connection = open_library(tmp_path / "library.sqlite3")
     try:
-        assert SCHEMA_VERSION == 1
-        assert MIGRATIONS[0][0] == SCHEMA_VERSION
+        assert SCHEMA_VERSION == 2
+        assert MIGRATIONS[-1][0] == SCHEMA_VERSION
         assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         assert user_tables(connection) == USER_TABLES
         assert verify(connection) == ()
@@ -198,13 +205,14 @@ def test_migrating_again_changes_no_version_and_no_row(tmp_path):
         connection.close()
 
 
-def test_the_user_table_set_is_six_tables_without_blob_columns(tmp_path):
+def test_the_user_table_set_is_the_migrated_set_without_blob_columns(tmp_path):
     connection = open_library(tmp_path / "library.sqlite3")
     try:
         assert user_tables(connection) == USER_TABLES
         indexes = {row[0] for row in connection.execute(
             "SELECT name FROM sqlite_master WHERE type = 'index'").fetchall()}
-        assert {"idx_samples_role", "idx_sample_features_analysis"} <= indexes
+        assert {"idx_samples_role", "idx_sample_features_analysis", "idx_job_items_claim",
+                "idx_job_items_run"} <= indexes
         for table in USER_TABLES:
             for column in connection.execute(f"PRAGMA table_info({table})").fetchall():
                 assert (column[2] or "").upper() != "BLOB", column[1]
@@ -286,11 +294,11 @@ def test_an_upgrade_keeps_every_existing_row(tmp_path):
         seed(connection)
         insert_sample(connection, "sample-001")
         before = rows(connection)
-        assert migrate(connection, UPGRADE) == 2
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 2
+        assert migrate(connection, UPGRADE) == SCHEMA_VERSION + 1
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION + 1
         assert "notes" in column_names(connection, "samples")
         assert rows(connection) == before
-        assert migrate(connection, UPGRADE) == 2
+        assert migrate(connection, UPGRADE) == SCHEMA_VERSION + 1
         assert rows(connection) == before
     finally:
         connection.close()
@@ -302,7 +310,8 @@ def test_a_failing_migration_rolls_back_invalid_sql(tmp_path):
         seed(connection)
         insert_sample(connection, "sample-001")
         before = snapshot(connection)
-        broken = MIGRATIONS + ((2, "ALTER TABLE samples ADD COLUMN notes TEXT; NOT VALID SQL;"),)
+        broken = MIGRATIONS + ((SCHEMA_VERSION + 1,
+                                "ALTER TABLE samples ADD COLUMN notes TEXT; NOT VALID SQL;"),)
         with pytest.raises(MigrationFailed) as raised:
             migrate(connection, broken)
         assert raised.value.code == "migration_failed"
@@ -326,7 +335,7 @@ def test_a_migration_aborted_by_a_trigger_rolls_back(tmp_path):
                   f"INSERT INTO analysis_versions (analysis_version, descriptor, created_at) "
                   f"VALUES ('{'1' * 64}', '{{}}', '{CREATED_AT}');")
         with pytest.raises(MigrationFailed) as raised:
-            migrate(connection, MIGRATIONS + ((2, script),))
+            migrate(connection, MIGRATIONS + ((SCHEMA_VERSION + 1, script),))
         assert raised.value.code == "migration_failed"
         assert snapshot(connection) == before
         assert "notes" not in column_names(connection, "samples")
