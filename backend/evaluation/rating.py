@@ -286,7 +286,8 @@ def check_dataset_document(document):
                     or not record["sample_id"].strip() or record.get("role") not in ROLES \
                     or type(record.get("mapping")) is not dict \
                     or type(record["mapping"].get("source")) is not str \
-                    or type(record["mapping"].get("path")) is not str:
+                    or type(record["mapping"].get("path")) is not str \
+                    or (type(sources) is dict and record["mapping"].get("source") not in sources):
                 problems.append(preflight("schema_mismatch", "dataset.selected"))
                 break
     return problems

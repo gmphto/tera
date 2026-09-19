@@ -16,7 +16,7 @@ import pytest
 from backend.evaluation import rating
 from tests.test_pair_rating_session import (DATASET_VERSION, PACK_NAMES, REPOSITORY_ROOT, WAV_NAMES,
                                             build_workspace, pairs_document, tone, write_pool)
-from tests.test_audio import wav
+from tests.test_audio import wav, write
 
 
 SAMPLE_IDS = ("sample-kick-01", "sample-kick-02", "sample-kick-03",
@@ -252,14 +252,14 @@ def test_preflight_refusals_exit_two_without_records(workspace, case, expected):
     if case == "missing":
         (workspace.audio / "kick-03.wav").unlink()
     elif case == "corrupt":
-        (workspace.audio / "bass-02.wav").write_bytes(b"RIFF this is not a decodable wave file")
+        write(workspace.audio, b"RIFF this is not a decodable wave file", "bass-02.wav")
     elif case == "duplicate":
         document = workspace.pairs_document
         document["pairs"].append(dict(document["pairs"][0]))
         pairs_path = workspace.tmp / "pairs-duplicate.json"
         pairs_path.write_text(json.dumps(document), encoding="utf-8")
     else:
-        (workspace.audio / "bass-03.wav").write_bytes(wav(tone(90.0, rate=44100), 44100, "FLOAT"))
+        write(workspace.audio, wav(tone(90.0, rate=44100), 44100, "FLOAT"), "bass-03.wav")
     code, out, err = cli(workspace, start(workspace, "cli-refused", pairs=pairs_path), "q\n", case)
     assert code == 2
     assert expected in err

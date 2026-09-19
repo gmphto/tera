@@ -14,7 +14,7 @@ from backend import audio
 from backend.evaluation import playback
 from backend.evaluation import rating
 from backend.evaluation.manifest import canonical
-from tests.test_audio import wav
+from tests.test_audio import wav, write
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
@@ -41,7 +41,7 @@ def write_pool(directory, rate=SAMPLE_RATE, skip=(), channels=1):
         samples = tone(frequency, rate=rate)
         if channels == 2:
             samples = np.repeat(samples, 2, axis=1)
-        (directory / (name + ".wav")).write_bytes(wav(samples, rate, "FLOAT"))
+        write(directory, wav(samples, rate, "FLOAT"), name + ".wav")
 
 
 def pairs_document():
@@ -166,8 +166,8 @@ def test_render_rule_is_alignment_padding_gain_and_a_lossless_float_wav(tmp_path
     kick_path, bass_path, destination = tmp_path / "kick.wav", tmp_path / "bass.wav", tmp_path / "render.wav"
     kick = tone(60.0, frames=100)
     bass = np.repeat(tone(110.0, frames=60), 2, axis=1)
-    kick_path.write_bytes(wav(kick, SAMPLE_RATE, "FLOAT"))
-    bass_path.write_bytes(wav(bass, SAMPLE_RATE, "FLOAT"))
+    write(tmp_path, wav(kick, SAMPLE_RATE, "FLOAT"), "kick.wav")
+    write(tmp_path, wav(bass, SAMPLE_RATE, "FLOAT"), "bass.wav")
     before = (kick_path.read_bytes(), bass_path.read_bytes())
     kick = audio.load_wav(kick_path).samples
     bass = audio.load_wav(bass_path).samples
@@ -186,18 +186,17 @@ def test_render_rule_is_alignment_padding_gain_and_a_lossless_float_wav(tmp_path
 
 def test_render_refuses_two_sample_rates_and_keeps_mono_mono(tmp_path):
     kick_path, bass_path, destination = tmp_path / "kick.wav", tmp_path / "bass.wav", tmp_path / "render.wav"
-    kick_path.write_bytes(wav(tone(60.0, frames=10), SAMPLE_RATE, "FLOAT"))
-    bass_path.write_bytes(wav(tone(110.0, frames=10), 44100, "FLOAT"))
+    write(tmp_path, wav(tone(60.0, frames=10), SAMPLE_RATE, "FLOAT"), "kick.wav")
+    bass_path = write(tmp_path, wav(tone(110.0, frames=10), 44100, "FLOAT"), "bass.wav")
     with pytest.raises(playback.PlaybackError):
         playback.render_pair(kick_path, bass_path, destination)
-    bass_path.write_bytes(wav(tone(110.0, frames=10), SAMPLE_RATE, "FLOAT"))
+    write(tmp_path, wav(tone(110.0, frames=10), SAMPLE_RATE, "FLOAT"), "bass.wav")
     playback.render_pair(kick_path, bass_path, destination)
     assert audio.load_wav(destination).channels == 1
 
 
 def test_command_backend_reports_completion_only_on_a_zero_exit(tmp_path):
-    render = tmp_path / "render.wav"
-    render.write_bytes(wav(tone(60.0, frames=10), SAMPLE_RATE, "FLOAT"))
+    render = write(tmp_path, wav(tone(60.0, frames=10), SAMPLE_RATE, "FLOAT"), "render.wav")
     missing = "'" + str(tmp_path / "absent-player.exe") + "' {audio}"
     assert playback.play("command", render, player_command("import sys; sys.exit(0)")) is True
     assert playback.play("command", render, player_command("import sys; sys.exit(3)")) is False
@@ -206,8 +205,7 @@ def test_command_backend_reports_completion_only_on_a_zero_exit(tmp_path):
 
 
 def test_command_backend_reports_a_timeout_as_incomplete(tmp_path, monkeypatch):
-    render = tmp_path / "render.wav"
-    render.write_bytes(wav(tone(60.0, frames=10), SAMPLE_RATE, "FLOAT"))
+    render = write(tmp_path, wav(tone(60.0, frames=10), SAMPLE_RATE, "FLOAT"), "render.wav")
     monkeypatch.setattr(playback, "PLAYBACK_TIMEOUT_SECONDS", 0.5)
     assert playback.play("command", render, player_command("import time; time.sleep(10)")) is False
 
@@ -451,7 +449,7 @@ def test_preflight_reports_every_violation_together(workspace, capsys):
     pairs["pairs"].append(dict(pairs["pairs"][0]))             # duplicate pair id
     pairs_path = workspace.tmp / "pairs-broken.json"
     pairs_path.write_text(json.dumps(pairs), encoding="utf-8")
-    (workspace.audio / "bass-02.wav").write_bytes(wav(tone(140.0, rate=44100), 44100, "FLOAT"))
+    write(workspace.audio, wav(tone(140.0, rate=44100), 44100, "FLOAT"), "bass-02.wav")
     (workspace.audio / "kick-01.wav").unlink()                 # synth-pair-01: unreadable
     arguments = ["start", "--dataset", str(workspace.dataset), "--pairs", str(pairs_path),
                  "--evaluator-id", "evaluator-one", "--monitoring", "dry-run synthetic fixture",
@@ -609,4 +607,25 @@ def test_recognised_rate_exceeded_is_reported(workspace, capsys):
     assert summary["recognised_rate"] == 2 / 6
     assert summary["recognised_rate_exceeded"] is True
     assert summary["skipped"] == 2
+
+def test_a_dry_run_session_cannot_be_resumed_as_a_listening_session(workspace, capsys):
+    assert run(start_arguments(workspace), "1\nq\n") == 3
+    player = player_command("import sys; sys.exit(0)")
+    arguments = resume_arguments(workspace, "session-one", backend="command", player=player)
+    assert run(arguments, "2\n") == 2
+    assert "invalid_monitoring_description" in capsys.readouterr().err
+    assert len(journal_records(workspace, "session-one")) == 1
+
+
+def test_export_accepts_an_output_inside_the_private_root(workspace, capsys):
+    assert run(start_arguments(workspace), "1\nq\n") == 3
+    exports = workspace.root / "exports"
+    exports.mkdir(parents=True)
+    destination = exports / "one.json"
+    arguments = ["export", "--session", str(session_directory(workspace, "session-one")),
+                 "--output", str(destination)]
+    assert rating.main(arguments) == 0
+    assert set(json.loads(destination.read_text(encoding="utf-8"))) == \
+        {"schema_version", "session", "ratings"}
+    assert json.loads(capsys.readouterr().out.strip().splitlines()[-1])["ratings"] == 1
 
