@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "dataset_version": "synthetic-fixture-pool-01",
+  "split_manifest_digest": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "sampler_seed": "tera-eval-pairs-16-v1",
+  "assignment_seed": "tera-eval-assignment-16-v1",
+  "pairs": [
+    {"pair_id": "synth-pair-01", "kick_sample_id": "sample-kick-01", "bass_sample_id": "sample-bass-01"},
+    {"pair_id": "synth-pair-02", "kick_sample_id": "sample-kick-02", "bass_sample_id": "sample-bass-02"},
+    {"pair_id": "synth-pair-03", "kick_sample_id": "sample-kick-03", "bass_sample_id": "sample-bass-03"},
+    {"pair_id": "synth-pair-04", "kick_sample_id": "sample-kick-01", "bass_sample_id": "sample-bass-02"},
+    {"pair_id": "synth-pair-05", "kick_sample_id": "sample-kick-02", "bass_sample_id": "sample-bass-03"},
+    {"pair_id": "synth-pair-06", "kick_sample_id": "sample-kick-03", "bass_sample_id": "sample-bass-01"}
+  ]
+}

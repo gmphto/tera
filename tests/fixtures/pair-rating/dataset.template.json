@@ -1,0 +1,50 @@
+{
+  "schema_version": "1.0",
+  "dataset_version": "synthetic-fixture-pool-01",
+  "sources": {
+    "fixture_pool": {
+      "root": "__AUDIO_ROOT__",
+      "priority": 0,
+      "kind": "synthetic_fixture",
+      "local_use_basis": "user_authorized_local_evaluation_only"
+    }
+  },
+  "selected": [
+    {
+      "sample_id": "sample-kick-01",
+      "role": "kick",
+      "pack": "fixture-kick-pack",
+      "mapping": {"source": "fixture_pool", "path": "kick-01.wav"}
+    },
+    {
+      "sample_id": "sample-kick-02",
+      "role": "kick",
+      "pack": "fixture-kick-pack",
+      "mapping": {"source": "fixture_pool", "path": "kick-02.wav"}
+    },
+    {
+      "sample_id": "sample-kick-03",
+      "role": "kick",
+      "pack": "fixture-kick-pack",
+      "mapping": {"source": "fixture_pool", "path": "kick-03.wav"}
+    },
+    {
+      "sample_id": "sample-bass-01",
+      "role": "bass",
+      "pack": "fixture-bass-pack",
+      "mapping": {"source": "fixture_pool", "path": "bass-01.wav"}
+    },
+    {
+      "sample_id": "sample-bass-02",
+      "role": "bass",
+      "pack": "fixture-bass-pack",
+      "mapping": {"source": "fixture_pool", "path": "bass-02.wav"}
+    },
+    {
+      "sample_id": "sample-bass-03",
+      "role": "bass",
+      "pack": "fixture-bass-pack",
+      "mapping": {"source": "fixture_pool", "path": "bass-03.wav"}
+    }
+  ]
+}
