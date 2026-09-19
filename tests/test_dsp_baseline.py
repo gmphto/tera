@@ -6,8 +6,11 @@ from the implementation.
 """
 
 from dataclasses import FrozenInstanceError
+from fractions import Fraction
+from itertools import combinations
 import math
 from pathlib import Path
+import re
 
 import pytest
 
@@ -22,6 +25,7 @@ RATE = 48000
 FRAMES = 24000
 ANALYSIS = "dsp-baseline-fixture-1"
 RANKING_FILE = Path(__file__).resolve().parents[1] / "backend" / "palette" / "ranking.py"
+DOCUMENT = Path(__file__).resolve().parents[1] / "_docs" / "dsp-baseline.md"
 
 # Declared band profiles. Each sums to exactly 1 and the low band (sub + bass)
 # is the only frequency input.
@@ -31,6 +35,7 @@ COMPLEMENT_BANDS = {"band_sub": 0.00, "band_bass": 0.10, "band_low_mid": 0.30, "
                     "band_high_mid": 0.15, "band_high": 0.05}
 CONFLICT_BANDS = {"band_sub": 0.60, "band_bass": 0.30, "band_low_mid": 0.05, "band_mid": 0.03,
                   "band_high_mid": 0.01, "band_high": 0.01}
+ALL_BANDS_ZERO = {name: 0.0 for name in KICK_BANDS}
 
 
 def measure(name, value=None, confidence=None):
@@ -87,6 +92,41 @@ def rank(candidates, kick=None, policy=None):
 
 def entries(record):
     return {entry.dimension: entry for entry in record.dsp_dimensions}
+
+
+def table_rows(heading):
+    """Three-column markdown rows directly under a heading."""
+    lines = DOCUMENT.read_text(encoding="utf-8").splitlines()
+    rows = []
+    for line in lines[lines.index(heading) + 1:]:
+        if line.startswith("## "):
+            break
+        match = re.match(r"^\| (.*?) \| (.*?) \| (.*?) \|$", line.strip())
+        if match is not None:
+            rows.append(match.groups())
+    return rows
+
+
+def documented_weights():
+    """Dimension -> (exact fraction, decimal) from the documented weight table."""
+    weights = {}
+    for first, second, third in table_rows("## Weight table"):
+        name = re.fullmatch(r"`([a-z_]+)`", first.strip())
+        if name is None or name.group(1) not in DIMENSIONS:
+            continue
+        weights[name.group(1)] = (Fraction(second.strip()), float(third.strip()))
+    return weights
+
+
+def documented_coverage():
+    """Available-dimension tuple -> (covered fraction parts, documented value)."""
+    coverage = {}
+    for first, second, third in table_rows("## Missing features, renormalization and confidence"):
+        names = tuple(re.findall(r"`([a-z_]+)`", first))
+        if not names or not set(names) <= set(DIMENSIONS):
+            continue
+        coverage[names] = (tuple(part.strip() for part in second.split("+")), Fraction(third.strip()))
+    return coverage
 
 
 def test_version_weight_table_and_provenance_are_documented():
@@ -422,6 +462,34 @@ def test_confidence_is_coverage_and_compatibility_is_renormalized():
     assert full.confidence > only_transient.confidence
 
 
+@pytest.mark.parametrize("kick_overrides,candidate_overrides,available", [
+    ({}, {}, ("frequency", "transient", "tonal")),
+    ({"tonal": None}, {}, ("frequency", "transient")),
+    ({"attack": None}, {}, ("frequency", "tonal")),
+    ({}, {"transient_position": None}, ("frequency", "tonal")),
+    (ALL_BANDS_ZERO, {}, ("transient", "tonal")),
+    ({"transient_strength": None}, {"tonal": None}, ("frequency",)),
+    ({"transient_strength": None, "tonal": None}, {}, ("frequency",)),
+    ({**ALL_BANDS_ZERO, "tonal": None}, {}, ("transient",)),
+    (ALL_BANDS_ZERO, {"transient_position": None}, ("tonal",)),
+])
+def test_confidence_is_exactly_the_covered_weight_for_every_availability_set(
+        kick_overrides, candidate_overrides, available):
+    record = rank([bass("bass-coverage", **candidate_overrides)],
+                  kick=selected_kick(**kick_overrides)).ranked[0]
+    assert tuple(entry.dimension for entry in record.dsp_dimensions
+                 if entry.compatibility is not None) == available
+    expected_confidence = sum(DEFAULT_WEIGHT_TABLE.weight(name) for name in available)
+    assert record.confidence == expected_confidence
+    scores = {entry.dimension: entry.compatibility for entry in record.dsp_dimensions}
+    expected = sum(DEFAULT_WEIGHT_TABLE.weight(name) * scores[name] for name in available)
+    assert record.compatibility == pytest.approx(expected / expected_confidence, abs=1e-12)
+    if available == ("frequency",):
+        assert record.confidence == 3 / 7 == 0.42857142857142855
+    elif len(available) == 1:
+        assert record.confidence == 2 / 7 == 0.2857142857142857
+
+
 def test_confidence_never_determines_order():
     narrow = bass("bass-narrow", tonal=None, **{name: 0.0 for name in KICK_BANDS})
     broad = bass("bass-broad", tonal=musical_key("F#", "major", 0.90), transient_position=100.0,
@@ -512,8 +580,24 @@ def test_schema_one_dsp_only_batch_round_trip():
     assert all(entry.dimension in DIMENSIONS for item in reloaded.results for entry in item.dsp_dimensions)
 
 
+def test_document_coverage_table_matches_the_documented_weight_table():
+    weights = documented_weights()
+    assert set(weights) == set(DIMENSIONS)
+    for name, (fraction, decimal) in weights.items():
+        assert decimal == DEFAULT_WEIGHT_TABLE.weight(name)
+        assert float(fraction) == decimal
+    assert sum(fraction for fraction, _ in weights.values()) == 1
+    coverage = documented_coverage()
+    assert set(coverage) == {names for size in range(1, len(DIMENSIONS) + 1)
+                             for names in combinations(DIMENSIONS, size)}
+    for names, (parts, confidence) in coverage.items():
+        assert names == tuple(name for name in DIMENSIONS if name in names)
+        assert [Fraction(part) for part in parts] == [weights[name][0] for name in names]
+        assert confidence == sum(weights[name][0] for name in names)
+
+
 def test_document_matches_the_code_numbers_names_and_reason_codes():
-    text = RANKING_FILE.parents[2].joinpath("_docs", "dsp-baseline.md").read_text(encoding="utf-8")
+    text = DOCUMENT.read_text(encoding="utf-8")
     for literal in ("rank_candidates", "dsp-baseline-v1", "dsp-baseline-weights-1", "0.80", "3/7", "2/7",
                     "0.42857142857142855", "0.2857142857142857", "insufficient_evidence", "Tie-break",
                     "renormalized", "confidence"):
