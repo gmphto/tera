@@ -365,6 +365,6 @@ file byte-identical while it is in WAL and after it has been switched to
 `journal_mode = delete`: the stored version is read before the connection
 pragmas run, so refusing a newer schema never rewrites the header of a file
 that is not in WAL. A probe against the pre-change module
-(`git show HEAD:backend/library/schema.py` from commit `3369304`) reproduced
+(`git show 3369304:backend/library/schema.py` from commit `3369304`) reproduced
 the opposite result on the same database: the same error code, but the bytes
 differed.
