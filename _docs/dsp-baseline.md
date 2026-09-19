@@ -292,8 +292,8 @@ uv run pytest tests/test_dsp_baseline.py --basetemp .pytest_cache/dsp-baseline-f
 uv run pytest --basetemp .pytest_cache/dsp-baseline-full
 ```
 
-Focused validation: 61 passed. The full suite after this work is 853 passed /
-4 failed (857 collected), against the 792 passed / 4 failed baseline (796
+Focused validation: 62 passed. The full suite after this work is 854 passed /
+4 failed (858 collected), against the 792 passed / 4 failed baseline (796
 collected). The four failures are pre-existing and sandbox-only: they spawn a
 subprocess with captured pipes, which this environment forbids
 (`test_batch.py`, `test_evaluation_manifest.py`, `test_evaluation_prepare.py`),
