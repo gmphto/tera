@@ -72,14 +72,14 @@ claim.
 
 | Arm | Version | Weight table / rule | Verdict | Mode counts | Jev status counts | Identical orderings | Arm error codes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| random | dsp-baseline-v1 (declared; no ordering was produced) | random-draw (declared) | insufficient | (no ordering produced) | (no ordering produced) | 0 | none |
-| dsp-only | dsp-baseline-v1 (declared; no ordering was produced) | dsp-baseline-weights-1 (declared) | insufficient | (no ordering produced) | (no ordering produced) | 0 | none |
-| jev-only | jev-only-v1 (declared; no ordering was produced) | equal-1/6-weights (declared) | insufficient | (no ordering produced) | (no ordering produced) | 0 | none |
-| hybrid | hybrid-ranking-v1 (declared; no ordering was produced) | hybrid-weights-1 (declared) | insufficient | (no ordering produced) | (no ordering produced) | 0 | none |
+| random | dsp-baseline-v1 (declared; no ordering was produced) | random-draw (declared) | not supported | (no ordering produced) | (no ordering produced) | (no ordering produced) | none |
+| dsp-only | dsp-baseline-v1 (declared; no ordering was produced) | dsp-baseline-weights-1 (declared) | insufficient | (no ordering produced) | (no ordering produced) | (no ordering produced) | none |
+| jev-only | jev-only-v1 (declared; no ordering was produced) | equal-1/6-weights (declared) | insufficient | (no ordering produced) | (no ordering produced) | (no ordering produced) | none |
+| hybrid | hybrid-ranking-v1 (declared; no ordering was produced) | hybrid-weights-1 (declared) | insufficient | (no ordering produced) | (no ordering produced) | (no ordering produced) | none |
 
 The random arm's analytic expectations are pairwise accuracy 0.50, top-1 margin 0.00 and a top-k mean equal to the rated subset's mean; every random value above is reported beside them.
 
-Jev-only variants: the primary label-based variant and the predeclared probability-weighted variant disagree on 0 of 0 eligible queries; when they disagree the Jev-only gate is inconclusive, never the better of the two.
+Jev-only variants: not reported (no live Jev outcomes); when they disagree the Jev-only gate is inconclusive, never the better of the two.
 
 Jev evidence: real TypeSafe Jev integration: UNVERIFIED - TERA_JEV_ENDPOINT/TERA_JEV_API_KEY are not set. The #14 live integration check (tests/test_jev_integration.py) is skipped and is recorded UNVERIFIED, never as a pass. A Jev-dependent gate with no live outcome is insufficient with reason no_live_jev_outcomes, never not supported.
 
@@ -87,45 +87,55 @@ Jev evidence: real TypeSafe Jev integration: UNVERIFIED - TERA_JEV_ENDPOINT/TERA
 
 | Constant (= value) | Class | Arms gated | Observed value | 95% interval | Verdict | Shortfall |
 | --- | --- | --- | --- | --- | --- | --- |
-| MIN_POOL_KICKS = 80 | minimum | random, dsp-only, jev-only, hybrid | 100 of 80 pool kicks | not applicable (evidence minimum) | met | - |
-| MIN_POOL_BASSES = 8 | minimum | random, dsp-only, jev-only, hybrid | 46 of 8 pool basses | not applicable (evidence minimum) | met | - |
-| MIN_EVALUATORS = 5 | minimum | random, dsp-only, jev-only, hybrid | 0 of 5 counted evaluators | not applicable (evidence minimum) | insufficient | 0 of 5 counted evaluators |
-| MIN_RATINGS_PER_PAIR = 2 | minimum | random, dsp-only, jev-only, hybrid | 0 of 0 sampled pairs hold 2 valid ratings | not applicable (evidence minimum) | insufficient | 0 of 0 sampled pairs rated |
-| MIN_HELDOUT_PAIRS = 300 | minimum | random, dsp-only, jev-only, hybrid | 0 of 300 sampled pairs | not applicable (evidence minimum) | insufficient | 0 of 300 rated pairs |
-| MIN_HELDOUT_QUERIES = 60 | minimum | random, dsp-only, jev-only, hybrid | 0 of 60 eligible held-out queries | not applicable (evidence minimum) | insufficient | 0 of 60 eligible held-out queries |
-| MIN_PAIR_COVERAGE = 0.8 | minimum | random, dsp-only, jev-only, hybrid | not computable (0 of 0 sampled pairs) | not applicable (evidence minimum) | insufficient | 0 of 0 sampled pairs rated |
-| MIN_AGREEMENT_PAIRS = 40 | minimum | random, dsp-only, jev-only, hybrid | 0 of 40 pairs with at least two valid ratings | not applicable (evidence minimum) | insufficient | 0 of 40 pairs with at least two valid ratings |
-| MAX_MEAN_ABSOLUTE_DEVIATION = 1.0 | minimum | random, dsp-only, jev-only, hybrid | not computable (0 of 40 reportable pairs) | not applicable (evidence minimum) | insufficient | 0 of 40 pairs with at least two valid ratings |
-| MIN_SCORED_SHARE_PER_QUERY = 0.5 | minimum | random, dsp-only, jev-only, hybrid | no eligible query | not applicable (evidence minimum) | insufficient | 0 of 0 eligible queries |
-| MAX_RECOGNISED_RATE = 0.2 | minimum | random, dsp-only, jev-only, hybrid | 0 sessions | not applicable (evidence minimum) | insufficient | 0 of 1 session |
-| MIN_LATENCY_REQUESTS_PER_ARM = 30 | minimum | random, dsp-only, jev-only, hybrid | 0 of 30 valid samples on the least-sampled arm | not applicable (evidence minimum) | insufficient | 0 of 30 valid latency samples per arm |
-| MIN_DSP_PAIRWISE_ACCURACY = 0.55 | minimum | dsp-only | not computed | not computed | insufficient | not computed |
-| MIN_JEV_ONLY_PAIRWISE_ACCURACY = 0.55 | minimum | jev-only | not computed | not computed | insufficient | not computed |
-| MIN_PAIRWISE_ACCURACY = 0.6 | minimum | hybrid | not computed | not computed | insufficient | not computed |
-| MIN_LIFT_OVER_RANDOM = 0.1 | minimum | hybrid | not computed | not computed | insufficient | n of 0 paired queries |
-| MIN_LIFT_OVER_DSP = 0.1 | minimum | hybrid | not computed | not computed | insufficient | n of 0 paired queries |
-| MIN_TOP1_MARGIN = 0.3 | minimum | hybrid | not computed | not computed | insufficient | not computed |
-| MIN_TOP_K_MEAN = 2.0 | minimum | random, dsp-only, jev-only, hybrid | not computed (k = 5 is descriptive) | not computed | insufficient | 0 of 0 eligible queries hold 11 rated candidates |
-| MIN_TOP_K_MEAN_LIFT_OVER_RANDOM = 0.3 | minimum | random, dsp-only, jev-only, hybrid | not computed (k = 5 is descriptive) | not computed | insufficient | 0 of 0 eligible queries hold 11 rated candidates |
-| MIN_TOP_K_MEAN_LIFT_OVER_DSP = 0.15 | minimum | random, dsp-only, jev-only, hybrid | not computed (k = 5 is descriptive) | not computed | insufficient | 0 of 0 eligible queries hold 11 rated candidates |
-| MAX_COLD_RECOMMENDATION_P95_MS = 2000 | minimum | random, dsp-only, jev-only, hybrid | not measured (0 of 30 valid samples per arm) | not applicable (no samples) | insufficient | 0 of 30 valid latency samples per arm |
-| MAX_WARM_RECOMMENDATION_P95_MS = 500 | minimum | random, dsp-only, jev-only, hybrid | not measured (0 of 30 valid samples per arm) | not applicable (no samples) | insufficient | 0 of 30 valid latency samples per arm |
-| TARGET_EVALUATORS = 8 | target | random, dsp-only, jev-only, hybrid | descriptive | not applicable (target class) | not evaluated (target class) | - |
-| TARGET_RATINGS_PER_PAIR = 3 | target | random, dsp-only, jev-only, hybrid | descriptive | not applicable (target class) | not evaluated (target class) | - |
-| TARGET_HELDOUT_QUERIES = 75 | target | random, dsp-only, jev-only, hybrid | descriptive | not applicable (target class) | not evaluated (target class) | - |
-| TARGET_PAIRWISE_ACCURACY = 0.68 | target | random, dsp-only, jev-only, hybrid | descriptive | not applicable (target class) | not evaluated (target class) | - |
-| TARGET_LIFT_OVER_RANDOM = 0.18 | target | random, dsp-only, jev-only, hybrid | descriptive | not applicable (target class) | not evaluated (target class) | - |
-| TARGET_LIFT_OVER_DSP = 0.15 | target | random, dsp-only, jev-only, hybrid | descriptive | not applicable (target class) | not evaluated (target class) | - |
-| TARGET_TOP1_MARGIN = 0.5 | target | random, dsp-only, jev-only, hybrid | descriptive | not applicable (target class) | not evaluated (target class) | - |
-| TARGET_TOP_K_MEAN = 2.3 | target | random, dsp-only, jev-only, hybrid | descriptive | not applicable (target class) | not evaluated (target class) | - |
-| TARGET_COLD_RECOMMENDATION_P95_MS = 1000 | target | random, dsp-only, jev-only, hybrid | descriptive | not applicable (target class) | not evaluated (target class) | - |
-| TARGET_WARM_RECOMMENDATION_P95_MS = 250 | target | random, dsp-only, jev-only, hybrid | descriptive | not applicable (target class) | not evaluated (target class) | - |
-| MAX_AUDITION_START_P95_MS = 250 | minimum | none (not a comparison gate) | not evaluated here | not applicable | not evaluated (out of scope for #19) | - |
-| RETENTION_WINDOW_DAYS = 14 | rule | none (not a comparison gate) | not evaluated here | not applicable | not evaluated (out of scope for #19) | - |
-| MIN_RETENTION_RATE = 0.2 | minimum | none (not a comparison gate) | not evaluated here | not applicable | not evaluated (out of scope for #19) | - |
-| TARGET_RETENTION_RATE = 0.3 | target | none (not a comparison gate) | not evaluated here | not applicable | not evaluated (out of scope for #19) | - |
-| MIN_RETENTION_SELECTIONS = 30 | minimum | none (not a comparison gate) | not evaluated here | not applicable | not evaluated (out of scope for #19) | - |
-| MIN_TUNING_PAIRS = 40 | minimum | none (not a comparison gate) | not evaluated here | not applicable | not evaluated (no tuning claim is made) | - |
+| MIN_POOL_KICKS = 80 | minimum (gate) | random, dsp-only, jev-only, hybrid | 100 of 80 pool kicks | not applicable (evidence minimum) | met | - |
+| MIN_POOL_BASSES = 8 | minimum (gate) | random, dsp-only, jev-only, hybrid | 46 of 8 pool basses | not applicable (evidence minimum) | met | - |
+| MIN_EVALUATORS = 5 | minimum (gate) | random, dsp-only, jev-only, hybrid | 0 of 5 counted evaluators | not applicable (evidence minimum) | insufficient | 0 of 5 counted evaluators |
+| MIN_RATINGS_PER_PAIR = 2 | minimum (gate) | random, dsp-only, jev-only, hybrid | 0 of 0 sampled pairs hold 2 valid ratings | not applicable (evidence minimum) | insufficient | 0 of 0 sampled pairs rated |
+| MIN_HELDOUT_PAIRS = 300 | minimum (gate) | random, dsp-only, jev-only, hybrid | 0 of 300 sampled pairs | not applicable (evidence minimum) | insufficient | 0 of 300 rated pairs |
+| MIN_HELDOUT_QUERIES = 60 | minimum (gate) | random, dsp-only, jev-only, hybrid | 0 of 60 eligible held-out queries | not applicable (evidence minimum) | insufficient | 0 of 60 eligible held-out queries |
+| MIN_PAIR_COVERAGE = 0.8 | minimum (gate) | random, dsp-only, jev-only, hybrid | not computable (0 of 0 sampled pairs) | not applicable (evidence minimum) | insufficient | 0 of 0 sampled pairs rated |
+| MIN_AGREEMENT_PAIRS = 40 | minimum (gate) | random, dsp-only, jev-only, hybrid | 0 of 40 pairs with at least two valid ratings | not applicable (evidence minimum) | insufficient | 0 of 40 pairs with at least two valid ratings |
+| MAX_MEAN_ABSOLUTE_DEVIATION = 1.0 | minimum (gate) | random, dsp-only, jev-only, hybrid | not computable (0 of 40 reportable pairs) | not applicable (evidence minimum) | insufficient | 0 of 40 pairs with at least two valid ratings |
+| MIN_SCORED_SHARE_PER_QUERY = 0.5 | minimum (gate) | random, dsp-only, jev-only, hybrid | no eligible query | not applicable (evidence minimum) | insufficient | 0 of 0 eligible queries |
+| MAX_RECOGNISED_RATE = 0.2 | minimum (gate) | random, dsp-only, jev-only, hybrid | 0 sessions to check | not applicable (evidence minimum) | insufficient | - |
+| MIN_LATENCY_REQUESTS_PER_ARM = 30 | minimum (gate) | random, dsp-only, jev-only, hybrid | 0 of 30 valid samples on the least-sampled arm | not applicable (evidence minimum) | insufficient | 0 of 30 valid latency samples per arm |
+| MIN_DSP_PAIRWISE_ACCURACY = 0.55 | minimum (gate) | dsp-only | not computed | not computed | insufficient | 0 of 60 eligible held-out queries |
+| MIN_JEV_ONLY_PAIRWISE_ACCURACY = 0.55 | minimum (gate) | jev-only | not reported (no live Jev outcomes) | not reported | insufficient | no_live_jev_outcomes |
+| MIN_PAIRWISE_ACCURACY = 0.6 | minimum (gate) | hybrid | not reported (no live Jev outcomes) | not reported | insufficient | no_live_jev_outcomes |
+| MIN_LIFT_OVER_RANDOM = 0.1 | minimum (gate) | random | +0.0000 | [0.0000, 0.0000] | not supported | structurally zero: the identical arm |
+| MIN_LIFT_OVER_RANDOM = 0.1 | minimum (gate) | dsp-only | not computed | not computed | insufficient | 0 of 60 paired eligible queries |
+| MIN_LIFT_OVER_RANDOM = 0.1 | minimum (gate) | jev-only | not reported (no live Jev outcomes) | not reported | insufficient | no_live_jev_outcomes |
+| MIN_LIFT_OVER_RANDOM = 0.1 | minimum (gate) | hybrid | not reported (no live Jev outcomes) | not reported | insufficient | no_live_jev_outcomes |
+| MIN_LIFT_OVER_DSP = 0.1 | minimum (gate) | hybrid | not reported (no live Jev outcomes) | not reported | insufficient | no_live_jev_outcomes |
+| MIN_TOP1_MARGIN = 0.3 | minimum (gate) | hybrid | not reported (no live Jev outcomes) | not reported | insufficient | no_live_jev_outcomes |
+| MIN_TOP_K_MEAN = 2.0 | minimum (gate, literal top-10 only) | random | not computed (k = 5 is descriptive) | not computed | insufficient | 0 of 0 eligible queries hold 11 rated candidates |
+| MIN_TOP_K_MEAN_LIFT_OVER_DSP = 0.15 | minimum (gate, literal top-10 only) | random | not computed (k = 5 is descriptive) | not computed | insufficient | 0 of 0 eligible queries hold 11 rated candidates |
+| MIN_TOP_K_MEAN = 2.0 | minimum (gate, literal top-10 only) | dsp-only | not computed (k = 5 is descriptive) | not computed | insufficient | 0 of 0 eligible queries hold 11 rated candidates |
+| MIN_TOP_K_MEAN_LIFT_OVER_RANDOM = 0.3 | minimum (gate, literal top-10 only) | dsp-only | not computed (k = 5 is descriptive) | not computed | insufficient | 0 of 0 eligible queries hold 11 rated candidates |
+| MIN_TOP_K_MEAN = 2.0 | minimum (gate, literal top-10 only) | jev-only | not computed (k = 5 is descriptive) | not computed | insufficient | 0 of 0 eligible queries hold 11 rated candidates |
+| MIN_TOP_K_MEAN_LIFT_OVER_RANDOM = 0.3 | minimum (gate, literal top-10 only) | jev-only | not computed (k = 5 is descriptive) | not computed | insufficient | 0 of 0 eligible queries hold 11 rated candidates |
+| MIN_TOP_K_MEAN_LIFT_OVER_DSP = 0.15 | minimum (gate, literal top-10 only) | jev-only | not computed (k = 5 is descriptive) | not computed | insufficient | 0 of 0 eligible queries hold 11 rated candidates |
+| MIN_TOP_K_MEAN = 2.0 | minimum (gate, literal top-10 only) | hybrid | not computed (k = 5 is descriptive) | not computed | insufficient | 0 of 0 eligible queries hold 11 rated candidates |
+| MIN_TOP_K_MEAN_LIFT_OVER_RANDOM = 0.3 | minimum (gate, literal top-10 only) | hybrid | not computed (k = 5 is descriptive) | not computed | insufficient | 0 of 0 eligible queries hold 11 rated candidates |
+| MIN_TOP_K_MEAN_LIFT_OVER_DSP = 0.15 | minimum (gate, literal top-10 only) | hybrid | not computed (k = 5 is descriptive) | not computed | insufficient | 0 of 0 eligible queries hold 11 rated candidates |
+| MAX_COLD_RECOMMENDATION_P95_MS = 2000 | minimum (gate) | random, dsp-only, jev-only, hybrid | not measured (least-sampled arm 0 of 30 valid samples) | not applicable (no complete sample set) | insufficient | 0 of 30 valid latency samples per arm |
+| MAX_WARM_RECOMMENDATION_P95_MS = 500 | minimum (gate) | random, dsp-only, jev-only, hybrid | not measured (least-sampled arm 0 of 30 valid samples) | not applicable (no complete sample set) | insufficient | 0 of 30 valid latency samples per arm |
+| TARGET_EVALUATORS = 8 | target (non-gating) | random, dsp-only, jev-only, hybrid | descriptive | not applicable (target class) | not evaluated (target class) | - |
+| TARGET_RATINGS_PER_PAIR = 3 | target (non-gating) | random, dsp-only, jev-only, hybrid | descriptive | not applicable (target class) | not evaluated (target class) | - |
+| TARGET_HELDOUT_QUERIES = 75 | target (non-gating) | random, dsp-only, jev-only, hybrid | descriptive | not applicable (target class) | not evaluated (target class) | - |
+| TARGET_PAIRWISE_ACCURACY = 0.68 | target (non-gating) | random, dsp-only, jev-only, hybrid | descriptive | not applicable (target class) | not evaluated (target class) | - |
+| TARGET_LIFT_OVER_RANDOM = 0.18 | target (non-gating) | random, dsp-only, jev-only, hybrid | descriptive | not applicable (target class) | not evaluated (target class) | - |
+| TARGET_LIFT_OVER_DSP = 0.15 | target (non-gating) | random, dsp-only, jev-only, hybrid | descriptive | not applicable (target class) | not evaluated (target class) | - |
+| TARGET_TOP1_MARGIN = 0.5 | target (non-gating) | random, dsp-only, jev-only, hybrid | descriptive | not applicable (target class) | not evaluated (target class) | - |
+| TARGET_TOP_K_MEAN = 2.3 | target (non-gating) | random, dsp-only, jev-only, hybrid | descriptive | not applicable (target class) | not evaluated (target class) | - |
+| TARGET_COLD_RECOMMENDATION_P95_MS = 1000 | target (non-gating) | random, dsp-only, jev-only, hybrid | descriptive | not applicable (target class) | not evaluated (target class) | - |
+| TARGET_WARM_RECOMMENDATION_P95_MS = 250 | target (non-gating) | random, dsp-only, jev-only, hybrid | descriptive | not applicable (target class) | not evaluated (target class) | - |
+| MAX_AUDITION_START_P95_MS = 250 | minimum (gate, Phase 1, #39) | none (not a comparison gate) | not evaluated here | not applicable | not evaluated (out of scope for #19) | - |
+| RETENTION_WINDOW_DAYS = 14 | fixed (not a gate) | none (not a comparison gate) | not evaluated here | not applicable | not evaluated (out of scope for #19) | - |
+| MIN_RETENTION_RATE = 0.2 | minimum (gate, Phase 1) | none (not a comparison gate) | not evaluated here | not applicable | not evaluated (out of scope for #19) | - |
+| TARGET_RETENTION_RATE = 0.3 | target (non-gating, Phase 1) | none (not a comparison gate) | not evaluated here | not applicable | not evaluated (out of scope for #19) | - |
+| MIN_RETENTION_SELECTIONS = 30 | minimum (gate, Phase 1) | none (not a comparison gate) | not evaluated here | not applicable | not evaluated (out of scope for #19) | - |
+| MIN_TUNING_PAIRS = 40 | minimum (gate) | none (not a comparison gate) | not evaluated here | not applicable | not evaluated (no tuning claim is made) | - |
 
 queries_with_11_rated_candidates: 0 of 0 eligible queries. With k = 5 the top-k means are descriptive values, not top-10 values, and no k = 5 mean is compared with a top-10 constant.
 
@@ -139,20 +149,20 @@ Bootstrap: 10000 resamples of the eligible query kicks with replacement under BO
 | top1_margin (random) | not computed | not computed | 0 |
 | pairwise_accuracy (dsp-only) | not computed | not computed | 0 |
 | top1_margin (dsp-only) | not computed | not computed | 0 |
-| pairwise_accuracy (jev-only) | not computed | not computed | 0 |
-| top1_margin (jev-only) | not computed | not computed | 0 |
-| pairwise_accuracy (hybrid) | not computed | not computed | 0 |
-| top1_margin (hybrid) | not computed | not computed | 0 |
+| pairwise_accuracy (jev-only) | not reported (no live Jev outcomes) | not reported (no live Jev outcomes) | not reported (no live Jev outcomes) |
+| top1_margin (jev-only) | not reported (no live Jev outcomes) | not reported (no live Jev outcomes) | not reported (no live Jev outcomes) |
+| pairwise_accuracy (hybrid) | not reported (no live Jev outcomes) | not reported (no live Jev outcomes) | not reported (no live Jev outcomes) |
+| top1_margin (hybrid) | not reported (no live Jev outcomes) | not reported (no live Jev outcomes) | not reported (no live Jev outcomes) |
 | pairwise_accuracy lift dsp-only over random | not computed | not computed | 0 |
-| pairwise_accuracy lift jev-only over random | not computed | not computed | 0 |
-| pairwise_accuracy lift hybrid over random | not computed | not computed | 0 |
+| pairwise_accuracy lift jev-only over random | not reported (no live Jev outcomes) | not reported | not reported |
+| pairwise_accuracy lift hybrid over random | not reported (no live Jev outcomes) | not reported | not reported |
 | pairwise_accuracy lift random over dsp-only | not computed | not computed | 0 |
-| pairwise_accuracy lift jev-only over dsp-only | not computed | not computed | 0 |
-| pairwise_accuracy lift hybrid over dsp-only | not computed | not computed | 0 |
+| pairwise_accuracy lift jev-only over dsp-only | not reported (no live Jev outcomes) | not reported | not reported |
+| pairwise_accuracy lift hybrid over dsp-only | not reported (no live Jev outcomes) | not reported | not reported |
 
 The minimum detectable difference is the protocol's predeclared table: about 0.08 accuracy points for pairwise_accuracy (1.96 x 0.30 / sqrt(60)) and about 0.25 rating points for top1_margin (1.96 x 1.00 / sqrt(60)). Every gated lift is set at or above that floor (+0.10 over random, +0.10 over DSP, +0.30 top-1 margin). The top-k gates are not evaluable at this design and are reported insufficient.
 
-Determinism: re-running the recorded command reproduces run.json (sha256:45847fac075537a823fe805b5397dcd74d2a08494876d5aa7dffe05e9ea040ce), records.json (sha256:14f8ab5e44865a612a258fa818ca18a57a624d6d19e9073e2a8c23ef3edb2db1) and this report byte for byte. The run key covers the protocol version, the dataset version and identity digest, the split manifest version and digest, the pair-list digest, every seed, the analysis and ranking versions and weight-table ids, ADAPTER_VERSION, PROMPT_VERSION and the observed model versions.
+Determinism: re-running the recorded command reproduces run.json (sha256:666a7325a0eb301864c187742410153dfc2679134e0a1dd19f2bd147efc4faed), records.json (sha256:07d4f37f87500ef1b4e27618053e30f20941ba89b11709121981cf9c16e34ee6) and this report byte for byte. The run key covers the protocol version, the dataset version and identity digest, the split manifest version and digest, the pair-list digest, every seed, the analysis and ranking versions and weight-table ids, ADAPTER_VERSION, PROMPT_VERSION and the observed model versions.
 
 ## Agreement
 
@@ -184,8 +194,8 @@ Leave-one-evaluator-out: no evaluator holds a rating, so no variant exists.
 | --- | --- | --- | --- | --- | --- |
 | random | 0 of 30 | 0 of 10 | not measured | not measured | latency_samples_below_minimum, latency_query_kicks_below_minimum |
 | dsp-only | 0 of 30 | 0 of 10 | not measured | not measured | latency_samples_below_minimum, latency_query_kicks_below_minimum |
-| jev-only | 0 of 30 | 0 of 10 | not measured | not measured | latency_samples_below_minimum, latency_query_kicks_below_minimum |
-| hybrid | 0 of 30 | 0 of 10 | not measured | not measured | latency_samples_below_minimum, latency_query_kicks_below_minimum |
+| jev-only | not reported (no live Jev outcomes) | 0 of 10 | not reported (no live Jev outcomes) | not reported (no live Jev outcomes) | latency_samples_below_minimum, latency_query_kicks_below_minimum |
+| hybrid | not reported (no live Jev outcomes) | 0 of 10 | not reported (no live Jev outcomes) | not reported (no live Jev outcomes) | latency_samples_below_minimum, latency_query_kicks_below_minimum |
 
 
 | Stage | p50 | p95 | Samples |
@@ -197,7 +207,7 @@ Leave-one-evaluator-out: no evaluator holds a rating, so no variant exists.
 | ranking | not measured | not measured | 0 |
 | total | not measured | not measured | 0 |
 
-Cold and warm totals are compared with MAX_COLD_RECOMMENDATION_P95_MS = 2000 and MAX_WARM_RECOMMENDATION_P95_MS = 500; the targets TARGET_COLD_RECOMMENDATION_P95_MS = 1000 and TARGET_WARM_RECOMMENDATION_P95_MS = 250 are non-gating. Per-stage p50 and p95 for feature load, filter, retrieval, Jev calls (Jev arms only) and ranking are recorded in the private run artifact.
+Cold and warm totals are compared with MAX_COLD_RECOMMENDATION_P95_MS = 2000 and MAX_WARM_RECOMMENDATION_P95_MS = 500; the targets TARGET_COLD_RECOMMENDATION_P95_MS = 1000 and TARGET_WARM_RECOMMENDATION_P95_MS = 250 are non-gating. Per-stage p50 and p95 for feature load, filter, retrieval, Jev calls (Jev arms only) and ranking are recorded in the private run artifact, whose measured table is captured at latency.json and reused so a re-run reproduces this report byte for byte (--fresh-latency measures again).
 
 ## Evidence gaps
 
@@ -209,7 +219,7 @@ Cold and warm totals are compared with MAX_COLD_RECOMMENDATION_P95_MS = 2000 and
 | evaluator_assignment | assignment_missing | every pair assigned to at least 2 distinct evaluators | absent |
 | pair_counts | pair_counts_below_minimum | 300 sampled pairs over 60 held-out query kicks | 0 of 300 sampled pairs; 0 of 60 query kicks |
 | rated_pairs | ratings_missing | every rated pair is a sampled pair | 0 sessions, 0 rated pairs |
-| analysis_manifests | analysis_manifest_missing | every held-out sample used resolves to one complete entry with a single analysis_version | 2 of 2 analysis manifests present |
+| analysis_manifests | analysis_manifest_missing | every held-out sample used resolves to one complete entry with a single analysis_version | 2 of 2 declared analysis manifests are absent |
 
 ## Deviations
 
@@ -217,8 +227,8 @@ Cold and warm totals are compared with MAX_COLD_RECOMMENDATION_P95_MS = 2000 and
 
 No session exists, so no session row carries a validate exit status.
 
-- unscored candidates: random 0 of 0 rated candidates scored; dsp-only 0 of 0 rated candidates scored; jev-only 0 of 0 rated candidates scored; hybrid 0 of 0 rated candidates scored
-- identical orderings: random 0 query pairs; dsp-only 0 query pairs; jev-only 0 query pairs; hybrid 0 query pairs
+- unscored candidates: random 0 of 0 rated candidates scored; dsp-only 0 of 0 rated candidates scored; jev-only not reported (no live Jev outcomes); hybrid not reported (no live Jev outcomes)
+- identical orderings: random 0 query pairs; dsp-only 0 query pairs; jev-only not reported (no live Jev outcomes); hybrid not reported (no live Jev outcomes)
 - unrated queries: 0
 - the #65 split-manifest and evaluator-assignment schemas are this runner's declared expectation, because #65 has not landed: schema_version 1.0, dataset_version, the three seeds, tuning and held_out with kicks and basses, and the manifest's recorded split_manifest_digest for the manifest; schema_version 1.0, assignment_seed, split_manifest_digest and assignments (pair id to evaluator ids) for the assignment. This runner checks that the pair list's digest equals the manifest's recorded digest, and it never re-derives a manifest digest, a seed, a split, an assignment or a pair list
 - no threshold was lowered, no metric was changed and no denominator was redefined for this run
