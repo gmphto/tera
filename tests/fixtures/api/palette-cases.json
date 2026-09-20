@@ -1,0 +1,367 @@
+{
+  "schema": "palette-cases/1",
+  "note": "The pure request rules of the four palette routes (issue #32): a body or a parsed query in, a normalized value or one ApiError code with its details keys out. `parse_context_request` cases assert refusals only; the successful tri-state mapping is asserted against the stored SongContext in tests/test_api_palette.py, where the confidence and the absent reason can be read. Every id here is synthetic and every sample id is `sha256:` with 64 hex characters.",
+  "cases": [
+    {
+      "name": "a palette read with no project filter",
+      "case": "parse_palette_query",
+      "input": [],
+      "value": null
+    },
+    {
+      "name": "a palette read naming a project",
+      "case": "parse_palette_query",
+      "input": [["project_id", "project-001"]],
+      "value": "project-001"
+    },
+    {
+      "name": "a palette read with a parameter the operation does not accept",
+      "case": "parse_palette_query",
+      "input": [["limit", "50"]],
+      "code": "unknown_query_parameter",
+      "details": { "parameter": "limit" }
+    },
+    {
+      "name": "a project id outside the id pattern",
+      "case": "parse_palette_query",
+      "input": [["project_id", "project 001"]],
+      "code": "invalid_project_id",
+      "details": { "field": "project_id" }
+    },
+
+    {
+      "name": "a project with a name only",
+      "case": "parse_project_request",
+      "input": { "name": "Track A" },
+      "value": ["Track A", null]
+    },
+    {
+      "name": "a project naming its palette",
+      "case": "parse_project_request",
+      "input": { "name": "Track A", "palette_name": "Main" },
+      "value": ["Track A", "Main"]
+    },
+    {
+      "name": "a project body that is an array",
+      "case": "parse_project_request",
+      "input": [],
+      "code": "invalid_body"
+    },
+    {
+      "name": "a project without a name",
+      "case": "parse_project_request",
+      "input": {},
+      "code": "missing_field",
+      "details": { "field": "name" }
+    },
+    {
+      "name": "a project carrying a field this operation does not have",
+      "case": "parse_project_request",
+      "input": { "name": "Track A", "tempo": 140 },
+      "code": "unknown_field",
+      "details": { "field": "tempo" }
+    },
+    {
+      "name": "a project name of the wrong type",
+      "case": "parse_project_request",
+      "input": { "name": 5 },
+      "code": "invalid_field_type",
+      "details": { "field": "name" }
+    },
+    {
+      "name": "a blank project name",
+      "case": "parse_project_request",
+      "input": { "name": "   " },
+      "code": "invalid_field_type",
+      "details": { "field": "name" }
+    },
+
+    {
+      "name": "an item selection",
+      "case": "parse_item_request",
+      "input": {
+        "palette_id": "palette-001",
+        "sample_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "expected_revision": 0
+      },
+      "value": [
+        "palette-001",
+        "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        0
+      ]
+    },
+    {
+      "name": "an item body without a revision",
+      "case": "parse_item_request",
+      "input": {
+        "palette_id": "palette-001",
+        "sample_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "code": "missing_field",
+      "details": { "field": "expected_revision" }
+    },
+    {
+      "name": "a boolean revision",
+      "case": "parse_item_request",
+      "input": {
+        "palette_id": "palette-001",
+        "sample_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "expected_revision": true
+      },
+      "code": "invalid_revision",
+      "details": { "field": "expected_revision" }
+    },
+    {
+      "name": "a fractional revision",
+      "case": "parse_item_request",
+      "input": {
+        "palette_id": "palette-001",
+        "sample_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "expected_revision": 1.5
+      },
+      "code": "invalid_revision",
+      "details": { "field": "expected_revision" }
+    },
+    {
+      "name": "a revision as text",
+      "case": "parse_item_request",
+      "input": {
+        "palette_id": "palette-001",
+        "sample_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "expected_revision": "3"
+      },
+      "code": "invalid_revision",
+      "details": { "field": "expected_revision" }
+    },
+    {
+      "name": "a negative revision",
+      "case": "parse_item_request",
+      "input": {
+        "palette_id": "palette-001",
+        "sample_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "expected_revision": -1
+      },
+      "code": "invalid_revision",
+      "details": { "field": "expected_revision" }
+    },
+    {
+      "name": "a malformed palette id",
+      "case": "parse_item_request",
+      "input": {
+        "palette_id": "palette 001",
+        "sample_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "expected_revision": 0
+      },
+      "code": "invalid_palette_id",
+      "details": { "field": "palette_id" }
+    },
+    {
+      "name": "a malformed sample id",
+      "case": "parse_item_request",
+      "input": {
+        "palette_id": "palette-001",
+        "sample_id": "kick-001",
+        "expected_revision": 0
+      },
+      "code": "invalid_sample_id"
+    },
+    {
+      "name": "an item body carrying a field this operation does not have",
+      "case": "parse_item_request",
+      "input": {
+        "palette_id": "palette-001",
+        "sample_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "expected_revision": 0,
+        "slot": "kick"
+      },
+      "code": "unknown_field",
+      "details": { "field": "slot" }
+    },
+
+    {
+      "name": "a tempo of zero",
+      "case": "parse_context_request",
+      "input": {
+        "palette_id": "palette-001",
+        "expected_revision": 0,
+        "tempo": { "state": "known", "bpm": 0 },
+        "key": { "state": "unset" },
+        "genre": { "state": "unset" }
+      },
+      "code": "invalid_context",
+      "details": { "field": "tempo.bpm" }
+    },
+    {
+      "name": "a non-numeric tempo",
+      "case": "parse_context_request",
+      "input": {
+        "palette_id": "palette-001",
+        "expected_revision": 0,
+        "tempo": { "state": "known", "bpm": "140" },
+        "key": { "state": "unset" },
+        "genre": { "state": "unset" }
+      },
+      "code": "invalid_context",
+      "details": { "field": "tempo.bpm" }
+    },
+    {
+      "name": "a known tempo without a value",
+      "case": "parse_context_request",
+      "input": {
+        "palette_id": "palette-001",
+        "expected_revision": 0,
+        "tempo": { "state": "known" },
+        "key": { "state": "unset" },
+        "genre": { "state": "unset" }
+      },
+      "code": "missing_field",
+      "details": { "field": "tempo.bpm" }
+    },
+    {
+      "name": "an unset tempo carrying a value",
+      "case": "parse_context_request",
+      "input": {
+        "palette_id": "palette-001",
+        "expected_revision": 0,
+        "tempo": { "state": "unset", "bpm": 140 },
+        "key": { "state": "unset" },
+        "genre": { "state": "unset" }
+      },
+      "code": "unknown_field",
+      "details": { "field": "tempo.bpm" }
+    },
+    {
+      "name": "a context state outside the vocabulary",
+      "case": "parse_context_request",
+      "input": {
+        "palette_id": "palette-001",
+        "expected_revision": 0,
+        "tempo": { "state": "maybe" },
+        "key": { "state": "unset" },
+        "genre": { "state": "unset" }
+      },
+      "code": "invalid_context",
+      "details": { "field": "tempo" }
+    },
+    {
+      "name": "a context field that is not an object",
+      "case": "parse_context_request",
+      "input": {
+        "palette_id": "palette-001",
+        "expected_revision": 0,
+        "tempo": 140,
+        "key": { "state": "unset" },
+        "genre": { "state": "unset" }
+      },
+      "code": "invalid_field_type",
+      "details": { "field": "tempo" }
+    },
+    {
+      "name": "an unknown tempo with a blank reason",
+      "case": "parse_context_request",
+      "input": {
+        "palette_id": "palette-001",
+        "expected_revision": 0,
+        "tempo": { "state": "unknown", "reason": "  " },
+        "key": { "state": "unset" },
+        "genre": { "state": "unset" }
+      },
+      "code": "invalid_context",
+      "details": { "field": "tempo.reason" }
+    },
+    {
+      "name": "an unknown tonic",
+      "case": "parse_context_request",
+      "input": {
+        "palette_id": "palette-001",
+        "expected_revision": 0,
+        "tempo": { "state": "unset" },
+        "key": { "state": "known", "tonic": "H", "mode": "major" },
+        "genre": { "state": "unset" }
+      },
+      "code": "invalid_context",
+      "details": { "field": "key" }
+    },
+    {
+      "name": "a known key without a mode",
+      "case": "parse_context_request",
+      "input": {
+        "palette_id": "palette-001",
+        "expected_revision": 0,
+        "tempo": { "state": "unset" },
+        "key": { "state": "known", "tonic": "C" },
+        "genre": { "state": "unset" }
+      },
+      "code": "missing_field",
+      "details": { "field": "key.mode" }
+    },
+    {
+      "name": "a blank genre",
+      "case": "parse_context_request",
+      "input": {
+        "palette_id": "palette-001",
+        "expected_revision": 0,
+        "tempo": { "state": "unset" },
+        "key": { "state": "unset" },
+        "genre": { "state": "known", "genre": "   " }
+      },
+      "code": "invalid_context",
+      "details": { "field": "genre" }
+    },
+    {
+      "name": "a genre longer than the bound",
+      "case": "parse_context_request",
+      "input": {
+        "palette_id": "palette-001",
+        "expected_revision": 0,
+        "tempo": { "state": "unset" },
+        "key": { "state": "unset" },
+        "genre": {
+          "state": "known",
+          "genre": "ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        }
+      },
+      "code": "invalid_context",
+      "details": { "field": "genre" }
+    },
+    {
+      "name": "a known genre carrying a reason",
+      "case": "parse_context_request",
+      "input": {
+        "palette_id": "palette-001",
+        "expected_revision": 0,
+        "tempo": { "state": "unset" },
+        "key": { "state": "unset" },
+        "genre": { "state": "known", "genre": "grime", "reason": "why not" }
+      },
+      "code": "unknown_field",
+      "details": { "field": "genre.reason" }
+    },
+    {
+      "name": "a context body without a genre field",
+      "case": "parse_context_request",
+      "input": {
+        "palette_id": "palette-001",
+        "expected_revision": 0,
+        "tempo": { "state": "unset" },
+        "key": { "state": "unset" }
+      },
+      "code": "missing_field",
+      "details": { "field": "genre" }
+    },
+    {
+      "name": "a context body carrying a field this operation does not have",
+      "case": "parse_context_request",
+      "input": {
+        "palette_id": "palette-001",
+        "expected_revision": 0,
+        "tempo": { "state": "unset" },
+        "key": { "state": "unset" },
+        "genre": { "state": "unset" },
+        "role": "kick"
+      },
+      "code": "unknown_field",
+      "details": { "field": "role" }
+    }
+  ]
+}

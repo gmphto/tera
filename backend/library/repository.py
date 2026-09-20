@@ -498,6 +498,15 @@ def _context_field_state(value, reason) -> str:
     return "unset" if reason is None else "unknown"
 
 
+#: The columns each context field owns, so one field can be cleared (issue #32):
+#: all NULL is the storage state `_context_field_state` reads as `unset`.
+_CONTEXT_FIELD_COLUMNS = {
+    "tempo": ("tempo_bpm", "tempo_confidence", "tempo_unavailable_reason"),
+    "key": ("key_tonic", "key_mode", "key_confidence", "key_unavailable_reason"),
+    "genre": ("genre", "genre_unavailable_reason"),
+}
+
+
 def _context_reason(reason, state):
     """The contract reason for one stored field.
 
@@ -882,6 +891,16 @@ class LibraryRepository:
                 f"sample_id {sample_id} has no stored features under {analysis_version}.")
         self._require_version(analysis_version)
         return self._stored_sample(stored, analysis_version)
+
+    def stored_role(self, sample_id: str):
+        """The role one stored sample carries, or None when there is no row.
+
+        Public so a caller can name the role a slot refused without reading the
+        sample's features (issue #32's `role_mismatch` details).
+        """
+
+        row = self._one("SELECT role FROM samples WHERE sample_id = ?", (sample_id,))
+        return None if row is None else row["role"]
 
     def _has_version(self, sample_id: str, analysis_version: str) -> bool:
         row = self._one(
@@ -1685,7 +1704,8 @@ class LibraryRepository:
                           (active["item_id"],)))
         return PaletteMutation(palette_id, revision, True, None, removed)
 
-    def set_palette_context(self, palette_id, song, *, expected_revision) -> PaletteMutation:
+    def set_palette_context(self, palette_id, song, *, expected_revision,
+                            unset=()) -> PaletteMutation:
         """Store a whole song context in one transaction.
 
         Every field is written as the validated `SongContext` states it: the value
@@ -1693,13 +1713,24 @@ class LibraryRepository:
         the stored context is a no-op that changes no revision. The result carries
         no item, because a context change touches none.
 
+        `unset` names fields to store as `unset` (issue #32): every column of the
+        field is written NULL, which is the only way back to that state, because
+        `backend.contracts` has no way to state a null value without a reason.
+        A caller that passes nothing keeps the previous behaviour exactly.
+
         Raises `invalid_context` with the contract error as `__cause__` when
-        `song` is not a valid `SongContext`, `unknown_palette`,
-        `revision_conflict`, `database_locked` or `write_failed`.
+        `song` is not a valid `SongContext`, or for a name outside
+        `CONTEXT_STATES`' fields; `unknown_palette`, `revision_conflict`,
+        `database_locked` or `write_failed`.
         """
 
         validated = _validated_context(song)
         columns = _context_columns(validated)
+        for name in unset:
+            if name not in _CONTEXT_FIELD_COLUMNS:
+                raise InvalidContext(f"{name!r} is not a song-context field.")
+            for column in _CONTEXT_FIELD_COLUMNS[name]:
+                columns[column] = None
         with self._writing():
             palette = self._require_palette(palette_id)
             self._require_expected(palette, expected_revision)

@@ -105,6 +105,10 @@ table the rest of Phase 1 reads:
 - `POST /recommendations`
 - `POST /outcomes`
 - `GET /outcomes`
+- `GET /palette`
+- `POST /projects`
+- `PUT /palette/items/{slot}`
+- `PUT /palette/context`
 
 `POST /recommendations` has a result limit and reads a stored palette; its
 request, response, counts, evidence and
@@ -445,6 +449,9 @@ request fields only — never an unvalidated value or search text.
 | 400 | `invalid_revision` | `revision` is not a nonnegative integer |
 | 400 | `invalid_limit` | `limit` is not an integer in `[5, 20]` |
 | 400 | `invalid_outcome` | Outcome identity, event type or query event type is invalid |
+| 400 | `invalid_project_id` | `project_id` is not `[A-Za-z0-9_-]{1,64}` |
+| 400 | `unknown_slot` | The path's slot is not one of `MVP_SLOTS` |
+| 400 | `invalid_context` | A song-context field is malformed or unsupported |
 | 403 | `host_not_allowed` | The `Host` header is not the loopback host |
 | 403 | `origin_not_allowed` | The `Origin` header is not allowed |
 | 404 | `unknown_route` | No operation is served at this path |
@@ -461,6 +468,8 @@ request fields only — never an unvalidated value or search text.
 | 409 | `kick_unavailable` | The palette's selected kick cannot be used, with #11's or #21's reason |
 | 409 | `unknown_palette_revision` | The submitted palette revision is in the future |
 | 409 | `cross_project_reference` | The palette belongs to another project |
+| 409 | `project_exists` | A project already exists; this version works in one project |
+| 409 | `role_mismatch` | The sample's stored role is not one the slot accepts |
 | 409 | `selection_not_in_palette` | A selected candidate is not active in the bass slot |
 | 409 | `removal_not_reflected` | A removal's candidate is still active in the bass slot |
 | 409 | `outcome_conflict` | A selection is already closed or a live selection is rejected |

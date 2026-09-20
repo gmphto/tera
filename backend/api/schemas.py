@@ -24,6 +24,7 @@ import re
 
 from backend.analysis.batch import ROLES, canonical
 from backend.api.errors import ApiError
+from backend.palette.model import MVP_SLOTS
 
 
 #: The page size a request gets when it names none.
@@ -286,3 +287,62 @@ def _pairs(value):
             raise ApiError("unknown_query_parameter", details={_PARAMETER: ""})
         pairs.append((entry[0], entry[1]))
     return pairs
+
+
+# ---------------------------------------------------------------------------
+# the palette projection (issue #32)
+# ---------------------------------------------------------------------------
+
+
+def palette_document(project, record) -> dict:
+    """One stored palette as the one documented projection.
+
+    The shape is closed: `palette_id`, `project`, `name`, `revision`, `context`
+    and `items`, with exactly the `MVP_SLOTS` keys and exactly the three context
+    keys. Every value is copied from #24's records -- no default tempo, key or
+    genre is invented, no timestamp and no path appears, and a context field is
+    reported by its stored *state* rather than by inspecting its reason string.
+    """
+
+    return {
+        "palette_id": record.palette_id,
+        "project": {"project_id": project.project_id, "name": project.name},
+        "name": record.name,
+        "revision": record.revision,
+        "context": {
+            "tempo": _context_document(
+                record.context_state.tempo, {"bpm": record.song.tempo.value},
+                record.song.tempo.unavailable_reason),
+            "key": _context_document(
+                record.context_state.key,
+                {"tonic": record.song.key.tonic, "mode": record.song.key.mode},
+                record.song.key.unavailable_reason),
+            "genre": _context_document(
+                record.context_state.genre, {"genre": record.song.genre},
+                record.song.genre_unavailable_reason),
+        },
+        "items": {slot: _item_document(record, slot) for slot in MVP_SLOTS},
+    }
+
+
+def _context_document(state: str, values: dict, reason) -> dict:
+    if state == "known":
+        return {"state": "known", **values}
+    if state == "unknown":
+        return {"state": "unknown", "reason": reason}
+    return {"state": "unset"}
+
+
+def _item_document(record, slot: str):
+    for item in record.active_items:
+        if item.slot == slot:
+            return {
+                "slot": item.slot,
+                "sample_id": item.sample_id,
+                "role": item.role,
+                "added_revision": item.added_revision,
+                "sample_state": item.sample_state,
+                "sample_error_code": item.sample_error_code,
+                "slot_role_mismatch": item.slot_role_mismatch,
+            }
+    return None

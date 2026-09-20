@@ -21,7 +21,7 @@ import socket
 
 import pytest
 
-from backend.api import errors, recommendations, schemas
+from backend.api import errors, palette, recommendations, schemas
 from backend.api.errors import ApiError
 from backend.library import indexer, queue
 from backend.library.repository import transaction
@@ -32,6 +32,8 @@ FIXTURES = Path(__file__).parent / "fixtures" / "api"
 
 REQUEST_CASES = json.loads((FIXTURES / "request-cases.json").read_text(encoding="utf-8"))["cases"]
 HTTP_CASES = json.loads((FIXTURES / "http-cases.json").read_text(encoding="utf-8"))["cases"]
+PALETTE_CASES = json.loads(
+    (FIXTURES / "palette-cases.json").read_text(encoding="utf-8"))["cases"]
 
 VALIDATORS = {
     "import_request": schemas.import_request,
@@ -39,6 +41,10 @@ VALIDATORS = {
     "require_run_id": schemas.require_run_id,
     "require_sample_id": schemas.require_sample_id,
     "parse_recommendation_request": recommendations.parse_recommendation_request,
+    "parse_palette_query": palette.parse_palette_query,
+    "parse_project_request": palette.parse_project_request,
+    "parse_item_request": palette.parse_item_request,
+    "parse_context_request": palette.parse_context_request,
 }
 
 #: #28's two fixture files, whose refusal cases cover the recommendation codes
@@ -59,6 +65,16 @@ def _outcome_codes():
         for case in document["cases"]:
             if case.get("code"):
                 codes.add(case["code"])
+    return codes
+
+
+def _palette_codes():
+    """Every error code #32's own fixture file asserts."""
+
+    codes = set()
+    for case in PALETTE_CASES:
+        if case.get("code"):
+            codes.add(case["code"])
     return codes
 
 
@@ -109,10 +125,27 @@ def test_the_request_cases_hold(case):
         assert _value(validator(case["input"])) == case["value"]
 
 
+@pytest.mark.parametrize("case", PALETTE_CASES, ids=[case["name"] for case in PALETTE_CASES])
+def test_the_palette_cases_hold(case):
+    """The palette request rules, replayed from the hand-written fixture."""
+
+    validator = VALIDATORS[case["case"]]
+    if "code" in case:
+        with pytest.raises(ApiError) as caught:
+            validator(case["input"])
+        assert caught.value.code == case["code"]
+        assert caught.value.status == errors.STATUS_BY_CODE[case["code"]]
+        assert caught.value.details == case.get("details", {})
+    else:
+        assert _value(validator(case["input"])) == case["value"]
+
+
 def test_every_validation_code_has_at_least_one_request_case():
     covered = {case["code"] for case in REQUEST_CASES if "code" in case}
-    # #29's outcome refusals are exercised by its own two fixture files.
+    # #29's outcome refusals and #32's palette refusals are exercised by their
+    # own fixture files.
     covered |= _outcome_codes()
+    covered |= _palette_codes()
     # The transport-only codes are exercised by the HTTP cases instead.
     transport_only = {"invalid_json", "invalid_root", "unknown_route", "method_not_allowed",
                       "host_not_allowed", "origin_not_allowed", "unknown_import",
@@ -124,8 +157,15 @@ def test_every_validation_code_has_at_least_one_request_case():
     transport_only |= {"unknown_palette", "revision_conflict", "palette_incomplete",
                        "kick_unavailable"}
     # The two storage failures #29 names have no socket case a fixture can
-    # provoke; tests/test_outcome_repository.py owns their evidence.
-    transport_only |= {"write_failed", "database_locked"}
+    # provoke; tests/test_outcome_repository.py owns their evidence. #32's two
+    # state-dependent refusals are the same shape: `project_exists` needs an
+    # existing project and `role_mismatch` a stored sample of the wrong role,
+    # and tests/test_api_palette.py asserts both over a socket with a real
+    # database.
+    transport_only |= {"write_failed", "database_locked", "project_exists", "role_mismatch"}
+    # The slot arrives in the path, so no pure request validator can see it; the
+    # http case `a slot outside the palette vocabulary` exercises it.
+    transport_only |= {"unknown_slot"}
     assert {code for code, _status in errors.ERROR_CODES} - transport_only <= covered
 
 
@@ -245,11 +285,13 @@ def test_every_http_code_has_at_least_one_transport_case():
     covered |= {case["code"] for case in REQUEST_CASES if "code" in case}
     covered |= _recommendation_codes()
     covered |= _outcome_codes()
+    covered |= _palette_codes()
     expected = {code for code, _status in errors.ERROR_CODES
                 if code not in ("internal_error", "server_busy")}
-    # The two storage failures #29 names have no socket case a fixture can
-    # provoke; tests/test_outcome_repository.py owns their evidence.
-    expected -= {"write_failed", "database_locked"}
+    # The two storage failures #29 names and #32's two state-dependent refusals
+    # have no socket case a fixture can provoke; tests/test_outcome_repository.py
+    # and tests/test_api_palette.py own their evidence.
+    expected -= {"write_failed", "database_locked", "project_exists", "role_mismatch"}
     assert expected <= covered
 
 
@@ -283,6 +325,10 @@ def test_the_route_table_is_closed_and_documented():
         ("POST", "/recommendations"),
         ("POST", "/outcomes"),
         ("GET", "/outcomes"),
+        ("GET", "/palette"),
+        ("POST", "/projects"),
+        ("PUT", "/palette/items/{slot}"),
+        ("PUT", "/palette/context"),
     ]
     document = (Path(__file__).resolve().parents[1] / "_docs" / "local-service.md").read_text(
         encoding="utf-8")

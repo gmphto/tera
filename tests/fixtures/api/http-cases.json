@@ -358,6 +358,55 @@
       "body": "{\"palette_id\": \"palette-00000000000000000000000000000000\", \"revision\": 0}",
       "status": 503,
       "code": "database_unavailable"
+    },
+    {
+      "name": "a slot outside the palette vocabulary",
+      "method": "PUT",
+      "path": "/palette/items/snare",
+      "body": "{\"palette_id\": \"palette-001\", \"sample_id\": \"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"expected_revision\": 0}",
+      "status": 400,
+      "code": "unknown_slot"
+    },
+    {
+      "name": "a palette read with a malformed project filter",
+      "method": "GET",
+      "path": "/palette?project_id=not%20an%20id",
+      "status": 400,
+      "code": "invalid_project_id"
+    },
+    {
+      "name": "a palette read while the database is unavailable",
+      "setup": "degraded",
+      "method": "GET",
+      "path": "/palette",
+      "status": 503,
+      "code": "database_unavailable"
+    },
+    {
+      "name": "a project creation with an unsupported media type",
+      "method": "POST",
+      "path": "/projects",
+      "headers": {
+        "Content-Type": "text/plain"
+      },
+      "body": "{}",
+      "status": 415,
+      "code": "unsupported_media_type"
+    },
+    {
+      "name": "a palette path with an unsupported method",
+      "method": "DELETE",
+      "path": "/palette/items/kick",
+      "status": 405,
+      "code": "method_not_allowed",
+      "allow": "PUT"
+    },
+    {
+      "name": "the old palette collection path is not a route",
+      "method": "GET",
+      "path": "/palettes",
+      "status": 404,
+      "code": "unknown_route"
     }
   ]
 }

@@ -52,7 +52,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qsl, urlsplit
 
 from backend.analysis.batch import BatchError, ROLES, canonical, local_path
-from backend.api import imports, library, outcomes, recommendations, schemas
+from backend.api import imports, library, outcomes, palette, recommendations, schemas
 from backend.api.errors import ApiError
 from backend.api.schemas import RequestContext
 from backend.library import indexer, queue
@@ -422,9 +422,13 @@ ROUTES = (
     Route("POST", "/recommendations", recommendations.handle_recommendation, body=True),
     Route("POST", "/outcomes", outcomes.create_outcome, body=True),
     Route("GET", "/outcomes", outcomes.list_outcomes),
+    Route("GET", palette.PALETTE_PATH, palette.handle_read),
+    Route("POST", palette.PROJECTS_PATH, palette.handle_create_project, body=True),
+    Route("PUT", palette.PALETTE_ITEM_PATH, palette.handle_set_item, body=True),
+    Route("PUT", palette.PALETTE_CONTEXT_PATH, palette.handle_set_context, body=True),
 )
 
-_PREFLIGHT_HEADERS = (("Access-Control-Allow-Methods", "GET, POST, OPTIONS"),
+_PREFLIGHT_HEADERS = (("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS"),
                       ("Access-Control-Allow-Headers", "Content-Type"),
                       ("Access-Control-Max-Age", "600"))
 
