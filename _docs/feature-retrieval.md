@@ -168,7 +168,7 @@ inactive dimension carries `mean = null`, `std = null`, is excluded from every
 distance, is never divided by zero, is never imputed and is not counted in a
 candidate's coverage.
 
-Every returned `mean`, `std`, `similarity` and `coverage` is a finite double.
+Every returned `mean`, `std`, `similarity` and `coverage` is a finite double, with one theoretical exception: a population whose scaled standard deviation lands within an ulp of the largest finite double can still overflow the final multiplication. No stored extractor value can produce that (see Limitations), and the guard is documented rather than claimed to be absolute.
 A population whose sum or squared deviations would overflow a double - a stored
 `loudness` population of `0.0` and `1e155`, or of `1e308` and `1.5e308` - is
 re-scaled by its largest magnitude inside the same formula, so
@@ -230,7 +230,7 @@ order and database page order cannot move it. `CutoffEvidence` is frozen with
 exactly `similarity`, `included`, `excluded` and `tied_ids`, where
 
 - `tied_ids` is every ranked candidate whose similarity is exactly equal to the
-  last included candidate's (all of them, not only those beside the boundary);
+  last included candidate's (all of them, not only those at the boundary);
   an unavailable similarity is not a value that can tie, so the set is that
   candidate itself,
 - `included` is the last shortlist id,
@@ -627,7 +627,7 @@ follows, with the exact text:
    candidate was returned.
 5. **The tie when the cut lands on an unscored candidate.** "`tied_ids` is
    every ranked candidate whose similarity is exactly equal to the last
-   included candidate's (all of them, not only those beside the boundary)"
+   included candidate's (all of them, not only those at the boundary)"
    has no referent when the last included candidate's similarity is `null`:
    with 55 ranked candidates, 10 scored and 45 unscored at size 50, a literal
    reading would name all 45 unscored ids. Resolution: an unavailable
