@@ -1,3 +1,15 @@
+# TERA
+
+## Conventions
+- Validation library: none configured.
+- API query, parameter, and request parsing lives at: `backend/api/` (shared validation in `backend/api/schemas.py`).
+- Do not hand-roll parsers elsewhere.
+
+## Before finishing
+- Test: `uv run pytest <affected-test-paths>`; `uv run pytest` at integration/release checkpoints or when impact cannot be safely bounded.
+- Lint: none configured.
+- Typecheck: none configured.
+
 # Commands
 
 Run from the repository root containing `pyproject.toml`.
