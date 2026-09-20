@@ -173,3 +173,30 @@ class PaletteIncomplete(LibraryError):
 
     code = "palette_incomplete"
 
+
+# -- decision cache (issue #26) ---------------------------------------------
+
+
+class CacheKeyInvalid(LibraryError):
+    """A cache key is malformed, or disagrees with the question or judgment it names."""
+
+    code = "cache_key_invalid"
+
+
+class CachePayloadInvalid(LibraryError):
+    """A cache payload, or a record handed to the cache, is not the declared shape."""
+
+    code = "cache_payload_invalid"
+
+
+class DecisionNotCacheable(LibraryError):
+    """A Jev outcome is not a validated terminal decision, so it is never stored."""
+
+    code = "decision_not_cacheable"
+
+
+class InvalidCacheBound(LibraryError):
+    """A cache bound is not an int inside its published minimum and maximum."""
+
+    code = "invalid_cache_bound"
+

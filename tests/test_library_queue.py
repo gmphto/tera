@@ -157,9 +157,9 @@ def store_analysis_for(database, row, version=None, descriptor=None):
 def test_the_queue_tables_ship_as_migration_two_with_the_named_columns(tmp_path):
     connection = connect(tmp_path / "library.sqlite3")
     try:
-        assert SCHEMA_VERSION == 3
-        assert [version for version, _script in MIGRATIONS] == [1, 2, 3]
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 3
+        assert SCHEMA_VERSION == 4
+        assert [version for version, _script in MIGRATIONS] == [1, 2, 3, 4]
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 4
         tables = {row[0] for row in connection.execute(
             "SELECT name FROM sqlite_master WHERE type = 'table'")}
         assert {"job_runs", "job_items"} <= tables

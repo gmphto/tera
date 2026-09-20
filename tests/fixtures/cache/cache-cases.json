@@ -1,0 +1,583 @@
+[
+  {
+    "name": "frequency_store",
+    "note": "one judged frequency question is stored",
+    "kind": "judgment",
+    "action": "store",
+    "identity": {
+      "source": "double",
+      "interface_name": "jev-contract-double",
+      "adapter_version": "jev-adapter-v1",
+      "prompt_version": "jev-questions-v1",
+      "model_version": "synthetic-model-1",
+      "palette_hash": "1f2e3d4c5b6a7988a9bacbdcedfe0f101f2e3d4c5b6a7988a9bacbdcedfe0f10",
+      "palette_hash_version": "palette-hash-v1",
+      "candidate_id": "bass-001",
+      "candidate_content_fingerprint": "b0a1c2d3e4f5061728394a5b6c7d8e9fb0a1c2d3e4f5061728394a5b6c7d8e9f",
+      "candidate_analysis_version": "dsp-fixture-1"
+    },
+    "questions": [
+      "full_frequency"
+    ],
+    "outcome": "all_judged",
+    "request": "candidate-001",
+    "max_entries": 3,
+    "max_bytes": 4096,
+    "expects": {
+      "stored": true,
+      "pruned": 0,
+      "surviving": [
+        "frequency_store"
+      ],
+      "stats": {
+        "entries": 1,
+        "judgments": 1,
+        "candidate_decisions": 0
+      }
+    }
+  },
+  {
+    "name": "frequency_hit",
+    "note": "the same key is a hit with no write",
+    "kind": "judgment",
+    "action": "lookup",
+    "identity": {
+      "source": "double",
+      "interface_name": "jev-contract-double",
+      "adapter_version": "jev-adapter-v1",
+      "prompt_version": "jev-questions-v1",
+      "model_version": "synthetic-model-1",
+      "palette_hash": "1f2e3d4c5b6a7988a9bacbdcedfe0f101f2e3d4c5b6a7988a9bacbdcedfe0f10",
+      "palette_hash_version": "palette-hash-v1",
+      "candidate_id": "bass-001",
+      "candidate_content_fingerprint": "b0a1c2d3e4f5061728394a5b6c7d8e9fb0a1c2d3e4f5061728394a5b6c7d8e9f",
+      "candidate_analysis_version": "dsp-fixture-1"
+    },
+    "questions": [
+      "full_frequency"
+    ],
+    "expects": {
+      "status": "hit",
+      "reason": null,
+      "stale_found": false,
+      "surviving": [
+        "frequency_store"
+      ],
+      "stats": {
+        "entries": 1,
+        "judgments": 1,
+        "candidate_decisions": 0
+      }
+    }
+  },
+  {
+    "name": "transient_store",
+    "note": "a second question under another observed model version",
+    "kind": "judgment",
+    "action": "store",
+    "identity": {
+      "source": "double",
+      "interface_name": "jev-contract-double",
+      "adapter_version": "jev-adapter-v1",
+      "prompt_version": "jev-questions-v1",
+      "model_version": "synthetic-model-2",
+      "palette_hash": "1f2e3d4c5b6a7988a9bacbdcedfe0f101f2e3d4c5b6a7988a9bacbdcedfe0f10",
+      "palette_hash_version": "palette-hash-v1",
+      "candidate_id": "bass-001",
+      "candidate_content_fingerprint": "b0a1c2d3e4f5061728394a5b6c7d8e9fb0a1c2d3e4f5061728394a5b6c7d8e9f",
+      "candidate_analysis_version": "dsp-fixture-1"
+    },
+    "questions": [
+      "full_transient"
+    ],
+    "outcome": "all_judged",
+    "request": "candidate-002",
+    "max_entries": 3,
+    "max_bytes": 4096,
+    "expects": {
+      "stored": true,
+      "pruned": 0,
+      "surviving": [
+        "frequency_store",
+        "transient_store"
+      ],
+      "stats": {
+        "entries": 2,
+        "judgments": 2,
+        "candidate_decisions": 0
+      }
+    }
+  },
+  {
+    "name": "tonal_abstention_store",
+    "note": "an abstention is a storable terminal decision",
+    "kind": "judgment",
+    "action": "store",
+    "identity": {
+      "source": "double",
+      "interface_name": "jev-contract-double",
+      "adapter_version": "jev-adapter-v1",
+      "prompt_version": "jev-questions-v1",
+      "model_version": "synthetic-model-3",
+      "palette_hash": "1f2e3d4c5b6a7988a9bacbdcedfe0f101f2e3d4c5b6a7988a9bacbdcedfe0f10",
+      "palette_hash_version": "palette-hash-v1",
+      "candidate_id": "bass-001",
+      "candidate_content_fingerprint": "b0a1c2d3e4f5061728394a5b6c7d8e9fb0a1c2d3e4f5061728394a5b6c7d8e9f",
+      "candidate_analysis_version": "dsp-fixture-1"
+    },
+    "questions": [
+      "full_tonal"
+    ],
+    "outcome": "all_judged",
+    "request": "candidate-003",
+    "max_entries": 3,
+    "max_bytes": 4096,
+    "expects": {
+      "stored": true,
+      "pruned": 0,
+      "surviving": [
+        "frequency_store",
+        "transient_store",
+        "tonal_abstention_store"
+      ],
+      "stats": {
+        "entries": 3,
+        "judgments": 3,
+        "candidate_decisions": 0
+      }
+    }
+  },
+  {
+    "name": "missing_identity_is_absent",
+    "note": "an unobserved palette hash is a plain absent miss",
+    "kind": "judgment",
+    "action": "lookup",
+    "identity": {
+      "source": "double",
+      "interface_name": "jev-contract-double",
+      "adapter_version": "jev-adapter-v1",
+      "prompt_version": "jev-questions-v1",
+      "model_version": "synthetic-model-1",
+      "palette_hash": "2f3e4d5c6b7a8998a9bacbdcedfe0f102f3e4d5c6b7a8998a9bacbdcedfe0f10",
+      "palette_hash_version": "palette-hash-v1",
+      "candidate_id": "bass-001",
+      "candidate_content_fingerprint": "b0a1c2d3e4f5061728394a5b6c7d8e9fb0a1c2d3e4f5061728394a5b6c7d8e9f",
+      "candidate_analysis_version": "dsp-fixture-1"
+    },
+    "questions": [
+      "full_frequency"
+    ],
+    "expects": {
+      "status": "miss",
+      "reason": "absent",
+      "stale_found": false,
+      "surviving": [
+        "frequency_store",
+        "transient_store",
+        "tonal_abstention_store"
+      ],
+      "stats": {
+        "entries": 3,
+        "judgments": 3,
+        "candidate_decisions": 0
+      }
+    }
+  },
+  {
+    "name": "fourth_store_prunes_the_oldest",
+    "note": "the entry bound deletes the oldest row, not the new one",
+    "kind": "judgment",
+    "action": "store",
+    "identity": {
+      "source": "double",
+      "interface_name": "jev-contract-double",
+      "adapter_version": "jev-adapter-v1",
+      "prompt_version": "jev-questions-v1",
+      "model_version": "synthetic-model-1",
+      "palette_hash": "3f4e5d6c7b8a9998a9bacbdcedfe0f103f4e5d6c7b8a9998a9bacbdcedfe0f10",
+      "palette_hash_version": "palette-hash-v1",
+      "candidate_id": "bass-001",
+      "candidate_content_fingerprint": "b0a1c2d3e4f5061728394a5b6c7d8e9fb0a1c2d3e4f5061728394a5b6c7d8e9f",
+      "candidate_analysis_version": "dsp-fixture-1"
+    },
+    "questions": [
+      "full_frequency"
+    ],
+    "outcome": "all_judged",
+    "request": "candidate-001",
+    "max_entries": 3,
+    "max_bytes": 4096,
+    "expects": {
+      "stored": true,
+      "pruned": 1,
+      "surviving": [
+        "transient_store",
+        "tonal_abstention_store",
+        "fourth_store_prunes_the_oldest"
+      ],
+      "stats": {
+        "entries": 3,
+        "judgments": 3,
+        "candidate_decisions": 0
+      }
+    }
+  },
+  {
+    "name": "prune_to_two",
+    "note": "the on-demand prune deletes in (created_at, cache_key) order",
+    "kind": "judgment",
+    "action": "prune",
+    "max_entries": 2,
+    "expects": {
+      "pruned": 1,
+      "surviving": [
+        "tonal_abstention_store",
+        "fourth_store_prunes_the_oldest"
+      ],
+      "stats": {
+        "entries": 2,
+        "judgments": 2,
+        "candidate_decisions": 0
+      }
+    }
+  },
+  {
+    "name": "prune_is_idempotent",
+    "note": "a second prune deletes nothing and reports the same counts",
+    "kind": "judgment",
+    "action": "prune",
+    "max_entries": 2,
+    "expects": {
+      "pruned": 0,
+      "surviving": [
+        "tonal_abstention_store",
+        "fourth_store_prunes_the_oldest"
+      ],
+      "stats": {
+        "entries": 2,
+        "judgments": 2,
+        "candidate_decisions": 0
+      }
+    }
+  },
+  {
+    "name": "secondary_candidate_store",
+    "note": "a second candidate keeps its own entries",
+    "kind": "judgment",
+    "action": "store",
+    "identity": {
+      "source": "double",
+      "interface_name": "jev-contract-double",
+      "adapter_version": "jev-adapter-v1",
+      "prompt_version": "jev-questions-v1",
+      "model_version": "synthetic-model-1",
+      "palette_hash": "1f2e3d4c5b6a7988a9bacbdcedfe0f101f2e3d4c5b6a7988a9bacbdcedfe0f10",
+      "palette_hash_version": "palette-hash-v1",
+      "candidate_id": "bass-002",
+      "candidate_content_fingerprint": "d2c3b4a5f60718293a4b5c6d7e8f9012d2c3b4a5f60718293a4b5c6d7e8f9012",
+      "candidate_analysis_version": "dsp-fixture-1"
+    },
+    "questions": [
+      "full_frequency"
+    ],
+    "outcome": "all_judged",
+    "request": "candidate-001",
+    "max_entries": 4,
+    "max_bytes": 4096,
+    "expects": {
+      "stored": true,
+      "pruned": 0,
+      "surviving": [
+        "tonal_abstention_store",
+        "fourth_store_prunes_the_oldest",
+        "secondary_candidate_store"
+      ],
+      "stats": {
+        "entries": 3,
+        "judgments": 3,
+        "candidate_decisions": 0
+      }
+    }
+  },
+  {
+    "name": "candidate_store",
+    "note": "the whole candidate decision is stored once",
+    "kind": "candidate_decision",
+    "action": "store",
+    "identity": {
+      "source": "double",
+      "interface_name": "jev-contract-double",
+      "adapter_version": "jev-adapter-v1",
+      "prompt_version": "jev-questions-v1",
+      "model_version": "synthetic-model-1",
+      "palette_hash": "1f2e3d4c5b6a7988a9bacbdcedfe0f101f2e3d4c5b6a7988a9bacbdcedfe0f10",
+      "palette_hash_version": "palette-hash-v1",
+      "candidate_id": "bass-001",
+      "candidate_content_fingerprint": "b0a1c2d3e4f5061728394a5b6c7d8e9fb0a1c2d3e4f5061728394a5b6c7d8e9f",
+      "candidate_analysis_version": "dsp-fixture-1",
+      "kick_id": "kick-001",
+      "kick_content_fingerprint": "c1b2a3d4e5f60718293a4b5c6d7e8f90c1b2a3d4e5f60718293a4b5c6d7e8f90",
+      "kick_analysis_version": "dsp-fixture-1",
+      "ranking_version": "hybrid-ranking-v1",
+      "weight_table_id": "hybrid-weights-1",
+      "baseline_ranking_version": "dsp-baseline-v1",
+      "baseline_weight_table_id": "dsp-baseline-weights-1"
+    },
+    "questions": [
+      "full_frequency",
+      "full_transient",
+      "full_tonal",
+      "full_rhythmic",
+      "full_texture",
+      "full_arrangement"
+    ],
+    "outcome": "all_judged",
+    "decision": {
+      "mode": "hybrid",
+      "jev_status": "jev_partial",
+      "compatibility": 0.71,
+      "confidence": 0.62,
+      "uncertain": false,
+      "warnings": [
+        "low_coverage"
+      ],
+      "dimensions": {
+        "frequency": {
+          "request": "candidate-001",
+          "dsp_compatibility": 0.55,
+          "dsp_unavailable_reason": null,
+          "combined_compatibility": 0.7
+        },
+        "transient": {
+          "request": "candidate-002",
+          "dsp_compatibility": 0.4,
+          "dsp_unavailable_reason": null,
+          "combined_compatibility": 0.6
+        },
+        "tonal": {
+          "request": "candidate-003",
+          "dsp_compatibility": 0.5,
+          "dsp_unavailable_reason": null,
+          "combined_compatibility": 0.5
+        },
+        "rhythmic": {
+          "unavailable_reason": "candidate_tempo_unknown",
+          "dsp_compatibility": null,
+          "dsp_unavailable_reason": "tempo_unknown",
+          "combined_compatibility": null
+        },
+        "texture": {
+          "unavailable_reason": "candidate_spectral_centroid_unknown",
+          "dsp_compatibility": 0.45,
+          "dsp_unavailable_reason": null,
+          "combined_compatibility": 0.45
+        },
+        "arrangement": {
+          "unavailable_reason": "song_context_absent",
+          "dsp_compatibility": null,
+          "dsp_unavailable_reason": "role_evidence_missing",
+          "combined_compatibility": null
+        }
+      }
+    },
+    "max_entries": 4,
+    "max_bytes": 65536,
+    "expects": {
+      "stored": true,
+      "pruned": 0,
+      "surviving": [
+        "tonal_abstention_store",
+        "fourth_store_prunes_the_oldest",
+        "secondary_candidate_store",
+        "candidate_store"
+      ],
+      "stats": {
+        "entries": 4,
+        "judgments": 3,
+        "candidate_decisions": 1
+      }
+    }
+  },
+  {
+    "name": "candidate_hit",
+    "note": "the stored decision round-trips on the same question set",
+    "kind": "candidate_decision",
+    "action": "lookup",
+    "identity": {
+      "source": "double",
+      "interface_name": "jev-contract-double",
+      "adapter_version": "jev-adapter-v1",
+      "prompt_version": "jev-questions-v1",
+      "model_version": "synthetic-model-1",
+      "palette_hash": "1f2e3d4c5b6a7988a9bacbdcedfe0f101f2e3d4c5b6a7988a9bacbdcedfe0f10",
+      "palette_hash_version": "palette-hash-v1",
+      "candidate_id": "bass-001",
+      "candidate_content_fingerprint": "b0a1c2d3e4f5061728394a5b6c7d8e9fb0a1c2d3e4f5061728394a5b6c7d8e9f",
+      "candidate_analysis_version": "dsp-fixture-1",
+      "kick_id": "kick-001",
+      "kick_content_fingerprint": "c1b2a3d4e5f60718293a4b5c6d7e8f90c1b2a3d4e5f60718293a4b5c6d7e8f90",
+      "kick_analysis_version": "dsp-fixture-1",
+      "ranking_version": "hybrid-ranking-v1",
+      "weight_table_id": "hybrid-weights-1",
+      "baseline_ranking_version": "dsp-baseline-v1",
+      "baseline_weight_table_id": "dsp-baseline-weights-1"
+    },
+    "questions": [
+      "full_frequency",
+      "full_transient",
+      "full_tonal",
+      "full_rhythmic",
+      "full_texture",
+      "full_arrangement"
+    ],
+    "expects": {
+      "status": "hit",
+      "reason": null,
+      "stale_found": false,
+      "surviving": [
+        "tonal_abstention_store",
+        "fourth_store_prunes_the_oldest",
+        "secondary_candidate_store",
+        "candidate_store"
+      ],
+      "stats": {
+        "entries": 4,
+        "judgments": 3,
+        "candidate_decisions": 1
+      }
+    }
+  },
+  {
+    "name": "invalidate_candidate_bass_001",
+    "note": "both kinds for one candidate go in one call",
+    "kind": "candidate_decision",
+    "action": "invalidate_candidate",
+    "candidate_id": "bass-001",
+    "expects": {
+      "removed": 3,
+      "surviving": [
+        "secondary_candidate_store"
+      ],
+      "stats": {
+        "entries": 1,
+        "judgments": 1,
+        "candidate_decisions": 0
+      }
+    }
+  },
+  {
+    "name": "secondary_candidate_hit",
+    "note": "the other candidate's entry is untouched",
+    "kind": "judgment",
+    "action": "lookup",
+    "identity": {
+      "source": "double",
+      "interface_name": "jev-contract-double",
+      "adapter_version": "jev-adapter-v1",
+      "prompt_version": "jev-questions-v1",
+      "model_version": "synthetic-model-1",
+      "palette_hash": "1f2e3d4c5b6a7988a9bacbdcedfe0f101f2e3d4c5b6a7988a9bacbdcedfe0f10",
+      "palette_hash_version": "palette-hash-v1",
+      "candidate_id": "bass-002",
+      "candidate_content_fingerprint": "d2c3b4a5f60718293a4b5c6d7e8f9012d2c3b4a5f60718293a4b5c6d7e8f9012",
+      "candidate_analysis_version": "dsp-fixture-1"
+    },
+    "questions": [
+      "full_frequency"
+    ],
+    "expects": {
+      "status": "hit",
+      "reason": null,
+      "stale_found": false,
+      "surviving": [
+        "secondary_candidate_store"
+      ],
+      "stats": {
+        "entries": 1,
+        "judgments": 1,
+        "candidate_decisions": 0
+      }
+    }
+  },
+  {
+    "name": "pin_double",
+    "note": "one distinct observed version is pinned per interface identity",
+    "kind": "judgment",
+    "action": "pin",
+    "outcome": "judged_then_malformed",
+    "expects": {
+      "pin": {
+        "interface_name": "jev-contract-double",
+        "source": "double",
+        "adapter_version": "jev-adapter-v1",
+        "prompt_version": "jev-questions-v1",
+        "model_version": "synthetic-model-1",
+        "observation_count": 1
+      },
+      "stats": {
+        "entries": 1,
+        "judgments": 1,
+        "candidate_decisions": 0
+      }
+    },
+    "writes_pin": true
+  },
+  {
+    "name": "pin_interface_absent",
+    "note": "a double pin never satisfies an interface lookup: the interface identity has no row",
+    "kind": "judgment",
+    "action": "pin",
+    "outcome": "judged_then_malformed",
+    "query_source": "interface",
+    "expects": {
+      "pin": null,
+      "stats": {
+        "entries": 1,
+        "judgments": 1,
+        "candidate_decisions": 0
+      }
+    },
+    "writes_pin": true
+  },
+  {
+    "name": "pin_many_versions_writes_nothing",
+    "note": "more than one observed version writes nothing: the stored pin keeps its version and count",
+    "kind": "judgment",
+    "action": "pin",
+    "outcome": "all_judged",
+    "expects": {
+      "pin": {
+        "interface_name": "jev-contract-double",
+        "source": "double",
+        "adapter_version": "jev-adapter-v1",
+        "prompt_version": "jev-questions-v1",
+        "model_version": "synthetic-model-1",
+        "observation_count": 2
+      },
+      "stats": {
+        "entries": 1,
+        "judgments": 1,
+        "candidate_decisions": 0
+      }
+    },
+    "writes_pin": false
+  },
+  {
+    "name": "final_stats",
+    "note": "the counts after the whole fixture run",
+    "kind": "judgment",
+    "action": "prune",
+    "max_entries": 4,
+    "expects": {
+      "pruned": 0,
+      "surviving": [
+        "secondary_candidate_store"
+      ],
+      "stats": {
+        "entries": 1,
+        "judgments": 1,
+        "candidate_decisions": 0
+      }
+    }
+  }
+]

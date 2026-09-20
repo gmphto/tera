@@ -93,6 +93,26 @@ from backend.palette.model import (
 HEX_DIGITS = "0123456789abcdef"
 TAG_MAX_LENGTH = 64
 
+# The decision-cache tables (issue #26). These two names are the only place the
+# cache's column order is written: `decision_cache` is inserted by naming every
+# column, so a missing or extra value is a programming error rather than a
+# silently misaligned row.
+DECISION_CACHE_COLUMNS = (
+    "cache_key", "cache_key_version", "decision_kind", "source", "interface_name",
+    "adapter_version", "prompt_version", "model_version", "palette_hash",
+    "palette_hash_version", "candidate_id", "candidate_content_fingerprint",
+    "candidate_analysis_version", "dimension", "question_id", "kick_id",
+    "kick_content_fingerprint", "kick_analysis_version", "questions_digest",
+    "ranking_version", "weight_table_id", "baseline_ranking_version",
+    "baseline_weight_table_id", "payload_json", "created_at",
+)
+
+DECISION_MODEL_VERSION_COLUMNS = (
+    "interface_name", "source", "adapter_version", "prompt_version", "model_version",
+    "first_observed_at", "observed_at",
+)
+
+
 # The one statement `list_retrieval_rows` runs (issue #25): the samples row, its
 # measurements and key row at the requested version, and its analysis state.
 _RETRIEVAL_SELECT = (
@@ -229,6 +249,16 @@ def _coded(error: sqlite3.Error) -> LibraryError:
         return DatabaseLocked("The database is locked by another writer.")
     return WriteFailed(f"The database refused the write: {error}")
 
+
+def coded_error(error: sqlite3.Error) -> LibraryError:
+    """#21's mapping from a sqlite3 failure to the coded library error.
+
+    Public so a caller that owns its own `transaction` block -- issue #26's
+    cache, whose insert and pruning must commit as one -- maps a lock or a
+    refused write exactly as a repository method does.
+    """
+
+    return _coded(error)
 
 def _is_hex(value) -> bool:
     return (isinstance(value, str) and len(value) == 64
@@ -1499,6 +1529,114 @@ class LibraryRepository:
                         "AND error_code IS NOT NULL ORDER BY item_id DESC LIMIT 1",
                         ("sha256:" + content_sha256,))
         return None if row is None else row["error_code"]
+
+    # -- decision cache (issue #26) ----------------------------------------
+
+    def insert_decision_cache_entry(self, values) -> bool:
+        """Insert one decision-cache row, never replacing a committed key.
+
+        The one statement is `INSERT ... ON CONFLICT(cache_key) DO NOTHING`, so
+        the first committed entry wins and a later store under an unchanged key
+        writes nothing and returns False. The caller owns the transaction: the
+        insert and the pruning that follows it commit or roll back together.
+        `values` is a mapping holding every name in `DECISION_CACHE_COLUMNS`;
+        a missing one is a KeyError, not a misaligned statement.
+        """
+
+        names = ", ".join(DECISION_CACHE_COLUMNS)
+        marks = ", ".join("?" for _name in DECISION_CACHE_COLUMNS)
+        cursor = self.connection.execute(
+            f"INSERT INTO decision_cache ({names}) VALUES ({marks}) "
+            "ON CONFLICT(cache_key) DO NOTHING",
+            tuple(values[name] for name in DECISION_CACHE_COLUMNS))
+        return cursor.rowcount == 1
+
+    def decision_cache_row(self, cache_key):
+        """One whole decision-cache row, or None when that key has no row."""
+
+        return self._one("SELECT * FROM decision_cache WHERE cache_key = ?", (cache_key,))
+
+    def decision_cache_created_at(self, cache_key):
+        """The stored `created_at` of one key, or None when it has no row."""
+
+        row = self._one("SELECT created_at FROM decision_cache WHERE cache_key = ?",
+                        (cache_key,))
+        return None if row is None else row["created_at"]
+
+    def decision_cache_totals(self):
+        """The cache's entry count and stored payload bytes as one row."""
+
+        return self._one(
+            "SELECT COUNT(*) AS entries, "
+            "COALESCE(SUM(length(payload_json)), 0) AS bytes FROM decision_cache")
+
+    def decision_cache_oldest_keys(self, exclude_key=None):
+        """Every cache key oldest first, with its payload length, minus one key.
+
+        Ordered by `(created_at ASC, cache_key ASC)`, the documented pruning
+        order. `exclude_key` is the row a store just wrote and must never
+        evict; None excludes nothing.
+        """
+
+        statement = ("SELECT cache_key, length(payload_json) AS payload_bytes "
+                     "FROM decision_cache")
+        parameters = ()
+        if exclude_key is not None:
+            statement += " WHERE cache_key <> ?"
+            parameters = (exclude_key,)
+        statement += " ORDER BY created_at ASC, cache_key ASC"
+        return self._all(statement, parameters)
+
+    def decision_cache_stats(self):
+        """The cache's counts, payload bytes and `created_at` extremes as one row."""
+
+        return self._one(
+            "SELECT COUNT(*) AS entries, "
+            "COALESCE(SUM(decision_kind = 'judgment'), 0) AS judgments, "
+            "COALESCE(SUM(decision_kind = 'candidate_decision'), 0) AS candidate_decisions, "
+            "COALESCE(SUM(length(payload_json)), 0) AS bytes, "
+            "MIN(created_at) AS oldest_created_at, MAX(created_at) AS newest_created_at "
+            "FROM decision_cache")
+
+    def delete_decision_cache_key(self, cache_key) -> bool:
+        """Delete exactly one cache row; True when it existed."""
+
+        cursor = self.connection.execute("DELETE FROM decision_cache WHERE cache_key = ?",
+                                         (cache_key,))
+        return cursor.rowcount == 1
+
+    def delete_decision_cache_candidate(self, candidate_id) -> int:
+        """Delete every cache row for one candidate, both kinds and every palette."""
+
+        cursor = self.connection.execute("DELETE FROM decision_cache WHERE candidate_id = ?",
+                                         (candidate_id,))
+        return cursor.rowcount
+
+    def decision_model_version_pin(self, *, interface_name, source, adapter_version,
+                                  prompt_version):
+        """The stored model-version pin for one interface identity, or None."""
+
+        return self._one(
+            "SELECT * FROM decision_model_versions WHERE interface_name = ? AND source = ? "
+            "AND adapter_version = ? AND prompt_version = ?",
+            (interface_name, source, adapter_version, prompt_version))
+
+    def upsert_decision_model_version_pin(self, values) -> None:
+        """Record one observed model version, counting a repeat observation.
+
+        `first_observed_at` is set once and kept; `observed_at` and
+        `observation_count` move on every observation. The caller owns the
+        transaction and owns reading the pin back.
+        """
+
+        self.connection.execute(
+            "INSERT INTO decision_model_versions (interface_name, source, adapter_version, "
+            "prompt_version, model_version, first_observed_at, observed_at, observation_count) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, 1) "
+            "ON CONFLICT(interface_name, source, adapter_version, prompt_version) DO UPDATE SET "
+            "model_version = excluded.model_version, observed_at = excluded.observed_at, "
+            "observation_count = decision_model_versions.observation_count + 1",
+            tuple(values[name] for name in DECISION_MODEL_VERSION_COLUMNS))
 
     # -- internals ---------------------------------------------------------
 

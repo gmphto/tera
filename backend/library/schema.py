@@ -43,7 +43,7 @@ from backend.library.errors import (
 )
 
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 SQLITE_MAGIC = b"SQLite format 3\x00"
 
@@ -270,7 +270,73 @@ CREATE UNIQUE INDEX ux_palette_items_active_slot
 CREATE INDEX idx_palette_items_sample ON palette_items(sample_id);
 """
 
-MIGRATIONS = ((1, _MIGRATION_1), (2, _MIGRATION_2), (3, _MIGRATION_3))
+# Migration 4 (issue #26): the versioned decision cache. The two tables hold
+# validated Jev decisions keyed by a canonical content identity and the model
+# versions observed per interface. `decision_cache.candidate_id` and
+# `decision_cache.kick_id` deliberately have no foreign key to `samples`: a
+# sample row that #71 prunes or #22 re-scans must never cascade a cache entry
+# away, and explicit invalidation is #26's own operation. `created_at` comes
+# from `utc_now()`; the payload CHECK uses the bundled SQLite's JSON functions,
+# so a row can never hold a partial or non-object document. No version-1,
+# version-2 or version-3 table, column, constraint, index or row is touched.
+_MIGRATION_4 = """
+CREATE TABLE decision_cache (
+  cache_key TEXT PRIMARY KEY CHECK (length(trim(cache_key)) > 0),
+  cache_key_version TEXT NOT NULL CHECK (cache_key_version = 'decision-cache-v1'),
+  decision_kind TEXT NOT NULL CHECK (decision_kind IN ('judgment', 'candidate_decision')),
+  source TEXT NOT NULL CHECK (source IN ('interface', 'double')),
+  interface_name TEXT NOT NULL CHECK (length(trim(interface_name)) > 0),
+  adapter_version TEXT NOT NULL CHECK (length(trim(adapter_version)) > 0),
+  prompt_version TEXT NOT NULL CHECK (length(trim(prompt_version)) > 0),
+  model_version TEXT NOT NULL CHECK (length(trim(model_version)) > 0),
+  palette_hash TEXT NOT NULL CHECK (length(trim(palette_hash)) > 0),
+  palette_hash_version TEXT NOT NULL CHECK (length(trim(palette_hash_version)) > 0),
+  candidate_id TEXT NOT NULL CHECK (length(trim(candidate_id)) > 0),
+  candidate_content_fingerprint TEXT NOT NULL CHECK (length(trim(candidate_content_fingerprint)) > 0),
+  candidate_analysis_version TEXT NOT NULL CHECK (length(trim(candidate_analysis_version)) > 0),
+  dimension TEXT NULL CHECK (dimension IS NULL OR length(trim(dimension)) > 0),
+  question_id TEXT NULL CHECK (question_id IS NULL OR length(trim(question_id)) > 0),
+  kick_id TEXT NULL CHECK (kick_id IS NULL OR length(trim(kick_id)) > 0),
+  kick_content_fingerprint TEXT NULL CHECK (kick_content_fingerprint IS NULL OR length(trim(kick_content_fingerprint)) > 0),
+  kick_analysis_version TEXT NULL CHECK (kick_analysis_version IS NULL OR length(trim(kick_analysis_version)) > 0),
+  questions_digest TEXT NULL CHECK (questions_digest IS NULL OR length(trim(questions_digest)) > 0),
+  ranking_version TEXT NULL CHECK (ranking_version IS NULL OR length(trim(ranking_version)) > 0),
+  weight_table_id TEXT NULL CHECK (weight_table_id IS NULL OR length(trim(weight_table_id)) > 0),
+  baseline_ranking_version TEXT NULL CHECK (baseline_ranking_version IS NULL OR length(trim(baseline_ranking_version)) > 0),
+  baseline_weight_table_id TEXT NULL CHECK (baseline_weight_table_id IS NULL OR length(trim(baseline_weight_table_id)) > 0),
+  payload_json TEXT NOT NULL CHECK (json_valid(payload_json) AND json_type(payload_json) = 'object'),
+  created_at TEXT NOT NULL,
+  CHECK ((decision_kind = 'judgment') = (dimension IS NOT NULL)),
+  CHECK ((decision_kind = 'judgment') = (question_id IS NOT NULL)),
+  CHECK ((decision_kind = 'judgment') = (kick_id IS NULL AND kick_content_fingerprint IS NULL AND kick_analysis_version IS NULL AND questions_digest IS NULL AND ranking_version IS NULL AND weight_table_id IS NULL AND baseline_ranking_version IS NULL AND baseline_weight_table_id IS NULL)),
+  CHECK ((decision_kind = 'candidate_decision') = (kick_id IS NOT NULL)),
+  CHECK ((decision_kind = 'candidate_decision') = (kick_content_fingerprint IS NOT NULL)),
+  CHECK ((decision_kind = 'candidate_decision') = (kick_analysis_version IS NOT NULL)),
+  CHECK ((decision_kind = 'candidate_decision') = (questions_digest IS NOT NULL)),
+  CHECK ((decision_kind = 'candidate_decision') = (ranking_version IS NOT NULL)),
+  CHECK ((decision_kind = 'candidate_decision') = (weight_table_id IS NOT NULL)),
+  CHECK ((decision_kind = 'candidate_decision') = (baseline_ranking_version IS NOT NULL)),
+  CHECK ((decision_kind = 'candidate_decision') = (baseline_weight_table_id IS NOT NULL)),
+  CHECK (decision_kind <> 'candidate_decision' OR dimension IS NULL)
+);
+CREATE INDEX idx_decision_cache_created ON decision_cache(created_at, cache_key);
+CREATE INDEX idx_decision_cache_candidate ON decision_cache(candidate_id);
+
+CREATE TABLE decision_model_versions (
+  interface_name TEXT NOT NULL CHECK (length(trim(interface_name)) > 0),
+  source TEXT NOT NULL CHECK (source IN ('interface', 'double')),
+  adapter_version TEXT NOT NULL CHECK (length(trim(adapter_version)) > 0),
+  prompt_version TEXT NOT NULL CHECK (length(trim(prompt_version)) > 0),
+  model_version TEXT NOT NULL CHECK (length(trim(model_version)) > 0),
+  first_observed_at TEXT NOT NULL,
+  observed_at TEXT NOT NULL,
+  observation_count INTEGER NOT NULL DEFAULT 1 CHECK (observation_count >= 1),
+  PRIMARY KEY (interface_name, source, adapter_version, prompt_version)
+);
+"""
+
+
+MIGRATIONS = ((1, _MIGRATION_1), (2, _MIGRATION_2), (3, _MIGRATION_3), (4, _MIGRATION_4))
 
 
 def utc_now() -> str:

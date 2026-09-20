@@ -1,0 +1,313 @@
+[
+  {
+    "name": "cache_key_version",
+    "field": "cache_key_version",
+    "source": "key",
+    "changed": "decision-cache-v2",
+    "expects": {
+      "judgment": "miss",
+      "candidate_decision": "miss"
+    },
+    "digest_changes": {
+      "judgment": true,
+      "candidate_decision": true
+    }
+  },
+  {
+    "name": "decision_kind",
+    "field": "decision_kind",
+    "source": "kind",
+    "changed": "candidate_decision",
+    "expects": {
+      "judgment": "cache_key_invalid",
+      "candidate_decision": "cache_key_invalid"
+    },
+    "digest_changes": {
+      "judgment": false,
+      "candidate_decision": false
+    }
+  },
+  {
+    "name": "source",
+    "field": "source",
+    "source": "identity",
+    "changed": "interface",
+    "expects": {
+      "judgment": "miss",
+      "candidate_decision": "miss"
+    },
+    "digest_changes": {
+      "judgment": true,
+      "candidate_decision": true
+    }
+  },
+  {
+    "name": "interface_name",
+    "field": "interface_name",
+    "source": "identity",
+    "changed": "synthetic-interface-2",
+    "expects": {
+      "judgment": "miss",
+      "candidate_decision": "miss"
+    },
+    "digest_changes": {
+      "judgment": true,
+      "candidate_decision": true
+    }
+  },
+  {
+    "name": "adapter_version",
+    "field": "adapter_version",
+    "source": "identity",
+    "changed": "jev-adapter-v2",
+    "expects": {
+      "judgment": "miss",
+      "candidate_decision": "miss"
+    },
+    "digest_changes": {
+      "judgment": true,
+      "candidate_decision": true
+    }
+  },
+  {
+    "name": "prompt_version",
+    "field": "prompt_version",
+    "source": "identity",
+    "changed": "jev-questions-v2",
+    "expects": {
+      "judgment": "miss",
+      "candidate_decision": "miss"
+    },
+    "digest_changes": {
+      "judgment": true,
+      "candidate_decision": true
+    }
+  },
+  {
+    "name": "model_version",
+    "field": "model_version",
+    "source": "identity",
+    "changed": "synthetic-model-2",
+    "expects": {
+      "judgment": "miss",
+      "candidate_decision": "miss"
+    },
+    "digest_changes": {
+      "judgment": true,
+      "candidate_decision": true
+    }
+  },
+  {
+    "name": "palette_hash",
+    "field": "palette_hash",
+    "source": "identity",
+    "changed": "2f3e4d5c6b7a8998a9bacbdcedfe0f102f3e4d5c6b7a8998a9bacbdcedfe0f10",
+    "expects": {
+      "judgment": "miss",
+      "candidate_decision": "miss"
+    },
+    "digest_changes": {
+      "judgment": true,
+      "candidate_decision": true
+    }
+  },
+  {
+    "name": "palette_hash_version",
+    "field": "palette_hash_version",
+    "source": "identity",
+    "changed": "palette-hash-v2",
+    "expects": {
+      "judgment": "miss",
+      "candidate_decision": "miss"
+    },
+    "digest_changes": {
+      "judgment": true,
+      "candidate_decision": true
+    }
+  },
+  {
+    "name": "candidate_id",
+    "field": "candidate_id",
+    "source": "identity",
+    "changed": "bass-002",
+    "expects": {
+      "judgment": "miss",
+      "candidate_decision": "miss"
+    },
+    "digest_changes": {
+      "judgment": true,
+      "candidate_decision": true
+    }
+  },
+  {
+    "name": "candidate_content_fingerprint",
+    "field": "candidate_content_fingerprint",
+    "source": "identity",
+    "changed": "d2c3b4a5f60718293a4b5c6d7e8f9012d2c3b4a5f60718293a4b5c6d7e8f9012",
+    "expects": {
+      "judgment": "miss",
+      "candidate_decision": "miss"
+    },
+    "digest_changes": {
+      "judgment": true,
+      "candidate_decision": true
+    }
+  },
+  {
+    "name": "candidate_analysis_version",
+    "field": "candidate_analysis_version",
+    "source": "identity",
+    "changed": "dsp-fixture-2",
+    "expects": {
+      "judgment": "miss",
+      "candidate_decision": "miss"
+    },
+    "digest_changes": {
+      "judgment": true,
+      "candidate_decision": true
+    }
+  },
+  {
+    "name": "dimension",
+    "field": "dimension",
+    "source": "question",
+    "changed": "transient",
+    "expects": {
+      "judgment": "miss",
+      "candidate_decision": "hit"
+    },
+    "digest_changes": {
+      "judgment": true,
+      "candidate_decision": false
+    }
+  },
+  {
+    "name": "question_id",
+    "field": "question_id",
+    "source": "question_id",
+    "changed": "q-0000000000000000000000000000000000000000000000000000000000000000",
+    "expects": {
+      "judgment": "miss",
+      "candidate_decision": "hit"
+    },
+    "digest_changes": {
+      "judgment": true,
+      "candidate_decision": false
+    }
+  },
+  {
+    "name": "kick_id",
+    "field": "kick_id",
+    "source": "identity",
+    "changed": "kick-002",
+    "expects": {
+      "judgment": "hit",
+      "candidate_decision": "miss"
+    },
+    "digest_changes": {
+      "judgment": false,
+      "candidate_decision": true
+    }
+  },
+  {
+    "name": "kick_content_fingerprint",
+    "field": "kick_content_fingerprint",
+    "source": "identity",
+    "changed": "e3d4c5b6a708192a3b4c5d6e7f80912ee3d4c5b6a708192a3b4c5d6e7f80912e",
+    "expects": {
+      "judgment": "hit",
+      "candidate_decision": "miss"
+    },
+    "digest_changes": {
+      "judgment": false,
+      "candidate_decision": true
+    }
+  },
+  {
+    "name": "kick_analysis_version",
+    "field": "kick_analysis_version",
+    "source": "identity",
+    "changed": "dsp-fixture-2",
+    "expects": {
+      "judgment": "hit",
+      "candidate_decision": "miss"
+    },
+    "digest_changes": {
+      "judgment": false,
+      "candidate_decision": true
+    }
+  },
+  {
+    "name": "questions_digest",
+    "field": "questions_digest",
+    "source": "questions",
+    "changed": [
+      "full_transient",
+      "full_texture"
+    ],
+    "expects": {
+      "judgment": "hit",
+      "candidate_decision": "miss"
+    },
+    "digest_changes": {
+      "judgment": false,
+      "candidate_decision": true
+    }
+  },
+  {
+    "name": "ranking_version",
+    "field": "ranking_version",
+    "source": "identity",
+    "changed": "hybrid-ranking-v2",
+    "expects": {
+      "judgment": "hit",
+      "candidate_decision": "miss"
+    },
+    "digest_changes": {
+      "judgment": false,
+      "candidate_decision": true
+    }
+  },
+  {
+    "name": "weight_table_id",
+    "field": "weight_table_id",
+    "source": "identity",
+    "changed": "hybrid-weights-2",
+    "expects": {
+      "judgment": "hit",
+      "candidate_decision": "miss"
+    },
+    "digest_changes": {
+      "judgment": false,
+      "candidate_decision": true
+    }
+  },
+  {
+    "name": "baseline_ranking_version",
+    "field": "baseline_ranking_version",
+    "source": "identity",
+    "changed": "dsp-baseline-v2",
+    "expects": {
+      "judgment": "hit",
+      "candidate_decision": "miss"
+    },
+    "digest_changes": {
+      "judgment": false,
+      "candidate_decision": true
+    }
+  },
+  {
+    "name": "baseline_weight_table_id",
+    "field": "baseline_weight_table_id",
+    "source": "identity",
+    "changed": "dsp-baseline-weights-2",
+    "expects": {
+      "judgment": "hit",
+      "candidate_decision": "miss"
+    },
+    "digest_changes": {
+      "judgment": false,
+      "candidate_decision": true
+    }
+  }
+]

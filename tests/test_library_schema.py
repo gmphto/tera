@@ -38,6 +38,8 @@ USER_TABLE_QUERY = (
 
 USER_TABLES = (
     "analysis_versions",
+    "decision_cache",
+    "decision_model_versions",
     "job_items",
     "job_runs",
     "palette_items",
@@ -52,6 +54,17 @@ USER_TABLES = (
 
 COLUMNS = {
     "analysis_versions": ("analysis_version", "descriptor", "created_at"),
+    "decision_cache": ("cache_key", "cache_key_version", "decision_kind", "source",
+                       "interface_name", "adapter_version", "prompt_version", "model_version",
+                       "palette_hash", "palette_hash_version", "candidate_id",
+                       "candidate_content_fingerprint", "candidate_analysis_version", "dimension",
+                       "question_id", "kick_id", "kick_content_fingerprint",
+                       "kick_analysis_version", "questions_digest", "ranking_version",
+                       "weight_table_id", "baseline_ranking_version",
+                       "baseline_weight_table_id", "payload_json", "created_at"),
+    "decision_model_versions": ("interface_name", "source", "adapter_version", "prompt_version",
+                                "model_version", "first_observed_at", "observed_at",
+                                "observation_count"),
     "job_runs": ("run_id", "state", "analysis_version", "workers", "max_attempts", "owner_token",
                  "heartbeat_at", "started_at", "finished_at", "cancel_requested"),
     "job_items": ("item_id", "sample_id", "analysis_version", "path", "role", "state",
@@ -173,7 +186,7 @@ def column_names(connection, table):
 def test_a_fresh_database_reaches_the_current_version(tmp_path):
     connection = open_library(tmp_path / "library.sqlite3")
     try:
-        assert SCHEMA_VERSION == 3
+        assert SCHEMA_VERSION == 4
         assert MIGRATIONS[-1][0] == SCHEMA_VERSION
         assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         assert user_tables(connection) == USER_TABLES

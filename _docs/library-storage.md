@@ -70,7 +70,7 @@ byte-for-byte unchanged, and a header-valid file that fails
 
 ## Migrations
 
-`schema.SCHEMA_VERSION` is the version this module knows (currently `3`) and
+`schema.SCHEMA_VERSION` is the version this module knows (currently `4`) and
 `schema.MIGRATIONS` is an ordered tuple of `(version, script)` pairs, each
 script holding one or more SQL statements.
 
@@ -95,16 +95,19 @@ and no row change.
 
 ## Tables
 
-The user-table set is exactly these eleven tables. `PRAGMA user_version` is
+The user-table set is exactly these thirteen tables. `PRAGMA user_version` is
 `SCHEMA_VERSION`, and no table, column or index outside this list is created.
 The six tables below were created by migration 1 (#21); migration 2 (#23) adds
 `job_items` and `job_runs`, the persisted analysis job queue, whose columns,
 constraints, indexes and state transitions are documented in
 [`library-jobs.md`](library-jobs.md); migration 3 (#24) adds `projects`,
 `palettes` and `palette_items`, the project and palette persistence documented
-in [`palette-storage.md`](palette-storage.md). `compatibility_scores`,
-`recommendation_outcomes` and `decision_model_versions` belong to later issues
-and do not exist here.
+in [`palette-storage.md`](palette-storage.md); migration 4 (#26) adds
+`decision_cache` and `decision_model_versions`, the versioned decision cache
+documented in [`decision-cache.md`](decision-cache.md), which deliberately
+gives `decision_cache.candidate_id` and `decision_cache.kick_id` no foreign
+key to `samples`. `compatibility_scores` and `recommendation_outcomes`
+belong to later issues and do not exist here.
 
 ### analysis_versions
 
@@ -310,7 +313,7 @@ non-database file with its bytes unchanged, refusal of a newer schema version
 with every row unchanged, corrupt databases, an upgrade that preserves rows, a
 failing migration that rolls back, the connection pragmas, `verify` reporting a
 foreign-key violation, `default_database_path` honouring the override, and the
-eleven-table set with no BLOB column. `tests/test_library_repository.py` covers
+thirteen-table set with no BLOB column. `tests/test_library_repository.py` covers
 the round trip of `silent-sample.json` and of both `hybrid.json` samples,
 coexisting analysis versions, the deterministic default version, duplicate
 content on one id moving the path, duplicate content on another id being
