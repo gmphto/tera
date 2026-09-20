@@ -1,0 +1,12 @@
+[package]
+name = "tera-shell"
+version = "0.1.0"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "=2.11.5", features = [] }
+serde = { version = "1", features = [] }
+serde_json = { version = "1", features = [] }

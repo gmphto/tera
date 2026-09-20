@@ -23,3 +23,9 @@ To run just the smoke test:
 ```sh
 uv run pytest tests/test_smoke.py
 ```
+
+## Desktop shell (development)
+
+The development window is a Tauri host around the local service. Install Node 26
+and the Rust toolchain, run `uv sync --locked` and `npm ci`, then
+`npm run tauri dev`. See [_docs/desktop-shell.md](_docs/desktop-shell.md).
