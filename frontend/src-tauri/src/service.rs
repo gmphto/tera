@@ -15,7 +15,7 @@ use std::net::TcpStream;
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::mpsc::{self, RecvTimeoutError, Sender};
+use std::sync::mpsc::{self, Sender, TryRecvError};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -255,10 +255,19 @@ impl Supervisor {
             }
             *guard = None;
         }
-        let (data_dir, port_file) = {
+        let (data_dir, port_file, owned) = {
             let state = self.inner.state.lock().expect("the state lock is not poisoned");
-            (state.data_dir.clone(), state.port_file.clone())
+            (
+                state.data_dir.clone(),
+                state.port_file.clone(),
+                state.mode == "owned",
+            )
         };
+        // An attached window owns neither the service nor its two files: they
+        // belong to the window that started it, and only that window removes them.
+        if !owned {
+            return;
+        }
         // The lock is what makes the removal final: a heartbeat that already
         // passed its own checks must finish before these two lines run.
         let _guard = self.inner.files.lock().expect("the files lock is not poisoned");
@@ -421,9 +430,46 @@ impl Supervisor {
             if self.stale(generation) {
                 return;
             }
+            // Every line that has arrived is read before the exit is judged, so a
+            // refusal that comes with the exit -- #27 writes `bind_failed` and
+            // then exits 2 -- is reported as `port_in_use`, not as a plain exit.
+            let mut listening = None;
+            loop {
+                match receiver.try_recv() {
+                    Ok(Line::Out(line)) => {
+                        push(&mut tail, &line);
+                        if let Some(value) = listening_line(&line) {
+                            listening = Some(value);
+                        }
+                    }
+                    Ok(Line::Err(line)) => {
+                        push(&mut tail, &line);
+                        if bind_failure(&line).as_deref() == Some("port_in_use") {
+                            bind_failed = true;
+                        }
+                    }
+                    Err(TryRecvError::Empty) | Err(TryRecvError::Disconnected) => break,
+                }
+            }
+            if let Some(value) = listening {
+                let port = value
+                    .get("port")
+                    .and_then(Value::as_u64)
+                    .and_then(|p| u16::try_from(p).ok());
+                let reported = value
+                    .get("pid")
+                    .and_then(Value::as_u64)
+                    .map(|p| p as u32)
+                    .unwrap_or(pid);
+                if let Some(port) = port {
+                    let origin = format!("http://127.0.0.1:{port}");
+                    return self.wait_for_health(generation, origin, port, reported, &port_file);
+                }
+            }
             if let Ok(Some(code)) = self.child_exit() {
+                let reason = if bind_failed { "port_in_use" } else { "service_exited" };
                 let text = tail.iter().cloned().collect::<Vec<_>>().join("\n");
-                return self.fail(generation, "service_exited", Some(code), text);
+                return self.fail(generation, reason, Some(code), text);
             }
             if last_file_check.elapsed() >= PORT_FILE_POLL {
                 last_file_check = Instant::now();
@@ -432,41 +478,13 @@ impl Supervisor {
                     return self.connected(generation, origin, port, reported_pid, body);
                 }
             }
-            match receiver.recv_timeout(POLL) {
-                Ok(Line::Out(line)) => {
-                    push(&mut tail, &line);
-                    if let Some(listening) = listening(&line) {
-                        let port = listening
-                            .get("port")
-                            .and_then(Value::as_u64)
-                            .and_then(|p| u16::try_from(p).ok());
-                        let reported = listening
-                            .get("pid")
-                            .and_then(Value::as_u64)
-                            .map(|p| p as u32)
-                            .unwrap_or(pid);
-                        if let Some(port) = port {
-                            let origin = format!("http://127.0.0.1:{port}");
-                            return self
-                                .wait_for_health(generation, origin, port, reported, &port_file);
-                        }
-                    }
-                }
-                Ok(Line::Err(line)) => {
-                    push(&mut tail, &line);
-                    if bind_failure(&line).as_deref() == Some("port_in_use") {
-                        bind_failed = true;
-                    }
-                }
-                Err(RecvTimeoutError::Timeout) => {}
-                Err(RecvTimeoutError::Disconnected) => thread::sleep(POLL),
-            }
             if Instant::now() >= deadline {
                 let reason = if bind_failed { "port_in_use" } else { "start_timeout" };
                 let exit = self.child_exit().ok().flatten();
                 let text = tail.iter().cloned().collect::<Vec<_>>().join("\n");
                 return self.fail(generation, reason, exit, text);
             }
+            thread::sleep(POLL);
         }
     }
 
@@ -766,7 +784,7 @@ fn push(tail: &mut VecDeque<String>, line: &str) {
     }
 }
 
-fn listening(line: &str) -> Option<Value> {
+fn listening_line(line: &str) -> Option<Value> {
     let value: Value = serde_json::from_str(line.trim()).ok()?;
     match value.get("event").and_then(Value::as_str) {
         Some("listening") => Some(value),
@@ -907,4 +925,267 @@ fn civil_from_days(days: i64) -> (i64, i64, i64) {
     let day = doy - (153 * mp + 2) / 5 + 1;
     let month = if mp < 10 { mp + 3 } else { mp - 9 };
     (if month <= 2 { year + 1 } else { year }, month, day)
+}
+
+// ---------------------------------------------------------------------------
+// the host's own states, driven without a window
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::net::TcpListener;
+    use std::path::PathBuf;
+
+    /// The environment is process-global, so one test drives the host at a time.
+    static ENVIRONMENT: Mutex<()> = Mutex::new(());
+
+    /// A test's own data directory and a clean environment, restored on drop.
+    struct Isolated {
+        _lock: std::sync::MutexGuard<'static, ()>,
+        dir: PathBuf,
+        saved: Vec<(&'static str, Option<String>)>,
+    }
+
+    impl Isolated {
+        fn new(name: &str) -> Self {
+            let lock = ENVIRONMENT
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let saved = VARS
+                .iter()
+                .map(|variable| (*variable, std::env::var(variable).ok()))
+                .collect();
+            for variable in VARS {
+                std::env::remove_var(variable);
+            }
+            let dir = std::env::temp_dir().join(format!("tera-shell-test-{name}"));
+            let _ = fs::remove_dir_all(&dir);
+            fs::create_dir_all(&dir).expect("the test data directory is created");
+            std::env::set_var(paths::DATA_DIR_ENV, &dir);
+            Self {
+                _lock: lock,
+                dir,
+                saved,
+            }
+        }
+
+        fn path(&self, name: &str) -> PathBuf {
+            self.dir.join(name)
+        }
+    }
+
+    impl Drop for Isolated {
+        fn drop(&mut self) {
+            for (variable, value) in &self.saved {
+                match value {
+                    Some(value) => std::env::set_var(variable, value),
+                    None => std::env::remove_var(variable),
+                }
+            }
+            let _ = fs::remove_dir_all(&self.dir);
+        }
+    }
+
+    const VARS: [&str; 5] = [
+        paths::PYTHON_ENV,
+        paths::DATA_DIR_ENV,
+        paths::DATABASE_ENV,
+        paths::PORT_ENV,
+        paths::URL_ENV,
+    ];
+
+    /// A supervisor that is always stopped, even when an assertion fails, so a
+    /// test run cannot leave a service behind on the developer's machine.
+    struct Owned(Supervisor);
+
+    impl Drop for Owned {
+        fn drop(&mut self) {
+            self.0.shutdown();
+        }
+    }
+
+    fn interpreter_exists() -> bool {
+        paths::repository_root()
+            .join(".venv")
+            .join("Scripts")
+            .join("python.exe")
+            .is_file()
+    }
+
+    fn wait_for(supervisor: &Supervisor, phase: &str, seconds: u64) -> Value {
+        let deadline = Instant::now() + Duration::from_secs(seconds);
+        loop {
+            let snapshot = supervisor.snapshot();
+            if snapshot.get("phase").and_then(Value::as_str) == Some(phase) {
+                return snapshot;
+            }
+            if Instant::now() >= deadline {
+                return snapshot;
+            }
+            thread::sleep(Duration::from_millis(50));
+        }
+    }
+
+    #[test]
+    fn a_missing_interpreter_is_unavailable_and_names_the_reason() {
+        let isolated = Isolated::new("python-not-found");
+        std::env::set_var(paths::PYTHON_ENV, isolated.path("absent-python.exe"));
+        let supervisor = Owned(Supervisor::new());
+        supervisor.0.start();
+        let snapshot = wait_for(&supervisor.0, "unavailable", 30);
+        assert_eq!(snapshot["phase"], "unavailable");
+        assert_eq!(snapshot["reason"], "python_not_found");
+        assert_eq!(snapshot["exit_code"], Value::Null);
+        assert_eq!(snapshot["pid"], Value::Null);
+    }
+
+    #[test]
+    fn a_port_outside_the_range_is_refused_before_any_spawn() {
+        let _isolated = Isolated::new("invalid-port");
+        std::env::set_var(paths::PORT_ENV, "99999");
+        let supervisor = Owned(Supervisor::new());
+        supervisor.0.start();
+        let snapshot = wait_for(&supervisor.0, "unavailable", 30);
+        assert_eq!(snapshot["reason"], "invalid_configuration");
+        assert_eq!(snapshot["exit_code"], Value::Null);
+        assert_eq!(snapshot["pid"], Value::Null);
+    }
+
+    #[test]
+    fn a_relative_data_directory_is_refused() {
+        let _isolated = Isolated::new("relative-data");
+        std::env::set_var(paths::DATA_DIR_ENV, "relative/data");
+        let supervisor = Owned(Supervisor::new());
+        supervisor.0.start();
+        let snapshot = wait_for(&supervisor.0, "unavailable", 30);
+        assert_eq!(snapshot["reason"], "invalid_configuration");
+    }
+
+    #[test]
+    fn an_attach_origin_nothing_answers_is_connection_refused() {
+        let _isolated = Isolated::new("connection-refused");
+        let listener = TcpListener::bind("127.0.0.1:0").expect("a port is chosen");
+        let port = listener.local_addr().expect("the port is known").port();
+        drop(listener);
+        std::env::set_var(paths::URL_ENV, format!("http://127.0.0.1:{port}"));
+        let supervisor = Owned(Supervisor::new());
+        supervisor.0.start();
+        let snapshot = wait_for(&supervisor.0, "unavailable", 30);
+        assert_eq!(snapshot["mode"], "attached");
+        assert_eq!(snapshot["reason"], "connection_refused");
+    }
+
+    #[test]
+    fn an_occupied_port_is_reported_as_port_in_use_with_exit_code_two() {
+        let _isolated = Isolated::new("port-in-use");
+        let holder = TcpListener::bind("127.0.0.1:0").expect("a port is held");
+        let port = holder.local_addr().expect("the held port is known").port();
+        std::env::set_var(paths::PORT_ENV, port.to_string());
+        let supervisor = Owned(Supervisor::new());
+        supervisor.0.start();
+        let snapshot = wait_for(&supervisor.0, "failed", 60);
+        assert_eq!(snapshot["phase"], "failed");
+        assert_eq!(snapshot["reason"], "port_in_use");
+        assert_eq!(snapshot["exit_code"], 2);
+        drop(holder);
+    }
+
+    #[test]
+    fn the_owned_service_runs_and_a_stop_removes_the_two_files() {
+        if !interpreter_exists() {
+            // The interpreter is a prerequisite of the repository, not a fixture:
+            // without it there is nothing to drive, and #27 is not installed.
+            return;
+        }
+        let isolated = Isolated::new("owned-service");
+        let supervisor = Owned(Supervisor::new());
+        supervisor.0.start();
+        let running = wait_for(&supervisor.0, "running", 120);
+        assert_eq!(running["phase"], "running");
+        assert_eq!(running["mode"], "owned");
+        assert_eq!(running["health_seen"], true);
+        assert!(running["origin"]
+            .as_str()
+            .unwrap_or_default()
+            .starts_with("http://127.0.0.1:"));
+        assert!(running["pid"].as_u64().unwrap_or(0) > 0);
+
+        let mut record =
+            read_json(&isolated.path(INSTANCE_FILE_NAME)).expect("the record exists");
+        assert_eq!(record["schema"], 1);
+        assert_eq!(record["service_pid"], running["pid"]);
+        assert_eq!(record["mode"], "owned");
+        assert_eq!(record["port"], running["port"]);
+        // The heartbeat refreshes the record while the service is healthy. This is
+        // the write a silently failing atomic rename would drop, leaving a stale
+        // timestamp behind a healthy panel.
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while record["heartbeat_at"] == record["started_at"] && Instant::now() < deadline {
+            thread::sleep(Duration::from_millis(200));
+            record = read_json(&isolated.path(INSTANCE_FILE_NAME)).expect("the record exists");
+        }
+        assert_ne!(
+            record["heartbeat_at"], record["started_at"],
+            "the heartbeat refreshed the record"
+        );
+        assert!(isolated.path(PORT_FILE_NAME).is_file());
+
+        supervisor.0.stop();
+        let stopped = supervisor.0.snapshot();
+        assert_eq!(stopped["phase"], "unavailable");
+        assert_eq!(stopped["reason"], "stopped_by_user");
+        assert_eq!(stopped["pid"], Value::Null);
+        assert!(!isolated.path(PORT_FILE_NAME).exists());
+        assert!(!isolated.path(INSTANCE_FILE_NAME).exists());
+    }
+
+    #[test]
+    fn a_killed_service_is_visible_as_service_exited() {
+        if !interpreter_exists() {
+            return;
+        }
+        let isolated = Isolated::new("service-exited");
+        let supervisor = Owned(Supervisor::new());
+        supervisor.0.start();
+        let running = wait_for(&supervisor.0, "running", 120);
+        assert_eq!(running["phase"], "running");
+        let pid = running["pid"].as_u64().expect("the service has a pid") as u32;
+
+        taskkill(pid);
+        let snapshot = wait_for(&supervisor.0, "failed", 15);
+        assert_eq!(snapshot["phase"], "failed");
+        assert_eq!(snapshot["reason"], "service_exited");
+        assert!(snapshot["exit_code"].as_i64().is_some());
+        assert!(!isolated.path(INSTANCE_FILE_NAME).exists());
+        assert!(!isolated.path(PORT_FILE_NAME).exists());
+    }
+
+    #[test]
+    fn a_second_window_adopts_a_service_with_a_fresh_heartbeat() {
+        if !interpreter_exists() {
+            return;
+        }
+        let isolated = Isolated::new("adopt");
+        let owner = Owned(Supervisor::new());
+        owner.0.start();
+        let running = wait_for(&owner.0, "running", 120);
+        assert_eq!(running["phase"], "running");
+        let record = read_json(&isolated.path(INSTANCE_FILE_NAME)).expect("the record exists");
+
+        // A second supervisor over the same data directory: it reads the record,
+        // finds a live service with a fresh heartbeat, and attaches instead of
+        // spawning a second one.
+        let second = Supervisor::new();
+        second.start();
+        let adopted = wait_for(&second, "running", 30);
+        assert_eq!(adopted["mode"], "attached");
+        assert_eq!(adopted["pid"], record["service_pid"]);
+        // The non-owner never terminates the service.
+        second.shutdown();
+        assert!(read_json(&isolated.path(INSTANCE_FILE_NAME)).is_some());
+
+        owner.0.stop();
+        assert!(!isolated.path(INSTANCE_FILE_NAME).exists());
+    }
 }

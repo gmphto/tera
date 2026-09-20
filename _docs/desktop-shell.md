@@ -30,6 +30,7 @@ uv sync --locked                      # the Python service and pytest
 cd frontend && npm ci                 # the pinned npm tree, no writes outside it
 npm test                              # vitest: the status table and the API pipeline
 npm run build                         # tsc --noEmit, then dist/index.html + hashed assets
+cargo test --manifest-path src-tauri/Cargo.toml   # the host's states, without a window
 npm run tauri dev                     # the window, with Vite on http://localhost:1420
 npm run tauri build                   # the release binary
 ```
@@ -188,7 +189,9 @@ recorded origin for at most 2 s, and applies exactly these rules:
   its own.
 - A live service with a fresh heartbeat belongs to another live window: this
   window attaches (`mode: "attached"`), never spawns a second service, and never
-  terminates it on exit. Only the owner stops its child.
+  terminates it on exit. Only the owner stops its child. An attached window also
+  removes neither file: `service-port.json` and `service-instance.json` belong to
+  the window that started the service, and only that window deletes them.
 - A record whose service does not answer is overwritten, and the process id in
   it is **never** killed, because a recycled pid must not be terminated.
 
@@ -289,8 +292,18 @@ and the committed `Cargo.lock` must resolve the approved version.
 
 ## Smoke check
 
+`cargo test --manifest-path src-tauri/Cargo.toml` drives the host's own state
+machine without a window, against the real service and its own temporary data
+directory. Eight cases: a missing interpreter, a port outside the range, a
+relative data directory, an attach origin nothing answers, an occupied port
+(asserting the parsed `bind_failed` line and exit code 2), a healthy owned
+service whose stop removes both files and whose heartbeat refreshes the record, a
+service killed mid-session, and a second window adopting a service with a fresh
+heartbeat without disturbing it.
+
 A green typecheck, test and web build is **not** evidence for the window
-criteria. The check that is:
+criteria: what the panel renders in each phase still has to be seen. The check
+that is:
 
 1. Delete `<data>`, launch `npm run tauri dev`, and read `data-phase`,
    `data-reason` and the directory listing.
