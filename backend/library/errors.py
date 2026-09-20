@@ -117,3 +117,59 @@ class InvalidFileStatus(LibraryError):
     """A file status is not one of present, missing or unknown."""
 
     code = "invalid_file_status"
+
+# -- projects and palettes (issue #24) --------------------------------------
+
+
+class UnknownProject(LibraryError):
+    """No projects row for that project_id."""
+
+    code = "unknown_project"
+
+
+class UnknownPalette(LibraryError):
+    """No palettes row for that palette_id."""
+
+    code = "unknown_palette"
+
+
+class UnknownSlot(LibraryError):
+    """A slot literal is not one of MVP_SLOTS."""
+
+    code = "unknown_slot"
+
+
+class RoleMismatch(LibraryError):
+    """The sample's stored role is not one the slot accepts; the message names both."""
+
+    code = "role_mismatch"
+
+
+class InvalidContext(LibraryError):
+    """A song context failed contract validation; the contract error is the __cause__."""
+
+    code = "invalid_context"
+
+
+class RevisionConflict(LibraryError):
+    """A mutation's expected_revision is not the palette's stored revision.
+
+    The caller's expectation and the stored revision are both readable on the
+    error, so a writer can re-read and retry without parsing the message.
+    """
+
+    code = "revision_conflict"
+
+    def __init__(self, expected_revision, current_revision, message=None):
+        self.expected_revision = expected_revision
+        self.current_revision = current_revision
+        super().__init__(message or (
+            f"Palette revision conflict: expected {expected_revision!r}, "
+            f"stored {current_revision!r}."))
+
+
+class PaletteIncomplete(LibraryError):
+    """A palette has no active kick, so it cannot be assembled into a context."""
+
+    code = "palette_incomplete"
+

@@ -21,6 +21,11 @@ Rules this module enforces:
   transaction open between calls.
 - No audio. Import never opens, stats or reads the audio file, and no column
   holds audio bytes, a Jev payload or a credential.
+- Palettes (issue #24). A palette is one active item per `MVP_SLOTS` slot, and
+  a mutation is one transaction that compares the caller's `expected_revision`
+  with the stored one, bumps it by exactly one and writes the new row. A read
+  resolves each item against `samples` without writing anything and never
+  raises for a sample that is missing, unknown or pruned.
 
 Only the standard library and `backend.contracts` / `backend.analysis.batch`
 are imported here; `json` is used to parse a stored descriptor back so it can
@@ -35,6 +40,7 @@ import json
 import os
 from pathlib import PureWindowsPath
 import sqlite3
+import uuid
 
 from backend.analysis.batch import ROLES, analysis_descriptor, canonical, digest
 from backend.contracts import (
@@ -44,6 +50,7 @@ from backend.contracts import (
     Measurement,
     MusicalKey,
     Sample,
+    SongContext,
 )
 from backend.library.errors import (
     AnalysisVersionMismatch,
@@ -51,16 +58,32 @@ from backend.library.errors import (
     DuplicateContent,
     IncompleteFeatures,
     InvalidContentIdentity,
+    InvalidContext,
     InvalidFileStatus,
     InvalidSample,
     InvalidTag,
     LibraryError,
     PathConflict,
+    RevisionConflict,
+    RoleMismatch,
     UnknownAnalysisVersion,
+    UnknownPalette,
+    UnknownProject,
     UnknownSample,
+    UnknownSlot,
     WriteFailed,
 )
 from backend.library.schema import FILE_STATUSES, utc_now
+from backend.palette.model import (
+    MVP_SLOTS,
+    SLOT_ROLES,
+    SONG_CONTEXT_ABSENT_REASON,
+    PaletteContextState,
+    PaletteItemRecord,
+    PaletteMutation,
+    PaletteRecord,
+    ProjectRecord,
+)
 
 
 HEX_DIGITS = "0123456789abcdef"
@@ -189,6 +212,106 @@ def _require_file_status(file_status) -> str:
         raise InvalidFileStatus(
             f"file_status must be one of {', '.join(FILE_STATUSES)}; got {file_status!r}.")
     return file_status
+
+
+def _new_id(prefix: str) -> str:
+    """An opaque identifier: a prefix and 32 random hex characters (uuid4)."""
+
+    return f"{prefix}-{uuid.uuid4().hex}"
+
+
+def _require_label(value, name: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise WriteFailed(f"{name} must be a nonblank string.")
+    return value
+
+
+def _validated_context(value) -> SongContext:
+    """A `SongContext` for a `SongContext` or wire dict, or `InvalidContext`.
+
+    A `SongContext` instance is re-validated through its own `to_dict()`, so a
+    tampered instance cannot reach the database, exactly as `_validated_sample`
+    re-validates a `Sample`.
+    """
+
+    if isinstance(value, SongContext):
+        try:
+            payload = value.to_dict()
+        except (TypeError, ValueError) as error:
+            raise InvalidContext(f"song: {error}") from error
+    elif isinstance(value, dict):
+        payload = value
+    else:
+        raise InvalidContext("song: expected a SongContext payload.")
+    try:
+        return SongContext.from_dict(payload)
+    except (TypeError, ValueError) as error:
+        raise InvalidContext(f"song: {error}") from error
+
+
+def _context_columns(song: SongContext) -> dict:
+    """The stored column values of one validated song context."""
+
+    return {
+        "tempo_bpm": song.tempo.value,
+        "tempo_confidence": song.tempo.confidence,
+        "tempo_unavailable_reason": song.tempo.unavailable_reason,
+        "key_tonic": song.key.tonic,
+        "key_mode": song.key.mode,
+        "key_confidence": song.key.confidence,
+        "key_unavailable_reason": song.key.unavailable_reason,
+        "genre": song.genre,
+        "genre_unavailable_reason": song.genre_unavailable_reason,
+    }
+
+
+def _context_field_state(value, reason) -> str:
+    if value is not None:
+        return "known"
+    return "unset" if reason is None else "unknown"
+
+
+def _context_reason(reason, state):
+    """The contract reason for one stored field.
+
+    The contract has no third state for an absent value: a field whose columns
+    are all NULL (the storage state `unset`) must still report a nonblank
+    reason, and that reason is `SONG_CONTEXT_ABSENT_REASON`. A stored reason
+    alongside a value is not written by this module and is dropped here rather
+    than allowed to make a read raise.
+    """
+
+    if state == "unset":
+        return SONG_CONTEXT_ABSENT_REASON
+    if state == "known":
+        return None
+    return reason
+
+
+def _context_of(row):
+    """The stored song context and its per-field state, read from a palettes row.
+
+    `context_state` is the storage truth (`known`, `unknown`, `unset`); `song`
+    is the contract assembly of the same row, so a read always returns a valid
+    `SongContext` and never raises for an unset palette.
+    """
+
+    state = PaletteContextState(
+        tempo=_context_field_state(row["tempo_bpm"], row["tempo_unavailable_reason"]),
+        key=_context_field_state(row["key_tonic"], row["key_unavailable_reason"]),
+        genre=_context_field_state(row["genre"], row["genre_unavailable_reason"]))
+    song = SongContext(
+        tempo=Measurement(name="tempo", value=row["tempo_bpm"], unit="BPM",
+                          unavailable_reason=_context_reason(
+                              row["tempo_unavailable_reason"], state.tempo),
+                          confidence=row["tempo_confidence"]),
+        key=MusicalKey(tonic=row["key_tonic"], mode=row["key_mode"],
+                       confidence=row["key_confidence"],
+                       unavailable_reason=_context_reason(
+                           row["key_unavailable_reason"], state.key)),
+        genre=row["genre"],
+        genre_unavailable_reason=_context_reason(row["genre_unavailable_reason"], state.genre))
+    return song, state
 
 
 def _path_key(path):
@@ -953,6 +1076,293 @@ class LibraryRepository:
                 "pack_id must be None or a nonblank string without surrounding whitespace.")
         if self._one("SELECT pack_id FROM sample_packs WHERE pack_id = ?", (pack_id,)) is None:
             raise WriteFailed(f"pack {pack_id} is not registered; call upsert_pack first.")
+
+    # -- projects (issue #24) ----------------------------------------------
+
+    def create_project(self, name, *, palette_name="Main") -> ProjectRecord:
+        """Store one project and its single palette in one transaction.
+
+        The MVP has exactly one palette per project (`palettes.project_id` is
+        UNIQUE) and it starts at `revision` 0 with no item and a fully unset
+        context. `name` and `palette_name` must be nonblank strings; they are
+        stored exactly as given. Both identifiers are minted here and are opaque.
+
+        Raises `write_failed`, `database_locked`.
+        """
+
+        _require_label(name, "name")
+        _require_label(palette_name, "palette_name")
+        project_id = _new_id("project")
+        palette_id = _new_id("palette")
+        now = utc_now()
+        with self._writing():
+            self.connection.execute(
+                "INSERT INTO projects (project_id, name, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?)", (project_id, name, now, now))
+            self.connection.execute(
+                "INSERT INTO palettes (palette_id, project_id, name, revision, created_at, "
+                "updated_at) VALUES (?, ?, ?, 0, ?, ?)",
+                (palette_id, project_id, palette_name, now, now))
+        return ProjectRecord(project_id=project_id, name=name, created_at=now, updated_at=now,
+                             palette_id=palette_id)
+
+    def get_project(self, project_id):
+        """One `ProjectRecord`, or None when the project is unknown."""
+
+        row = self._one("SELECT * FROM projects WHERE project_id = ?", (project_id,))
+        return None if row is None else self._project_record(row)
+
+    def list_projects(self) -> tuple:
+        """Every stored project, ordered by `created_at`, then `project_id`."""
+
+        rows = self._all("SELECT * FROM projects ORDER BY created_at ASC, project_id ASC")
+        return tuple(self._project_record(row) for row in rows)
+
+    def delete_project(self, project_id) -> bool:
+        """Remove a project with its palette and items; False when it was unknown.
+
+        The two `ON DELETE CASCADE` rules do the work in one transaction.
+        `samples`, `sample_features`, `sample_keys` and `sample_tags` are never
+        read, updated or deleted here.
+
+        Raises `database_locked`, `write_failed`.
+        """
+
+        with self._writing():
+            cursor = self.connection.execute("DELETE FROM projects WHERE project_id = ?",
+                                             (project_id,))
+            return cursor.rowcount == 1
+
+    def _project_record(self, row) -> ProjectRecord:
+        palette = self._one("SELECT palette_id FROM palettes WHERE project_id = ?",
+                            (row["project_id"],))
+        return ProjectRecord(project_id=row["project_id"], name=row["name"],
+                             created_at=row["created_at"], updated_at=row["updated_at"],
+                             palette_id=None if palette is None else palette["palette_id"])
+
+    # -- palettes (issue #24) -----------------------------------------------
+
+    def load_palette(self, palette_id):
+        """One `PaletteRecord`, or None when the palette is unknown.
+
+        A pure read: it resolves every item against `samples` and the analysis
+        queue without writing, and it never raises for a sample that is missing,
+        unknown, pruned or stored with another role.
+        """
+
+        row = self._one("SELECT * FROM palettes WHERE palette_id = ?", (palette_id,))
+        return None if row is None else self._palette_record(row)
+
+    def list_palettes(self, project_id) -> tuple:
+        """Every palette of one project, ordered by `created_at`, then `palette_id`.
+
+        Raises `unknown_project` for a project with no row.
+        """
+
+        if self._one("SELECT project_id FROM projects WHERE project_id = ?",
+                     (project_id,)) is None:
+            raise UnknownProject(f"No stored project with project_id {project_id}.")
+        rows = self._all("SELECT * FROM palettes WHERE project_id = ? "
+                         "ORDER BY created_at ASC, palette_id ASC", (project_id,))
+        return tuple(self._palette_record(row) for row in rows)
+
+    def set_palette_item(self, palette_id, slot, sample_id, *,
+                         expected_revision) -> PaletteMutation:
+        """Select `sample_id` for `slot`, replacing any active item atomically.
+
+        In one transaction the caller's `expected_revision` is compared with the
+        stored one, the palette's revision is incremented by exactly one, the
+        previously active item (if any) is marked removed at that revision and a
+        new item row is inserted with a new id and the sample's stored role.
+        Re-selecting the sample that is already active in the slot is a no-op
+        that writes nothing and leaves the revision alone.
+
+        Raises `unknown_palette`, `unknown_slot` for a slot outside
+        `MVP_SLOTS`, `invalid_sample` for a blank sample id, `unknown_sample`
+        for an id with no `samples` row, `role_mismatch` when the stored role is
+        not one the slot accepts, `revision_conflict` when `expected_revision`
+        is stale, `database_locked` or `write_failed`.
+        """
+
+        if slot not in MVP_SLOTS:
+            raise UnknownSlot(f"slot must be one of {', '.join(MVP_SLOTS)}; got {slot!r}.")
+        if not isinstance(sample_id, str) or not sample_id.strip():
+            raise InvalidSample("sample_id must be a non-empty string.")
+        with self._writing():
+            palette = self._require_palette(palette_id)
+            self._require_expected(palette, expected_revision)
+            sample = self._one(
+                "SELECT sample_id, role, file_status FROM samples WHERE sample_id = ?",
+                (sample_id,))
+            if sample is None:
+                raise UnknownSample(f"No stored sample with sample_id {sample_id}.")
+            active = self._active_item(palette_id, slot)
+            if active is not None and active["sample_id"] == sample_id:
+                return PaletteMutation(palette_id, palette["revision"], False,
+                                       self._item_record(active), None)
+            accepted = SLOT_ROLES[slot]
+            role = sample["role"]
+            if role not in accepted:
+                raise RoleMismatch(
+                    f"slot {slot} accepts roles {', '.join(accepted)}; sample {sample_id} is "
+                    f"stored with role {role}.")
+            revision = self._bump(palette_id, palette["revision"])
+            now = utc_now()
+            if active is not None:
+                self.connection.execute(
+                    "UPDATE palette_items SET removed_revision = ?, removed_at = ? "
+                    "WHERE item_id = ?", (revision, now, active["item_id"]))
+            item_id = _new_id("item")
+            self.connection.execute(
+                "INSERT INTO palette_items (item_id, palette_id, slot, sample_id, role, "
+                "added_revision, added_at, removed_revision, removed_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL)",
+                (item_id, palette_id, slot, sample_id, role, revision, now))
+            previous = None if active is None else self._item_record(
+                self._one("SELECT * FROM palette_items WHERE item_id = ?",
+                          (active["item_id"],)))
+        return PaletteMutation(palette_id, revision, True, PaletteItemRecord(
+            item_id=item_id, slot=slot, sample_id=sample_id, role=role,
+            added_revision=revision, added_at=now, removed_revision=None, removed_at=None,
+            sample_state=sample["file_status"],
+            sample_error_code=self._sample_error_code(sample_id),
+            slot_role_mismatch=False), previous)
+
+    def remove_palette_item(self, palette_id, slot, *, expected_revision) -> PaletteMutation:
+        """Mark the active item for `slot` removed and increment the revision.
+
+        The removed item comes back in `previous_item` and keeps its id, its
+        `added_at` and its stored role. An empty, never-set or already-removed
+        slot is a no-op that writes nothing and changes no revision; a stale
+        `expected_revision` is a `revision_conflict` even then, so a caller that
+        is out of date re-reads and retries.
+
+        Raises `unknown_palette`, `unknown_slot`, `revision_conflict`,
+        `database_locked`, `write_failed`.
+        """
+
+        if slot not in MVP_SLOTS:
+            raise UnknownSlot(f"slot must be one of {', '.join(MVP_SLOTS)}; got {slot!r}.")
+        with self._writing():
+            palette = self._require_palette(palette_id)
+            self._require_expected(palette, expected_revision)
+            active = self._active_item(palette_id, slot)
+            if active is None:
+                return PaletteMutation(palette_id, palette["revision"], False, None, None)
+            revision = self._bump(palette_id, palette["revision"])
+            self.connection.execute(
+                "UPDATE palette_items SET removed_revision = ?, removed_at = ? "
+                "WHERE item_id = ?", (revision, utc_now(), active["item_id"]))
+            removed = self._item_record(
+                self._one("SELECT * FROM palette_items WHERE item_id = ?",
+                          (active["item_id"],)))
+        return PaletteMutation(palette_id, revision, True, None, removed)
+
+    def set_palette_context(self, palette_id, song, *, expected_revision) -> PaletteMutation:
+        """Store a whole song context in one transaction.
+
+        Every field is written as the validated `SongContext` states it: the value
+        and its confidence, or NULL plus the stored unavailable reason. Repeating
+        the stored context is a no-op that changes no revision. The result carries
+        no item, because a context change touches none.
+
+        Raises `invalid_context` with the contract error as `__cause__` when
+        `song` is not a valid `SongContext`, `unknown_palette`,
+        `revision_conflict`, `database_locked` or `write_failed`.
+        """
+
+        validated = _validated_context(song)
+        columns = _context_columns(validated)
+        with self._writing():
+            palette = self._require_palette(palette_id)
+            self._require_expected(palette, expected_revision)
+            if all(palette[name] == value for name, value in columns.items()):
+                return PaletteMutation(palette_id, palette["revision"], False, None, None)
+            revision = self._bump(palette_id, palette["revision"])
+            self.connection.execute(
+                "UPDATE palettes SET " + ", ".join(f"{name} = ?" for name in columns)
+                + ", updated_at = ? WHERE palette_id = ?",
+                (*columns.values(), utc_now(), palette_id))
+        return PaletteMutation(palette_id, revision, True, None, None)
+
+    def _require_palette(self, palette_id):
+        row = self._one("SELECT * FROM palettes WHERE palette_id = ?", (palette_id,))
+        if row is None:
+            raise UnknownPalette(f"No stored palette with palette_id {palette_id}.")
+        return row
+
+    def _require_expected(self, palette, expected_revision) -> None:
+        if palette["revision"] != expected_revision:
+            raise RevisionConflict(expected_revision, palette["revision"])
+
+    def _bump(self, palette_id, revision) -> int:
+        """Compare-and-set one palette revision and return the new value."""
+
+        updated = self.connection.execute(
+            "UPDATE palettes SET revision = revision + 1, updated_at = ? "
+            "WHERE palette_id = ? AND revision = ?", (utc_now(), palette_id, revision))
+        if updated.rowcount != 1:
+            current = self._one("SELECT revision FROM palettes WHERE palette_id = ?",
+                                (palette_id,))
+            raise RevisionConflict(revision, None if current is None else current["revision"])
+        return revision + 1
+
+    def _active_item(self, palette_id, slot):
+        return self._one("SELECT * FROM palette_items WHERE palette_id = ? AND slot = ? "
+                         "AND removed_at IS NULL", (palette_id, slot))
+
+    def _palette_record(self, row) -> PaletteRecord:
+        song, state = _context_of(row)
+        active = self._all("SELECT * FROM palette_items WHERE palette_id = ? "
+                           "AND removed_at IS NULL ORDER BY slot ASC", (row["palette_id"],))
+        removed = self._all("SELECT * FROM palette_items WHERE palette_id = ? "
+                            "AND removed_at IS NOT NULL "
+                            "ORDER BY removed_revision ASC, item_id ASC", (row["palette_id"],))
+        return PaletteRecord(palette_id=row["palette_id"], project_id=row["project_id"],
+                             name=row["name"], revision=row["revision"], song=song,
+                             context_state=state,
+                             active_items=tuple(self._item_record(item) for item in active),
+                             removed_items=tuple(self._item_record(item) for item in removed))
+
+    def _item_record(self, row) -> PaletteItemRecord:
+        """One item row enriched with the referenced sample's current state.
+
+        The item's stored role is what was selected; the record reports the
+        sample row's current role and flags the mismatch when #72 has changed it
+        to one the slot no longer accepts. Nothing is written and nothing is
+        re-roled.
+        """
+
+        sample = self._one(
+            "SELECT role, file_status, content_sha256 FROM samples WHERE sample_id = ?",
+            (row["sample_id"],))
+        if sample is None:
+            role, state, code = row["role"], "removed", None
+        else:
+            role, state = sample["role"], sample["file_status"]
+            code = self._sample_error_code(sample["content_sha256"])
+        return PaletteItemRecord(
+            item_id=row["item_id"], slot=row["slot"], sample_id=row["sample_id"], role=role,
+            added_revision=row["added_revision"], added_at=row["added_at"],
+            removed_revision=row["removed_revision"], removed_at=row["removed_at"],
+            sample_state=state, sample_error_code=code,
+            slot_role_mismatch=role not in SLOT_ROLES[row["slot"]])
+
+    def _sample_error_code(self, content_sha256):
+        """The analysis-queue error code stored for one sample row, or None.
+
+        #22's scan keeps its errors in the scan summary and #23's queue persists
+        the read, decode or extract failure against the row's *content identity*
+        (`sha256:` plus `samples.content_sha256`, which is how `queue.enqueue`
+        keys an item), so the queue is the only stored per-row code a palette
+        read can report; the most recent item wins. A sample with no stored
+        failure reports None.
+        """
+
+        row = self._one("SELECT error_code FROM job_items WHERE sample_id = ? "
+                        "AND error_code IS NOT NULL ORDER BY item_id DESC LIMIT 1",
+                        ("sha256:" + content_sha256,))
+        return None if row is None else row["error_code"]
 
     # -- internals ---------------------------------------------------------
 

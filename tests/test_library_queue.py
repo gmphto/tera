@@ -157,9 +157,9 @@ def store_analysis_for(database, row, version=None, descriptor=None):
 def test_the_queue_tables_ship_as_migration_two_with_the_named_columns(tmp_path):
     connection = connect(tmp_path / "library.sqlite3")
     try:
-        assert SCHEMA_VERSION == 2
-        assert [version for version, _script in MIGRATIONS] == [1, 2]
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 2
+        assert SCHEMA_VERSION == 3
+        assert [version for version, _script in MIGRATIONS] == [1, 2, 3]
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 3
         tables = {row[0] for row in connection.execute(
             "SELECT name FROM sqlite_master WHERE type = 'table'")}
         assert {"job_runs", "job_items"} <= tables
@@ -299,7 +299,7 @@ def test_an_upgrade_adds_the_queue_without_touching_a_single_row(tmp_path):
 
     connection = connect(database)
     try:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 2
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         after = {name: [tuple(row) for row in connection.execute(
             "SELECT * FROM " + name + " ORDER BY 1, 2")] for name in LIBRARY_TABLES}
         assert after == before
@@ -321,8 +321,8 @@ def test_reapplying_the_migrations_after_a_run_leaves_the_queue_rows_identical(t
                            queue.DISPOSITION_REUSED)
             queue.finish_run(connection, run_id, queue.RUN_COMPLETE)
         before = [items(database), runs(database)]
-        assert migrate(connection) == 2
-        assert migrate(connection) == 2
+        assert migrate(connection) == SCHEMA_VERSION
+        assert migrate(connection) == SCHEMA_VERSION
         assert [items(database), runs(database)] == before
     finally:
         connection.close()

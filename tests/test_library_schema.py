@@ -40,6 +40,9 @@ USER_TABLES = (
     "analysis_versions",
     "job_items",
     "job_runs",
+    "palette_items",
+    "palettes",
+    "projects",
     "sample_features",
     "sample_keys",
     "sample_packs",
@@ -54,6 +57,13 @@ COLUMNS = {
     "job_items": ("item_id", "sample_id", "analysis_version", "path", "role", "state",
                   "disposition", "attempts", "run_id", "claimed_at", "finished_at", "error_stage",
                   "error_code", "error_message", "created_at"),
+    "projects": ("project_id", "name", "created_at", "updated_at"),
+    "palettes": ("palette_id", "project_id", "name", "revision", "tempo_bpm", "tempo_confidence",
+                 "tempo_unavailable_reason", "key_tonic", "key_mode", "key_confidence",
+                 "key_unavailable_reason", "genre", "genre_unavailable_reason", "created_at",
+                 "updated_at"),
+    "palette_items": ("item_id", "palette_id", "slot", "sample_id", "role", "added_revision",
+                      "added_at", "removed_revision", "removed_at"),
     "sample_packs": ("pack_id", "name", "vendor", "created_at"),
     "samples": ("sample_id", "schema_version", "content_sha256", "role", "original_path",
                 "path_key", "filename", "pack_id", "file_status", "sample_rate_hz", "channels",
@@ -163,7 +173,7 @@ def column_names(connection, table):
 def test_a_fresh_database_reaches_the_current_version(tmp_path):
     connection = open_library(tmp_path / "library.sqlite3")
     try:
-        assert SCHEMA_VERSION == 2
+        assert SCHEMA_VERSION == 3
         assert MIGRATIONS[-1][0] == SCHEMA_VERSION
         assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         assert user_tables(connection) == USER_TABLES

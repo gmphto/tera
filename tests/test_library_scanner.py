@@ -675,13 +675,15 @@ def test_a_scan_touches_only_the_library_tables(tmp_path, capsys):
     tables = [row[0] for row in connection.execute(
         "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' "
         "ORDER BY name")]
-    # The queue tables ship in the migration chain (issue #23); a scan writes no
-    # run and no item, so both stay empty.
-    assert connection.execute("SELECT COUNT(*) FROM job_runs").fetchone()[0] == 0
-    assert connection.execute("SELECT COUNT(*) FROM job_items").fetchone()[0] == 0
+    # The queue tables ship in the migration chain (issue #23) and the palette
+    # tables in migration 3 (issue #24); a scan writes no run, no item, no
+    # project, no palette and no item, so all of them stay empty.
+    empty = ("job_runs", "job_items", "projects", "palettes", "palette_items")
+    counts = {name: connection.execute(f"SELECT COUNT(*) FROM {name}").fetchone()[0]
+              for name in empty}
     connection.close()
-    assert tables == ["analysis_versions", "job_items", "job_runs", "sample_features",
-                      "sample_keys", "sample_packs", "sample_tags", "samples"]
+    assert tables == ["analysis_versions", "job_items", "job_runs", "palette_items", "palettes",
+                      "projects", "sample_features", "sample_keys", "sample_packs", "sample_tags",
+                      "samples"]
     assert table_dump(database)["sample_tags"] == []
-    for name in ("projects", "palettes", "palette_items"):
-        assert name not in tables
+    assert counts == {name: 0 for name in empty}

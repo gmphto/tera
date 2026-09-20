@@ -1,0 +1,324 @@
+{
+  "fixture_version": "palette-cases-v1",
+  "note": "Hand-written expectations for issue #24. The sample ids are the synthetic contract-fixture ids (kick-001, bass-001) plus derived ones; no real library path, sample name or content fingerprint appears here. Expected revisions, changed flags, sample states, slot-role flags and the hash equal/different pairs are written by hand, never read back from the implementation.",
+  "library": {
+    "kick": "kick-001",
+    "kick_alt": "kick-002",
+    "bass": "bass-001",
+    "sub_bass": "sub-bass-001",
+    "missing_bass": "bass-missing-001",
+    "unknown_kick": "kick-unknown-001"
+  },
+  "contexts": {
+    "known": {
+      "tempo": {"name": "tempo", "value": 128.0, "unit": "BPM", "confidence": 0.9},
+      "key": {"tonic": "F#", "mode": "minor", "confidence": 0.72},
+      "genre": "techno"
+    },
+    "unknown": {
+      "tempo": {"name": "tempo", "value": null, "unit": "BPM",
+                "unavailable_reason": "no_tempo_estimate"},
+      "key": {"tonic": null, "mode": null, "confidence": null,
+              "unavailable_reason": "ambiguous_key"},
+      "genre": null,
+      "genre_unavailable_reason": "no_genre_metadata"
+    },
+    "partly_known": {
+      "tempo": {"name": "tempo", "value": 96.0, "unit": "BPM", "confidence": 0.5},
+      "key": {"tonic": null, "mode": null, "confidence": null,
+              "unavailable_reason": "below_reliability_threshold"},
+      "genre": "ambient"
+    }
+  },
+  "cases": [
+    {
+      "name": "fresh_palette_is_empty_and_unset",
+      "mutations": [],
+      "expect": {
+        "revision": 0,
+        "active": [],
+        "removed": [],
+        "context_state": {"tempo": "unset", "key": "unset", "genre": "unset"},
+        "to_context": "palette_incomplete"
+      }
+    },
+    {
+      "name": "a_kick_alone_is_enough_for_a_context",
+      "mutations": [
+        {"operation": "set_item", "slot": "kick", "sample": "kick", "expected_revision": 0,
+         "expect": {"changed": true, "revision": 1,
+                    "active_item": {"slot": "kick", "sample_id": "kick-001", "role": "kick",
+                                    "sample_state": "present", "slot_role_mismatch": false},
+                    "previous_item": null}}
+      ],
+      "expect": {
+        "revision": 1,
+        "active": [["kick", "kick-001", "kick"]],
+        "removed": [],
+        "context_state": {"tempo": "unset", "key": "unset", "genre": "unset"},
+        "to_context": {"kick": "kick-001", "bass": null}
+      }
+    },
+    {
+      "name": "replacing_a_kick_keeps_one_active_item_and_one_removed_one",
+      "mutations": [
+        {"operation": "set_item", "slot": "kick", "sample": "kick", "expected_revision": 0,
+         "expect": {"changed": true, "revision": 1, "previous_item": null}},
+        {"operation": "set_item", "slot": "bass", "sample": "bass", "expected_revision": 1,
+         "expect": {"changed": true, "revision": 2, "previous_item": null}},
+        {"operation": "set_item", "slot": "kick", "sample": "kick_alt", "expected_revision": 2,
+         "expect": {"changed": true, "revision": 3,
+                    "active_item": {"slot": "kick", "sample_id": "kick-002", "role": "kick",
+                                    "sample_state": "present", "slot_role_mismatch": false},
+                    "previous_item": {"slot": "kick", "sample_id": "kick-001", "role": "kick",
+                                      "sample_state": "present", "slot_role_mismatch": false,
+                                      "removed_revision": 3}}},
+        {"operation": "set_item", "slot": "kick", "sample": "kick_alt", "expected_revision": 3,
+         "expect": {"changed": false, "revision": 3,
+                    "active_item": {"slot": "kick", "sample_id": "kick-002", "role": "kick",
+                                    "sample_state": "present", "slot_role_mismatch": false},
+                    "previous_item": null}}
+      ],
+      "expect": {
+        "revision": 3,
+        "active": [["bass", "bass-001", "bass"], ["kick", "kick-002", "kick"]],
+        "removed": [["kick", "kick-001", 3]],
+        "context_state": {"tempo": "unset", "key": "unset", "genre": "unset"},
+        "to_context": {"kick": "kick-002", "bass": "bass-001"}
+      }
+    },
+    {
+      "name": "removing_an_empty_slot_is_a_no_op",
+      "mutations": [
+        {"operation": "remove_item", "slot": "kick", "expected_revision": 0,
+         "expect": {"changed": false, "revision": 0, "previous_item": null}},
+        {"operation": "remove_item", "slot": "bass", "expected_revision": 0,
+         "expect": {"changed": false, "revision": 0, "previous_item": null}}
+      ],
+      "expect": {
+        "revision": 0,
+        "active": [],
+        "removed": [],
+        "context_state": {"tempo": "unset", "key": "unset", "genre": "unset"},
+        "to_context": "palette_incomplete"
+      }
+    },
+    {
+      "name": "a_removed_item_is_retained_and_removing_again_is_a_no_op",
+      "mutations": [
+        {"operation": "set_item", "slot": "kick", "sample": "kick", "expected_revision": 0,
+         "expect": {"changed": true, "revision": 1}},
+        {"operation": "set_item", "slot": "bass", "sample": "bass", "expected_revision": 1,
+         "expect": {"changed": true, "revision": 2}},
+        {"operation": "remove_item", "slot": "kick", "expected_revision": 2,
+         "expect": {"changed": true, "revision": 3,
+                    "previous_item": {"slot": "kick", "sample_id": "kick-001", "role": "kick",
+                                      "sample_state": "present", "slot_role_mismatch": false,
+                                      "removed_revision": 3}}},
+        {"operation": "remove_item", "slot": "kick", "expected_revision": 3,
+         "expect": {"changed": false, "revision": 3, "previous_item": null}}
+      ],
+      "expect": {
+        "revision": 3,
+        "active": [["bass", "bass-001", "bass"]],
+        "removed": [["kick", "kick-001", 3]],
+        "context_state": {"tempo": "unset", "key": "unset", "genre": "unset"},
+        "to_context": "palette_incomplete"
+      }
+    },
+    {
+      "name": "the_bass_slot_accepts_a_sub_bass",
+      "mutations": [
+        {"operation": "set_item", "slot": "kick", "sample": "kick", "expected_revision": 0,
+         "expect": {"changed": true, "revision": 1}},
+        {"operation": "set_item", "slot": "bass", "sample": "sub_bass", "expected_revision": 1,
+         "expect": {"changed": true, "revision": 2,
+                    "active_item": {"slot": "bass", "sample_id": "sub-bass-001", "role": "sub-bass",
+                                    "sample_state": "present", "slot_role_mismatch": false},
+                    "previous_item": null}}
+      ],
+      "expect": {
+        "revision": 2,
+        "active": [["bass", "sub-bass-001", "sub-bass"], ["kick", "kick-001", "kick"]],
+        "removed": [],
+        "context_state": {"tempo": "unset", "key": "unset", "genre": "unset"},
+        "to_context": {"kick": "kick-001", "bass": "sub-bass-001"}
+      }
+    },
+    {
+      "name": "a_missing_or_unknown_file_can_still_be_selected",
+      "mutations": [
+        {"operation": "set_item", "slot": "kick", "sample": "unknown_kick", "expected_revision": 0,
+         "expect": {"changed": true, "revision": 1,
+                    "active_item": {"slot": "kick", "sample_id": "kick-unknown-001", "role": "kick",
+                                    "sample_state": "unknown", "slot_role_mismatch": false}}},
+        {"operation": "set_item", "slot": "bass", "sample": "missing_bass", "expected_revision": 1,
+         "expect": {"changed": true, "revision": 2,
+                    "active_item": {"slot": "bass", "sample_id": "bass-missing-001", "role": "bass",
+                                    "sample_state": "missing", "slot_role_mismatch": false}}}
+      ],
+      "expect": {
+        "revision": 2,
+        "active": [["bass", "bass-missing-001", "bass"], ["kick", "kick-unknown-001", "kick"]],
+        "removed": [],
+        "context_state": {"tempo": "unset", "key": "unset", "genre": "unset"},
+        "to_context": {"kick": "kick-unknown-001", "bass": "bass-missing-001"}
+      }
+    },
+    {
+      "name": "a_known_context_round_trips_and_repeating_it_is_a_no_op",
+      "mutations": [
+        {"operation": "set_context", "context": "known", "expected_revision": 0,
+         "expect": {"changed": true, "revision": 1}},
+        {"operation": "set_context", "context": "known", "expected_revision": 1,
+         "expect": {"changed": false, "revision": 1}}
+      ],
+      "expect": {
+        "revision": 1,
+        "active": [],
+        "removed": [],
+        "context_state": {"tempo": "known", "key": "known", "genre": "known"},
+        "song": "known",
+        "to_context": "palette_incomplete"
+      }
+    },
+    {
+      "name": "an_explicitly_unknown_context_keeps_every_reason",
+      "mutations": [
+        {"operation": "set_context", "context": "unknown", "expected_revision": 0,
+         "expect": {"changed": true, "revision": 1}}
+      ],
+      "expect": {
+        "revision": 1,
+        "active": [],
+        "removed": [],
+        "context_state": {"tempo": "unknown", "key": "unknown", "genre": "unknown"},
+        "song": "unknown",
+        "to_context": "palette_incomplete"
+      }
+    },
+    {
+      "name": "a_partly_known_context_reports_each_field_separately",
+      "mutations": [
+        {"operation": "set_context", "context": "partly_known", "expected_revision": 0,
+         "expect": {"changed": true, "revision": 1}}
+      ],
+      "expect": {
+        "revision": 1,
+        "active": [],
+        "removed": [],
+        "context_state": {"tempo": "known", "key": "unknown", "genre": "known"},
+        "song": "partly_known",
+        "to_context": "palette_incomplete"
+      }
+    },
+    {
+      "name": "a_bass_sample_is_refused_by_the_kick_slot",
+      "mutations": [
+        {"operation": "set_item", "slot": "kick", "sample": "bass", "expected_revision": 0,
+         "expect_error": "role_mismatch"}
+      ],
+      "expect": {
+        "revision": 0,
+        "active": [],
+        "removed": [],
+        "context_state": {"tempo": "unset", "key": "unset", "genre": "unset"},
+        "to_context": "palette_incomplete"
+      }
+    },
+    {
+      "name": "a_kick_sample_is_refused_by_the_bass_slot",
+      "mutations": [
+        {"operation": "set_item", "slot": "bass", "sample": "kick", "expected_revision": 0,
+         "expect_error": "role_mismatch"}
+      ],
+      "expect": {
+        "revision": 0,
+        "active": [],
+        "removed": [],
+        "context_state": {"tempo": "unset", "key": "unset", "genre": "unset"},
+        "to_context": "palette_incomplete"
+      }
+    },
+    {
+      "name": "an_unknown_sample_is_refused",
+      "mutations": [
+        {"operation": "set_item", "slot": "kick", "sample_literal": "kick-999",
+         "expected_revision": 0, "expect_error": "unknown_sample"}
+      ],
+      "expect": {
+        "revision": 0,
+        "active": [],
+        "removed": [],
+        "context_state": {"tempo": "unset", "key": "unset", "genre": "unset"},
+        "to_context": "palette_incomplete"
+      }
+    },
+    {
+      "name": "an_unknown_slot_is_refused",
+      "mutations": [
+        {"operation": "set_item", "slot": "snare", "sample": "kick", "expected_revision": 0,
+         "expect_error": "unknown_slot"},
+        {"operation": "remove_item", "slot": "snare", "expected_revision": 0,
+         "expect_error": "unknown_slot"}
+      ],
+      "expect": {
+        "revision": 0,
+        "active": [],
+        "removed": [],
+        "context_state": {"tempo": "unset", "key": "unset", "genre": "unset"},
+        "to_context": "palette_incomplete"
+      }
+    },
+    {
+      "name": "a_blank_sample_id_is_refused",
+      "mutations": [
+        {"operation": "set_item", "slot": "kick", "sample_literal": "   ",
+         "expected_revision": 0, "expect_error": "invalid_sample"}
+      ],
+      "expect": {
+        "revision": 0,
+        "active": [],
+        "removed": [],
+        "context_state": {"tempo": "unset", "key": "unset", "genre": "unset"},
+        "to_context": "palette_incomplete"
+      }
+    },
+    {
+      "name": "a_stale_expected_revision_is_refused_and_writes_nothing",
+      "mutations": [
+        {"operation": "set_item", "slot": "kick", "sample": "kick", "expected_revision": 0,
+         "expect": {"changed": true, "revision": 1}},
+        {"operation": "set_item", "slot": "bass", "sample": "bass", "expected_revision": 0,
+         "expect_error": "revision_conflict"},
+        {"operation": "set_context", "context": "known", "expected_revision": 0,
+         "expect_error": "revision_conflict"},
+        {"operation": "remove_item", "slot": "kick", "expected_revision": 0,
+         "expect_error": "revision_conflict"}
+      ],
+      "expect": {
+        "revision": 1,
+        "active": [["kick", "kick-001", "kick"]],
+        "removed": [],
+        "context_state": {"tempo": "unset", "key": "unset", "genre": "unset"},
+        "to_context": {"kick": "kick-001", "bass": null}
+      }
+    }
+  ],
+  "hash_matrix": {
+    "equal": [
+      ["kick_and_bass", "bass_then_kick"],
+      ["kick_and_bass", "kick_and_bass_removed_and_readded"],
+      ["sub_bass_for_bass", "sub_bass_for_bass_rewritten"]
+    ],
+    "different": [
+      ["kick_and_bass", "other_kick"],
+      ["kick_and_bass", "sub_bass_for_bass"],
+      ["unset_context", "unknown_context"],
+      ["unset_context", "known_context"],
+      ["unknown_context", "known_context"],
+      ["unknown_context", "other_unknown_reason"],
+      ["known_context", "other_genre"]
+    ]
+  }
+}

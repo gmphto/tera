@@ -19,8 +19,9 @@ Design rules:
   integrity check is refused the same way.
 - Every migration runs inside one transaction, so a failing migration leaves
   the version, the tables and every row exactly as they were.
-- Only the standard library and `backend.contracts` / `backend.analysis.batch`
-  are imported here.
+- The role vocabulary comes from `backend.analysis.batch.ROLES` and the slot
+  vocabulary from `backend.palette.model.MVP_SLOTS`, so a migration CHECK cannot
+  drift from the code that writes the rows.
 """
 
 from __future__ import annotations
@@ -32,6 +33,7 @@ import sqlite3
 
 from backend.analysis.batch import BatchError, ROLES, local_path
 from backend.contracts import MEASURES
+from backend.palette.model import MVP_SLOTS
 from backend.library.errors import (
     DatabaseCorrupt,
     InvalidDatabasePath,
@@ -41,7 +43,7 @@ from backend.library.errors import (
 )
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 SQLITE_MAGIC = b"SQLite format 3\x00"
 
@@ -203,7 +205,72 @@ CREATE INDEX idx_job_items_claim ON job_items(state, item_id);
 CREATE INDEX idx_job_items_run ON job_items(run_id, state);
 """
 
-MIGRATIONS = ((1, _MIGRATION_1), (2, _MIGRATION_2))
+# Migration 3 (issue #24): the producer's projects, palettes and palette
+# selections. The three tables are the whole palette store: what a palette
+# selects is a row per item, and what it knows about the song is columns on the
+# palette, so nothing is created at runtime and no version-1 or version-2 table,
+# column, constraint, index or row is touched. `palette_items.sample_id`
+# deliberately has no foreign key to `samples`: the reference is validated when
+# an item is written and tolerated when it is read, so operator pruning (#71)
+# can never cascade a palette item away. The slot vocabulary is generated from
+# `MVP_SLOTS` and the role vocabulary from #9's ROLES, so neither CHECK can
+# drift.
+_MIGRATION_3 = f"""
+CREATE TABLE projects (
+    project_id TEXT PRIMARY KEY CHECK (length(trim(project_id)) > 0),
+    name TEXT NOT NULL CHECK (length(trim(name)) > 0),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE palettes (
+    palette_id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL UNIQUE REFERENCES projects(project_id) ON DELETE CASCADE,
+    name TEXT NOT NULL CHECK (length(trim(name)) > 0),
+    revision INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0),
+    tempo_bpm REAL NULL CHECK (tempo_bpm IS NULL OR tempo_bpm > 0),
+    tempo_confidence REAL NULL
+        CHECK (tempo_confidence IS NULL OR (tempo_confidence BETWEEN 0 AND 1)),
+    tempo_unavailable_reason TEXT NULL
+        CHECK (tempo_unavailable_reason IS NULL OR length(trim(tempo_unavailable_reason)) > 0),
+    key_tonic TEXT NULL CHECK (key_tonic IS NULL OR key_tonic IN ({_quoted(TONICS)})),
+    key_mode TEXT NULL CHECK (key_mode IS NULL OR key_mode IN ('major', 'minor')),
+    key_confidence REAL NULL
+        CHECK (key_confidence IS NULL OR (key_confidence BETWEEN 0 AND 1)),
+    key_unavailable_reason TEXT NULL
+        CHECK (key_unavailable_reason IS NULL OR length(trim(key_unavailable_reason)) > 0),
+    genre TEXT NULL CHECK (genre IS NULL OR length(trim(genre)) > 0),
+    genre_unavailable_reason TEXT NULL
+        CHECK (genre_unavailable_reason IS NULL OR length(trim(genre_unavailable_reason)) > 0),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    CHECK ((tempo_bpm IS NULL AND tempo_confidence IS NULL)
+           OR (tempo_bpm IS NOT NULL AND tempo_confidence IS NOT NULL)),
+    CHECK ((key_tonic IS NULL AND key_mode IS NULL AND key_confidence IS NULL)
+           OR (key_tonic IS NOT NULL AND key_mode IS NOT NULL AND key_confidence IS NOT NULL)),
+    CHECK (genre IS NULL OR genre_unavailable_reason IS NULL)
+);
+
+CREATE TABLE palette_items (
+    item_id TEXT PRIMARY KEY CHECK (length(trim(item_id)) > 0),
+    palette_id TEXT NOT NULL REFERENCES palettes(palette_id) ON DELETE CASCADE,
+    slot TEXT NOT NULL CHECK (slot IN ({_quoted(MVP_SLOTS)})),
+    sample_id TEXT NOT NULL CHECK (length(trim(sample_id)) > 0),
+    role TEXT NOT NULL CHECK (role IN ({_quoted(ROLES)})),
+    added_revision INTEGER NOT NULL CHECK (added_revision >= 0),
+    added_at TEXT NOT NULL,
+    removed_revision INTEGER NULL CHECK (removed_revision IS NULL OR removed_revision >= added_revision),
+    removed_at TEXT NULL,
+    CHECK ((removed_revision IS NULL) = (removed_at IS NULL))
+);
+
+CREATE UNIQUE INDEX ux_palette_items_active_slot
+    ON palette_items(palette_id, slot) WHERE removed_at IS NULL;
+
+CREATE INDEX idx_palette_items_sample ON palette_items(sample_id);
+"""
+
+MIGRATIONS = ((1, _MIGRATION_1), (2, _MIGRATION_2), (3, _MIGRATION_3))
 
 
 def utc_now() -> str:
