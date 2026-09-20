@@ -152,3 +152,141 @@ body {
 .controls button:not(:disabled):hover {
   border-color: #4a453f;
 }
+
+/* --------------------------------------------------------------------------
+   Ranked recommendation cards (#33). Every selector is prefixed `.rec-`.
+   -------------------------------------------------------------------------- */
+
+.rec-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.rec-panel__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.rec-state {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  background: #1d1b19;
+}
+
+.rec-state--error {
+  border-color: #6b3b3b;
+}
+
+.rec-state__copy,
+.rec-note,
+.rec-badge {
+  margin: 0;
+}
+
+.rec-badge {
+  border: 1px solid #4a453f;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  color: var(--muted, #b6b0a8);
+}
+
+.rec-state__actions,
+.rec-card__actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.rec-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.rec-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  background: #1d1b19;
+}
+
+.rec-card[data-selected="true"] {
+  border-color: #4f7a4f;
+}
+
+.rec-card__label {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.rec-card__rank,
+.rec-card__percent {
+  color: var(--muted, #b6b0a8);
+}
+
+.rec-card__score,
+.rec-card__jev,
+.rec-card__uncertain,
+.rec-card__error {
+  margin: 0;
+}
+
+.rec-card__uncertain {
+  color: #c9a227;
+}
+
+.rec-card__error {
+  color: #d98c8c;
+}
+
+.rec-card button,
+.rec-state button,
+.rec-alternatives button {
+  font: inherit;
+  color: var(--ink);
+  background: #262421;
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  padding: 0.35rem 0.75rem;
+  cursor: pointer;
+}
+
+.rec-card button:disabled,
+.rec-state button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.rec-exclusions,
+.rec-alternatives__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.rec-alternatives__title {
+  margin: 0 0 0.35rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.rec-alternatives__list li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
