@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 
+import { LibraryBrowser } from "./features/palette/browser/LibraryBrowser";
 import { ServiceControls } from "./features/service/ServiceControls";
 import { ServiceStatusPanel } from "./features/service/ServiceStatusPanel";
 import { startBridge } from "./features/service/bridge";
@@ -17,6 +18,7 @@ export default function App() {
       <main className="shell__body">
         <ServiceStatusPanel />
         <ServiceControls />
+        <LibraryBrowser />
       </main>
     </div>
   );

@@ -1,6 +1,7 @@
 import { configureStore, createSlice } from "@reduxjs/toolkit";
 import { setupListeners } from "@reduxjs/toolkit/query";
 
+import browserReducer from "../features/palette/state/browserSlice";
 import serviceReducer from "../features/service/serviceSlice";
 import { teraApi } from "./api";
 
@@ -20,6 +21,7 @@ export const store = configureStore({
   reducer: {
     app: appSlice.reducer,
     service: serviceReducer,
+    browser: browserReducer,
     [teraApi.reducerPath]: teraApi.reducer,
   },
   middleware: (getDefaultMiddleware) => getDefaultMiddleware().concat(teraApi.middleware),

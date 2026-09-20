@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The core permissions the main window needs. No plugin permission is granted, because no plugin is installed.",
+  "description": "The core permissions the main window needs, plus the one dialog permission the folder picker uses. No message, save or confirm dialog is reachable.",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": ["core:default", "dialog:allow-open"]
 }

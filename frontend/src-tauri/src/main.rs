@@ -36,6 +36,7 @@ fn main() {
     let exiting = supervisor.clone();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(supervisor)
         .invoke_handler(tauri::generate_handler![
             service_status,

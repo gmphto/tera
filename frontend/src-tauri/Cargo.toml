@@ -8,5 +8,6 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "=2.11.5", features = [] }
+tauri-plugin-dialog = { version = "2", features = [] }
 serde = { version = "1", features = [] }
 serde_json = { version = "1", features = [] }
