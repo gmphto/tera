@@ -6,7 +6,7 @@
 - Do not hand-roll parsers elsewhere.
 
 ## Before finishing
-- Test: `uv run pytest <affected-test-paths>`; `uv run pytest` at integration/release checkpoints or when impact cannot be safely bounded.
+- Test: `uv run python -m tools.focused` (or `uv run pytest <affected-test-paths>`); `uv run pytest --all` at integration/release checkpoints or when impact cannot be safely bounded.
 - Lint: none configured.
 - Typecheck: none configured.
 
@@ -15,9 +15,13 @@
 Run from the repository root containing `pyproject.toml`.
 
 - `uv sync` — install dependencies.
-- `uv run pytest <affected-test-paths>` — default verification.
-- `uv run pytest` — full suite at integration/release checkpoints,
-  or when a change's impact cannot be safely bounded.
+- `uv run python -m tools.focused` — default verification: runs only the tests
+  the current change affects. `--issue N` scopes to an issue's commits, explicit
+  paths override, `--dry-run` prints the selection.
+- `uv run pytest <path> [...]` — an explicit focused run.
+- `uv run pytest --all` — the whole suite, at integration/release checkpoints
+  or when a change's impact cannot be safely bounded. A bare `uv run pytest` is
+  refused by `conftest.py`, so the suite is never the accidental default.
 
 # Product rules
 
