@@ -656,16 +656,25 @@ def test_at_most_workers_snapshots_or_extractions_are_in_flight(tmp_path, monkey
 def test_peak_memory_does_not_grow_with_the_queue_length(tmp_path, capsys):
     """A claimed item is bounded work: the queue length never enters memory.
 
+    Every file holds distinct bytes, so the 200-file library really queues 200
+    content identities: an earlier version of this test built the 200 files from
+    40 tones, the scan stored those as 40 rows with 160 `duplicate` entries, and
+    the run it measured was a 40-item one. The scan counts are asserted so the
+    measurement cannot quietly degrade again.
+
     The 20-item run is always drawn first and an untraced warm-up runs before
     both, so the one-time allocations of the first extraction and the first
     printed line are not mistaken for queue growth.
     """
 
     def drain(count, label, trace):
-        root = build(tmp_path, {f"{label}-{number:03d}.wav": tone(110 + number % 40)
-                                for number in range(count)})
+        root = build(tmp_path, {f"{label}-{number:03d}.wav": tone(110 + number)
+                                for number in range(count)}, label)
         database = tmp_path / (label + ".sqlite3")
-        assert run_scan(capsys, root, database)[0] == 0
+        code, summary = run_scan(capsys, root, database)
+        assert code == 0, summary
+        assert summary["counts"]["added"] == count, summary
+        assert summary["counts"]["duplicate"] == 0, summary
         if not trace:
             assert worker.main(["--database", str(database), "--workers", "2"]) == 0
             capsys.readouterr()
@@ -676,14 +685,74 @@ def test_peak_memory_does_not_grow_with_the_queue_length(tmp_path, capsys):
             _current, peak = tracemalloc.get_traced_memory()
         finally:
             tracemalloc.stop()
-        capsys.readouterr()
+        printed = [line for line in capsys.readouterr().out.splitlines() if line.strip()]
         assert code == 0
+        assert json.loads(printed[-1])["counts"]["complete"] == count
         return peak
 
     assert drain(2, "warmup", False) is None
     small = drain(20, "small", True)
     large = drain(200, "large", True)
     assert large < 2 * small, (small, large)
+
+
+def test_a_progress_line_reads_counts_not_the_summary_records(tmp_path, monkeypatch, capsys):
+    """One item's line costs the item, not the run's remaining queue.
+
+    `queue.summary` is the only call that builds the `failures` array — one
+    record per unfinished item, so its size is the queue's — and the per-item
+    line uses `queue.progress` instead. A twelve-item run must therefore reach
+    the summary exactly once, for its final line, however many lines it prints.
+    """
+
+    root = build(tmp_path, {f"file-{number:03d}.wav": tone(110 + number)
+                            for number in range(12)})
+    database = tmp_path / "library.sqlite3"
+    assert run_scan(capsys, root, database)[0] == 0
+    calls = []
+    real = queue.summary
+
+    def counted(connection, run_id):
+        calls.append(run_id)
+        return real(connection, run_id)
+
+    monkeypatch.setattr(queue, "summary", counted)
+    code, lines = run_worker(capsys, database, "--workers", "2")
+    assert code == 0
+    assert len(calls) == 1
+    assert len(lines) == 13
+    assert json.loads(lines[-1])["counts"]["complete"] == 12
+
+
+def test_the_drain_reclaims_its_unreachable_cycles_on_the_documented_interval(
+        tmp_path, monkeypatch, capsys):
+    """The bounded-memory claim rests on a collection schedule, so pin it.
+
+    One item's contract validation leaves reference cycles that only a
+    generation-2 collection returns; `worker.COLLECT_INTERVAL` is how many
+    finalized items may accumulate before the drain completes one. A twelve-item
+    drain therefore collects exactly once, and never once per item.
+    """
+
+    import gc
+
+    root = build(tmp_path, {f"file-{number:03d}.wav": tone(110 + number)
+                            for number in range(12)})
+    database = tmp_path / "library.sqlite3"
+    assert run_scan(capsys, root, database)[0] == 0
+    collections = []
+    real = gc.collect
+
+    def counted(generation=2):
+        collections.append(generation)
+        return real(generation)
+
+    monkeypatch.setattr(gc, "collect", counted)
+    code, _lines = run_worker(capsys, database, "--workers", "2")
+    assert code == 0
+    assert worker.COLLECT_INTERVAL >= 1
+    assert len(collections) == 12 // worker.COLLECT_INTERVAL
+    assert all(generation == 2 for generation in collections)
 
 
 def test_the_caller_keeps_the_run_id_while_extraction_runs_elsewhere(tmp_path, capsys):

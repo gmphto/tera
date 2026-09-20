@@ -20,12 +20,23 @@ more per-item errors, 2 an invalid command, database, schema, worker or attempt
 count, or a storage failure, 130 cancelled or interrupted. The run summary is
 printed to stdout as one JSON line and, with `--summary`, written atomically to a
 local file. See `_docs/library-jobs.md`.
+
+The drain's footprint is the work in flight, not the queue: one item's snapshot,
+decoded arrays and assembled Sample are locals of one step of one worker thread
+and nothing but the item's row outlives it, a progress line reads counts rather
+than the summary's per-item records, and the unreachable cycles one item's
+contract validation leaves behind are reclaimed every `COLLECT_INTERVAL` items
+(see that constant for the measurement). The drain's write transactions are
+serialized by one process-local lock (`_WRITE_LOCK`) so four workers cannot
+starve one another out of SQLite's write lock; nothing else changes, and a
+snapshot or an extraction is never inside either the lock or a transaction.
 """
 
 from __future__ import annotations
 
 import argparse
 from contextlib import closing
+import gc
 import hashlib
 import os
 from pathlib import Path
@@ -58,7 +69,37 @@ _DRAINED = "drained"
 _CANCELLED = "cancelled"
 _STORAGE = "storage"
 
+# How many finalized items one drain may accumulate unreachable cycles for.
+#
+# One item's work leaves reference cycles in the heap: the assembled Sample is
+# validated with #9's `contracts.Sample.from_dict`, and that layer re-evaluates
+# every field annotation on every construction (`Model.__post_init__` calls
+# `typing.get_type_hints`), so the objects it builds are unreachable the moment
+# the item ends but are only returned to the allocator by a generation-2
+# collection. Minor collections do not reclaim them (measured: a generation 0
+# or 1 pass leaves the drain's traced peak growing by ~4.4 KB per item), so
+# without an explicit collection a long drain's peak grows with the queue
+# instead of with the work in flight. A full collection per item would pay for
+# the whole heap per item, so the drain completes one every COLLECT_INTERVAL
+# items and the per-item residual is bounded by this number. The measurement is
+# recorded in `_docs/library-jobs.md`.
+COLLECT_INTERVAL = 8
+
 _PRINT_LOCK = threading.Lock()
+
+# Serializes the drain's write transactions across its worker threads.
+#
+# SQLite has one writer, but its busy handler does not queue: with four workers
+# each taking the write lock for one short claim or commit, a loser can miss
+# every round and hit #21's 5 s busy timeout. Measured on this machine during a
+# 200-item run under `tracemalloc`: lock holds of 0.01-0.15 s against waits of
+# 2.0-5.0 s, and runs that ended `database is locked` with items left pending.
+# One process-local lock turns that starvation into a queue — the thread that
+# holds it holds the database's write lock for the length of one transaction and
+# then hands both on — while connections stay per-thread and SQLite's own
+# single-writer rule still does the serialising. It is held only around a claim,
+# a finalize or a commit, never during a snapshot or an extraction.
+_WRITE_LOCK = threading.Lock()
 
 
 # ---------------------------------------------------------------------------
@@ -195,7 +236,7 @@ def run_queue(connection, run_id, workers, max_attempts, once=False) -> int:
         print(f"The run stopped and is marked failed; every committed item stays "
               f"readable: {error}", file=sys.stderr)
         return EXIT_INVALID
-    counts = queue.summary(connection, run_id)["counts"]
+    counts = queue.progress(connection, run_id)["counts"]
     if counts[queue.ITEM_FAILED] + counts[queue.ITEM_ORPHANED] + counts[queue.ITEM_SUPERSEDED]:
         return EXIT_ITEM_ERROR
     return EXIT_OK
@@ -240,6 +281,24 @@ class _State:
         self.outcome = _DRAINED
         self.error = None
         self.lock = threading.Lock()
+        self.finalized_items = 0
+
+    def finalized(self) -> None:
+        """Count one finalized item and reclaim the drain's cycles when due.
+
+        See `COLLECT_INTERVAL`: the memory one item's contract validation leaves
+        behind is only returned by a generation-2 pass, so the drain completes
+        one every `COLLECT_INTERVAL` items — shared by all worker threads, so
+        four workers do not collect four times as often. The collection happens
+        on the thread that finalized the item, after the item's own state is
+        committed and printed, and never while a claim or a transaction is open.
+        """
+
+        with self.lock:
+            self.finalized_items += 1
+            due = self.finalized_items % COLLECT_INTERVAL == 0
+        if due:
+            gc.collect()
 
     def finish(self, outcome, error=None) -> None:
         """Record the first terminal outcome and stop every thread."""
@@ -270,8 +329,9 @@ class _Heartbeat(threading.Thread):
         try:
             with closing(open_database(self.database)) as connection:
                 while not self._stop.wait(queue.HEARTBEAT_SECONDS):
-                    if not queue.heartbeat(connection, self.run_id, self.owner_token):
-                        return
+                    with _WRITE_LOCK:
+                        if not queue.heartbeat(connection, self.run_id, self.owner_token):
+                            return
         except (LibraryError, sqlite3.Error):
             return
 
@@ -290,7 +350,8 @@ def _work(database, state) -> None:
                 if queue.cancel_requested(connection, state.run_id):
                     state.finish(_CANCELLED)
                     return
-                item = queue.claim(connection, state.run_id, state.horizon)
+                with _WRITE_LOCK:
+                    item = queue.claim(connection, state.run_id, state.horizon)
                 if item is None:
                     return
                 terminal = _execute(connection, repository, state, item)
@@ -322,7 +383,7 @@ def _execute(connection, repository, state, item):
         _finalize(connection, item_id, queue.ITEM_SUPERSEDED,
                   error=queue.error_record(queue.STAGE_QUEUE, queue.CODE_CONTENT_CHANGED,
                                            "The item does not carry a content fingerprint."))
-        _progress(connection, state.run_id)
+        _progress(connection, state)
         return None
     row = _resolve(repository, item, fingerprint)
     if row is None:
@@ -346,7 +407,7 @@ def _execute(connection, repository, state, item):
                       queue.STAGE_QUEUE, queue.CODE_CONTENT_CHANGED,
                       "The file's bytes no longer hash to the queued content identity; the next "
                       "scan repairs the row."))
-        _progress(connection, state.run_id)
+        _progress(connection, state)
         return None
     if queue.cancel_requested(connection, state.run_id):
         return _cancel_item(connection, state, item_id)
@@ -381,7 +442,7 @@ def _commit(connection, repository, state, item, sample, fingerprint) -> None:
 
     item_id, version = item["item_id"], state.version
     try:
-        with transaction(connection):
+        with _WRITE_LOCK, transaction(connection):
             current = _resolve(repository, item, fingerprint)
             if current is None:
                 queue.requeue(connection, item_id)
@@ -402,7 +463,7 @@ def _commit(connection, repository, state, item, sample, fingerprint) -> None:
         return _orphan(connection, state, item_id)
     except (LibraryError, sqlite3.Error) as failure:
         return _STORAGE, failure
-    _progress(connection, state.run_id)
+    _progress(connection, state)
     return None
 
 
@@ -427,9 +488,9 @@ def _resolve(repository, item, fingerprint):
 
 
 def _finalize(connection, item_id, state, disposition=None, error=None) -> None:
-    """Set one item's terminal state in its own short transaction."""
+    """Set one item's terminal state in its own short, serialized transaction."""
 
-    with transaction(connection):
+    with _WRITE_LOCK, transaction(connection):
         queue.finalize(connection, item_id, state, disposition, error)
 
 
@@ -439,11 +500,11 @@ def _fail(connection, state, item, stage, code, message) -> None:
     code = str(code)
     error = queue.error_record(queue.stage_for(code, stage), code, message)
     if queue.is_retryable(code) and item["attempts"] < state.max_attempts:
-        with transaction(connection):
+        with _WRITE_LOCK, transaction(connection):
             queue.requeue(connection, item["item_id"])
         return
     _finalize(connection, item["item_id"], queue.ITEM_FAILED, None, error)
-    _progress(connection, state.run_id)
+    _progress(connection, state)
 
 
 def _orphan(connection, state, item_id) -> None:
@@ -453,7 +514,7 @@ def _orphan(connection, state, item_id) -> None:
               error=queue.error_record(queue.STAGE_QUEUE, queue.CODE_SAMPLE_MISSING,
                                        "The samples row for this content identity is gone; the "
                                        "next scan re-indexes the file."))
-    _progress(connection, state.run_id)
+    _progress(connection, state)
     return None
 
 
@@ -461,14 +522,14 @@ def _complete(connection, state, item_id, disposition) -> None:
     """Finalize one item whose analysis is already stored; nothing is extracted."""
 
     _finalize(connection, item_id, queue.ITEM_COMPLETE, disposition)
-    _progress(connection, state.run_id)
+    _progress(connection, state)
 
 
 def _cancel_item(connection, state, item_id):
     """Finalize one abandoned item as cancelled and tell the drain to stop."""
 
     _finalize(connection, item_id, queue.ITEM_CANCELLED)
-    _progress(connection, state.run_id)
+    _progress(connection, state)
     return _CANCELLED, None
 
 
@@ -484,14 +545,18 @@ def _print(payload) -> None:
         print(batch.canonical(payload), flush=True)
 
 
-def _progress(connection, run_id) -> None:
+def _progress(connection, state) -> None:
     """Print one line per item that reached a final state.
 
     The keys #9 uses for a manifest entry keep their meaning here: `completed`,
-    `failed`, `remaining`, `analyzed` and `reused` count the run's items.
+    `failed`, `remaining`, `analyzed` and `reused` count the run's items. The
+    numbers come from `queue.progress`, so the line is the item's cost and not
+    the remaining queue's: the summary's `failures` array is never built here.
+    This call also ends the item, so it is where the drain reclaims its
+    accumulated cycles.
     """
 
-    payload = queue.summary(connection, run_id)
+    payload = queue.progress(connection, state.run_id)
     counts = payload["counts"]
     _print({"state": payload["state"], "analysis_version": payload["analysis_version"],
             "completed": counts[queue.ITEM_COMPLETE], "failed": counts[queue.ITEM_FAILED],
@@ -500,6 +565,7 @@ def _progress(connection, run_id) -> None:
             "running": counts[queue.ITEM_RUNNING], "cancelled": counts[queue.ITEM_CANCELLED],
             "orphaned": counts[queue.ITEM_ORPHANED],
             "superseded": counts[queue.ITEM_SUPERSEDED]})
+    state.finalized()
 
 
 def _read_code(error) -> str:

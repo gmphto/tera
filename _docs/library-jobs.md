@@ -216,6 +216,7 @@ or `orphaned` row.
 | `MAX_ATTEMPTS_LIMIT` | 10 | Upper bound `--max-attempts` accepts |
 | `LEASE_SECONDS` | 60 | A `running` run whose heartbeat is this old is dead |
 | `HEARTBEAT_SECONDS` | 15 | The owner refreshes the heartbeat at least this often |
+| `COLLECT_INTERVAL` | 8 | Finalized items between two full collections; bounds the unreachable per-item residue |
 | `QUEUE_POLICY_VERSION` | `library-jobs-v1` | The queue rules' version |
 | `QUEUE_SCHEMA` | `1.0` | The summary schema literal |
 
@@ -268,6 +269,13 @@ Claiming, state transitions and completion are short transactions
 `batch.extract` run, the worker holds **no** SQLite transaction:
 `connection.in_transaction is False` inside an instrumented extractor.
 
+The drain's own write transactions (a claim, a finalize and a commit — never a
+snapshot or an extraction) are additionally serialized by one process-local lock,
+because SQLite's busy handler does not queue and four workers taking the write
+lock in turn can starve one of them into #21's 5 s `busy_timeout`. Connections
+stay per-thread and SQLite's single-writer rule still does the serialising; the
+measurement is in "Write-lock starvation".
+
 For a successful item, the features for `(sample_id, analysis_version)`, the
 analysis-version row and the item's `complete` state commit in one transaction,
 so a crash or storage error can never publish features for an item recorded as
@@ -315,6 +323,15 @@ only:
 Without `run_id` the newest run is reported; with no run at all the run fields
 are null and the counts still describe the whole queue. `current` is the lowest
 `item_id` this run has running. `remaining` is `pending + running`.
+
+`progress(connection, run_id)` returns `{state, analysis_version, counts}` — the
+`counts` object above and nothing else — and is what the per-item CLI line
+reads. It exists because a summary's `failures` array holds one record per
+*unfinished* item, so building a summary once per finished item would make the
+line cost the run's remaining queue instead of the item that finished. Measured
+on a 200-item queue: 2 937 bytes for one `progress` call against 136 415 bytes
+for the summary (200 records at 683 bytes each). Both read the counts through
+the same helper, so a progress line and the final summary cannot disagree.
 
 `summary(connection, run_id)` returns:
 
@@ -367,13 +384,38 @@ resolves the row by content identity and names it in `store_analysis`, so
 features are addressed by the record that will read them. Which bytes a stored
 feature row was measured from is still not recorded: that is **#166**.
 
+## Bounded memory
+
+The drain's footprint is the work in flight, not the queue.
+
+- One item's snapshot bytes, decoded arrays and assembled `Sample` are locals of
+  one step of one worker thread; nothing but the item's row outlives the item,
+  and the worker keeps no per-item list, cache or result.
+- A progress line reads counts (`queue.progress`), never the summary's
+  `failures` array; the array is built once, by the run's final `summary`.
+- The one thing an item does leave behind is *unreachable* memory: validating the
+  assembled `Sample` goes through #9's `backend/contracts.py`, whose
+  `Model.__post_init__` and `Model.from_dict` re-evaluate every field annotation
+  on every construction (`typing.get_type_hints`), so each call leaves reference
+  cycles. Measured on this machine: `Sample.from_dict(payload)` keeps 6 308 bytes
+  per call alive and `Sample.to_dict()` 1 946, all of it returned only by a
+  generation-2 collection — minor collections reclaim none of it (a
+  `gc.collect(0)` or `gc.collect(1)` per item leaves the peak growing ~4.4 KB per
+  item). The drain therefore completes a full collection every
+  `COLLECT_INTERVAL` finalized items: the residue one drain can hold is bounded
+  by the interval instead of by the queue's length, and the collection runs
+  between items, from the thread that finished one, with no claim and no
+  transaction open. The measurement is in "Local verification"; the allocation
+  itself is #9's file and out of this issue's set.
+
 ## What the worker must not do
 
 It must not decode on a calling thread, block library reads, hold a transaction
 while extracting, run more than `MAX_WORKERS` extractions at once, materialise
 the queue or all features, re-measure a stored analysis, extract a file whose
 bytes changed, write a `samples` row, change an owned table, retry a terminal
-failure forever, or prune history. `queue.py` and `worker.py` import only the
+failure forever, prune history, or let the process's footprint grow with the
+number of items it has drained. `queue.py` and `worker.py` import only the
 standard library and `backend.audio`, `backend.analysis.*` and
 `backend.library.*`: no `backend.intelligence`, no Jev credential or
 configuration, no socket, no telemetry, no remote service.
@@ -399,15 +441,34 @@ nothing from a real library is sent anywhere.
   they came from; #22 invalidates the current version's rows when it repairs a
   content change, and this queue refuses to extract bytes that no longer hash to
   the given identity, which is the limit of what the schema can express today.
+- **The residual per-item growth is #22's `pending_analysis` tuple.** `enqueue`
+  must call `indexer.pending_analysis(connection)` (this issue's criterion 5) and
+  that function returns every pending request at once: 513 bytes per request,
+  103 KB for a 200-item queue, which is the 503 bytes of peak per item measured in
+  "Bounded memory". Streaming it is a change to `backend/library/indexer.py`,
+  which this issue's file set excludes; the criterion's 2x bound holds at 200
+  items (1.15x-1.22x) and would eventually be exceeded by a queue several times
+  larger, so a streaming `pending_analysis` is the follow-up if a library of that
+  size needs the same bound.
+- **The unreachable cycles an item leaves are #9's contract layer's.** `contracts
+  .Model.__post_init__` and `Model.from_dict` re-evaluate every field annotation
+  on every construction (`typing.get_type_hints`), so each construction leaves
+  reference cycles that only a generation-2 collection returns: measured 6308
+  bytes per `Sample.from_dict(payload)` call and 1946 per `Sample.to_dict()`.
+  `COLLECT_INTERVAL` bounds what a drain accumulates, at the cost of completing a
+  collection every 8 items; caching the evaluated hints in `backend/contracts.py`
+  would remove the allocation itself, and that file is outside this issue's set.
 - **Finer cancellation (#73)** and **pruning queue history (#74)** are out of
   scope here, as are the service start policy (#27), watching folders (#70),
   pruning unavailable records (#71) and editing a role after import (#72).
-- **`_docs/library-storage.md` is #21's document and this change does not edit
-  it.** Its "Migrations" section still reads "currently 1" and its "Tables"
-  section still says the user-table set is exactly six tables. Both sentences are
-  now stale: the migrated set is eight tables at version 2. The mapping is
-  recorded here, and correcting that document (or moving the table list to a
-  single source) is a follow-up outside this issue's file set.
+- **`_docs/library-storage.md` is #21's document, and this issue edits exactly
+  the statements its migration 2 made false.** `202fcba` changed no other
+  sentence: line 73 reads `currently `2``, lines 98-105 say "exactly these eight
+  tables" and name migration 2 (`job_items`, `job_runs`) as the addition, line
+  311 says "eight-table set" and the migration probe block records
+  `user_version: 2` with the eight tables in full. The remaining "six tables"
+  sentence at line 100 is correct — it describes what migration 1 created. Every
+  other part of that document stays #21's, and nothing here needs a follow-up.
 - A run exits 1 when any of its items ended `orphaned` or `superseded`, not only
   `failed`: a superseded item is a record in `failures`, and #9's contract
   defines exit 1 as "finished with one or more per-item errors".
@@ -444,9 +505,12 @@ observed from another connection while a real second process drains (a
 subprocess with its stdout on a file: this machine's sandbox refuses piped
 stdio), reads and writes during a blocked extraction, `in_transaction` being
 False inside the extractor, the in-flight bound of `--workers`, peak memory for
-a 200-item run against a 20-item run, the caller keeping the run id while another
-process extracts, no Jev module, no socket and an untouched library tree, and the
-import surface of both modules.
+a 200-item run (200 files holding distinct content, asserted from the scan's own
+counts) against a 20-item run, a progress line that reads counts instead of the
+summary's records, the collection interval that bounds the per-item unreachable
+residue, the caller keeping the run id while another process extracts, no Jev
+module, no socket and an untouched library tree, and the import surface of both
+modules.
 
 `tests/test_library_jobs_recovery.py` covers a killed owner (a real process
 terminated mid-run) and the lease takeover that finishes the library, a slow item
@@ -462,28 +526,33 @@ Every command below was run from the repository root with the project
 interpreter. `uv run` cannot capture a subprocess in this sandbox (it fails with
 `PermissionError [WinError 5]` at `_winapi.CreatePipe`), so each run put a
 `sitecustomize.py` on `PYTHONPATH`, passed `-p no:cacheprovider` and a
-`--basetemp` outside the repository. Every tree and database was temporary and
+`--basetemp` outside the repository. The `sitecustomize.py` drops `os.mkdir`'s
+mode argument, because a directory created with mode `0o700` cannot afterwards be
+listed or written into in this sandbox (`PermissionError [WinError 5]`) and
+pytest creates its basetemp and `tmp_path` directories exactly that way. Every tree and database was temporary and
 synthetic, and no test in the three new files skipped. The interpreter was
 CPython 3.13.5 on Windows with SQLite 3.47.1 (the atomic claim uses `RETURNING`).
 
 ```text
 .venv\Scripts\python.exe -m pytest tests/test_library_queue.py tests/test_library_worker.py tests/test_library_jobs_recovery.py --basetemp <tmp>\bt-focused -p no:cacheprovider -q -rf
-  -> 50 passed in 26.60s
+  -> 52 passed in 41.66s
 
-.venv\Scripts\python.exe -m pytest tests/test_library_queue.py tests/test_library_worker.py tests/test_library_jobs_recovery.py --collect-only -q -p no:cacheprovider
-  -> 50 tests collected in 0.83s (24 in tests/test_library_queue.py, 19 in tests/test_library_worker.py, 7 in tests/test_library_jobs_recovery.py)
+.venv\Scripts\python.exe -m pytest tests/test_library_worker.py -k peak_memory --basetemp <tmp>\bt-memory -p no:cacheprovider -q
+  -> 1 passed in ~22s; 7 of 8 runs passed and one ended with the run's storage failure before the write lock below, 10 of 10 after it
 
-.venv\Scripts\python.exe -m pytest tests/test_library_schema.py tests/test_library_repository.py tests/test_library_scanner.py tests/test_library_scan_recovery.py --basetemp <tmp>\bt-21 -p no:cacheprovider -q -rf
-  -> 109 passed in 5.23s
+.venv\Scripts\python.exe -m pytest tests/test_library_schema.py tests/test_library_repository.py tests/test_library_scanner.py tests/test_library_scan_recovery.py tests/test_library_queue.py tests/test_library_worker.py tests/test_library_jobs_recovery.py --basetemp <tmp>\bt-seven -p no:cacheprovider -q -rf
+  -> 161 passed in 48.72s
 
 .venv\Scripts\python.exe -m pytest --basetemp <tmp>\bt-full -p no:cacheprovider -q -rf
-  -> 4 failed, 1825 passed, 1 skipped in 450.39s (0:07:30)
+  -> 4 failed, 1827 passed, 1 skipped in 363.38s (0:06:03)
 ```
 
 The baseline at the reviewed parent commit `2321cfc` is `4 failed, 1775 passed,
-1 skipped`, so this change adds exactly the 50 focused tests (`1825 - 1775 = 50`)
-and keeps the same four known sandbox-only failures, all `PermissionError
-[WinError 5]` at `_winapi.CreatePipe`:
+1 skipped`; the reviewed issue commit `202fcba` was `4 failed, 1825 passed, 1
+skipped` with `50 passed` in the focused files. This round adds the two tests
+recorded above (`1827 - 1825 = 2`, `52 - 50 = 2`) and keeps the same four known
+sandbox-only failures, all `PermissionError [WinError 5]` at
+`_winapi.CreatePipe`:
 `tests/test_batch.py::test_cli_empty_and_invalid_inputs`,
 `tests/test_batch.py::test_cli_fresh_and_resume`,
 `tests/test_evaluation_manifest.py::test_cli_build_validate_and_synthetic_shortfall`
@@ -491,7 +560,7 @@ and
 `tests/test_evaluation_prepare.py::test_preparation_idempotence_source_preservation_and_collisions`;
 the single skip is unchanged. The four files that carry #21's and #22's landed
 expectations were re-run because the migration chain now reaches version 2, and
-they stay green (109 passed).
+they stay green (161 passed with the three queue files).
 
 One concrete probe result, against a fresh synthetic database (`open_database` on
 a temporary file, then two synthetic 480-frame tones under `tmp_path`):
@@ -507,16 +576,67 @@ second run while the first is live  -> refused: Another analysis run is live on 
 after the lease expires              -> {'runs': 1, 'items': 0} then True
 ```
 
-The bounded-memory claim was measured on the same machine with `tracemalloc`
-around `worker.main`, after one untraced warm-up run and with the 20-item run
-drawn first:
+### Bounded memory
+
+The bounded-memory claim was re-measured at this HEAD. The method is the
+committed test's — `tracemalloc` around `worker.main` only (building and scanning
+the library are outside the measured region), `--workers 4`, one untraced 2-item
+warm-up, the 20-item run drawn before the 200-item one — and every file holds
+distinct bytes, so the 200-file library really queues 200 content identities
+(`added: 200`, `duplicate: 0`). The block recorded for `202fcba` was wrong on
+exactly that point: its 200 files came from 40 tones, so the scan stored 40 rows
+with 160 `duplicate` entries and the "200-item" run it measured was a 40-item one
+(a re-drive of that library: `added: 40`, `duplicate: 160`, 3.75 s, peak
+873197 bytes, against 18.5 s for 200 distinct items). QA's independent re-drive of
+`202fcba` with distinct contents measured 505115 -> 1084417 bytes (2.147x) and
+499311 -> 1098542 bytes (2.200x), 2.38x with `--workers 1` and 2.035x with fresh
+processes.
 
 ```text
-warm-up run (untraced)              -> 0.1s
-20-item peak (tracemalloc)          -> 629431 bytes in 1.8s
-200-item peak (tracemalloc)         -> 407385 bytes in 3.8s
-ratio                               -> 0.65x
+scratch probe (a temporary script under the session temp directory, never in the
+repository; the committed test above is the durable version of it):
+run 1       20 items -> 600408 bytes peak in 1.83s (236879 bytes still live)
+            200 items -> 691036 bytes peak in 17.12s (47255 bytes still live)
+            ratio 1.15x; 503 bytes of peak per item over the 180 extra items
+run 2       20 items -> 576747 bytes; 200 items -> 702306 bytes; ratio 1.22x
+fresh processes, no warm-up:
+            20 items -> 616892 bytes in 1.90s
+            200 items -> 720977 bytes in 18.14s and 701931 bytes in 17.87s (1.17x, 1.14x)
+with COLLECT_INTERVAL disabled (the released behaviour for this residue):
+            20 items 636510 -> 200 items 1103240 bytes, 1.73x, 2593 bytes per item
+
+queue.progress(connection, run_id)     -> 2937 bytes ({state, analysis_version, counts})
+queue.summary(connection, run_id)      -> 136415 bytes over 200 records (683 bytes per record)
+indexer.pending_analysis(connection)   -> 102529 bytes over 200 requests (513 bytes per request)
 ```
+
+What the numbers separate:
+
+- One progress line is 2937 bytes and does not depend on the queue's length. The
+  summary's 683-byte record is built once per run — the `failures` array is empty
+  for a clean run and holds one record per non-`complete` item otherwise.
+- The remaining per-item peak growth is #22's `pending_analysis` tuple: 513 bytes
+  x 200 requests = 103 KB, materialised once by `enqueue`, which is the measured
+  503 bytes per extra item. `enqueue` must call that function (#22's interface,
+  this issue's criterion); streaming it is a change to `indexer.py`, which this
+  issue's file set excludes, and is recorded here as the residual.
+- Everything else an item leaves is bounded by `COLLECT_INTERVAL`: the ~4.4 KB of
+  reference cycles one item's contract validation creates (6308 bytes for one
+  `Sample.from_dict(payload)`, 1946 for one `Sample.to_dict()`, all of it
+  reclaimed only by a generation-2 pass) is reclaimed every 8 items, so it
+  contributes a constant to the peak rather than growth.
+
+### Write-lock starvation
+
+The same 200-item drain exposed a second, independent fact, measured with the
+drain's own `transaction` wrapper: a transaction holds SQLite's write lock for
+0.01-0.15 s, but writers that lost the race waited 2.0-5.0 s at
+`BEGIN IMMEDIATE` (the 5 s `busy_timeout` #21 sets), and 3 of 8 instrumented
+runs ended `database is locked` with items left `pending`. SQLite's busy handler
+does not queue, so a loser can miss every round. The drain now serializes its own
+write transactions with one process-local lock (`_WRITE_LOCK`), which turns the
+race into a queue; the committed memory test went from 7 of 8 runs passing to 10
+of 10, and the un-instrumented concurrency cases are unchanged.
 
 The subprocess cases (progress polling, `--run-id` adoption, the killed owner and
 the lease takeover) start a real second process with its stdout redirected to a

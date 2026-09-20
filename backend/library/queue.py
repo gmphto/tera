@@ -583,6 +583,45 @@ def status(connection, run_id=None) -> dict:
                 "attempts": current["attempts"]}}
 
 
+def _run_counts(connection, run) -> dict:
+    """The `counts` object both `progress` and `summary` report, from aggregates only.
+
+    One number per item state plus #9's `analyzed`, `reused` and `remaining`.
+    Only counts and `GROUP BY` rows are read, so the cost is the run's number of
+    states rather than its number of items.
+    """
+
+    counts = _state_counts(connection, run["run_id"], run["analysis_version"])
+    completed = connection.execute(
+        "SELECT disposition, COUNT(*) FROM job_items WHERE state = 'complete' AND run_id = ? "
+        "GROUP BY disposition", (run["run_id"],)).fetchall()
+    by_disposition = {row[0]: row[1] for row in completed}
+    return {
+        ITEM_PENDING: counts[ITEM_PENDING], ITEM_RUNNING: counts[ITEM_RUNNING],
+        ITEM_COMPLETE: counts[ITEM_COMPLETE], ITEM_FAILED: counts[ITEM_FAILED],
+        ITEM_CANCELLED: counts[ITEM_CANCELLED], ITEM_ORPHANED: counts[ITEM_ORPHANED],
+        ITEM_SUPERSEDED: counts[ITEM_SUPERSEDED],
+        DISPOSITION_ANALYZED: by_disposition.get(DISPOSITION_ANALYZED, 0),
+        DISPOSITION_REUSED: by_disposition.get(DISPOSITION_REUSED, 0),
+        "remaining": counts["remaining"],
+    }
+
+
+def progress(connection, run_id) -> dict:
+    """One run's state, analysis version and `counts`; no per-item records.
+
+    This is what one progress line needs, and it is deliberately not `summary`:
+    a summary's `failures` array holds one record per unfinished item, so
+    building it once per finished item would make the line cost the run's
+    remaining queue instead of the item that finished. The counts come from the
+    same helper the summary uses, so the two can never disagree.
+    """
+
+    run = get_run(connection, run_id)
+    return {"state": run["state"], "analysis_version": run["analysis_version"],
+            "counts": _run_counts(connection, run)}
+
+
 def summary(connection, run_id) -> dict:
     """The finished or in-progress summary of one run.
 
@@ -595,11 +634,6 @@ def summary(connection, run_id) -> dict:
     """
 
     run = get_run(connection, run_id)
-    counts = _state_counts(connection, run["run_id"], run["analysis_version"])
-    completed = connection.execute(
-        "SELECT disposition, COUNT(*) FROM job_items WHERE state = 'complete' AND run_id = ? "
-        "GROUP BY disposition", (run["run_id"],)).fetchall()
-    by_disposition = {row[0]: row[1] for row in completed}
     rows = connection.execute(
         "SELECT sample_id, path, role, error_stage, error_code, error_message, attempts "
         "FROM job_items WHERE state <> 'complete' "
@@ -615,15 +649,7 @@ def summary(connection, run_id) -> dict:
         "max_attempts": run["max_attempts"],
         "started_at": run["started_at"],
         "finished_at": run["finished_at"],
-        "counts": {
-            ITEM_PENDING: counts[ITEM_PENDING], ITEM_RUNNING: counts[ITEM_RUNNING],
-            ITEM_COMPLETE: counts[ITEM_COMPLETE], ITEM_FAILED: counts[ITEM_FAILED],
-            ITEM_CANCELLED: counts[ITEM_CANCELLED], ITEM_ORPHANED: counts[ITEM_ORPHANED],
-            ITEM_SUPERSEDED: counts[ITEM_SUPERSEDED],
-            DISPOSITION_ANALYZED: by_disposition.get(DISPOSITION_ANALYZED, 0),
-            DISPOSITION_REUSED: by_disposition.get(DISPOSITION_REUSED, 0),
-            "remaining": counts["remaining"],
-        },
+        "counts": _run_counts(connection, run),
         "failures": [{"sample_id": row["sample_id"], "path": row["path"], "role": row["role"],
                       "stage": row["error_stage"], "code": row["error_code"],
                       "message": row["error_message"], "attempts": row["attempts"]}
