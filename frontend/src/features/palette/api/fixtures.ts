@@ -14,10 +14,56 @@ import {
   type RankedCandidateWire,
   type RunWire,
 } from "./batch";
+import type { PaletteItemWire, PaletteWire } from "./paletteApi";
 
 export const RUN_ID = "a".repeat(64);
 export const PALETTE_ID = "palette-001";
 export const PROJECT_ID = "project-001";
+
+/** One palette slot's item, as #32 returns it. */
+export function paletteItem(sampleId: string, overrides: Partial<PaletteItemWire> = {}): PaletteItemWire {
+  return {
+    slot: "kick",
+    sample_id: sampleId,
+    role: "kick",
+    added_revision: 4,
+    sample_state: "available",
+    sample_error_code: null,
+    slot_role_mismatch: false,
+    ...overrides,
+  };
+}
+
+/**
+ * The loaded palette the panel always has before it can run anything.
+ *
+ * #33 reads it for one thing only — the project id an outcome event carries —
+ * so this is a transcription of #32's projection with a kick in its slot.
+ */
+export function palette(overrides: Partial<PaletteWire> = {}): PaletteWire {
+  return {
+    palette_id: PALETTE_ID,
+    project: { project_id: PROJECT_ID, name: "project-001" },
+    name: "palette-001",
+    revision: 4,
+    context: {
+      tempo: { state: "unset" },
+      key: { state: "unset" },
+      genre: { state: "unset" },
+    },
+    items: { kick: paletteItem(candidateId(99)), bass: null },
+    ...overrides,
+  };
+}
+
+/** A `POST /outcomes` 201, and its idempotent 200 repeat. */
+export function outcome(created: boolean) {
+  return {
+    api_schema: API_SCHEMA,
+    created,
+    outcome: { event_id: 7, client_event_id: "client-001", event_type: "selected" },
+  };
+}
 
 export function candidateId(index: number): string {
   return `sha256:${String(index).padStart(64, "0")}`;
