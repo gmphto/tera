@@ -359,6 +359,13 @@ updates. A cancelled summary contains work completed so far; undiscovered files
 and unvisited rows are not marked missing. Re-running the scan resumes from the
 committed library state. The command returns exit 130 for a cancelled scan.
 
+The delay between a cancellation request and the stopped scan is bounded by one
+checkpoint: the callback is consulted between folder entries and between file
+reconciliations, so at most one file's work remains. The tests assert the stop
+within `CANCEL_LATENCY_BOUND_SECONDS = 1.0` second on the synthetic tree in
+`tests/test_library_scan_recovery.py`, which blocks traversal on an event,
+requests cancellation and measures the interval.
+
 ## What the scanner must not do
 
 It does not decode audio (beyond the header read above), extract features, run or

@@ -676,16 +676,18 @@ def test_a_scan_touches_only_the_library_tables(tmp_path, capsys):
         "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' "
         "ORDER BY name")]
     # The queue tables ship in the migration chain (issue #23), the palette
-    # tables in migration 3 (issue #24) and the decision-cache tables in
-    # migration 4 (issue #26); a scan writes no run, no item, no project, no
-    # palette, no item and no cache entry, so all of them stay empty.
+    # tables in migration 3 (issue #24), the decision-cache tables in migration 4
+    # (issue #26) and the outcome history in migration 5 (issue #29); a scan
+    # writes no run, no item, no project, no palette, no item, no cache entry and
+    # no outcome, so all of them stay empty.
     empty = ("decision_cache", "decision_model_versions", "job_runs", "job_items", "projects",
-             "palettes", "palette_items")
+             "palettes", "palette_items", "recommendation_outcomes")
     counts = {name: connection.execute(f"SELECT COUNT(*) FROM {name}").fetchone()[0]
               for name in empty}
     connection.close()
     assert tables == ["analysis_versions", "decision_cache", "decision_model_versions",
                       "job_items", "job_runs", "palette_items", "palettes", "projects",
-                      "sample_features", "sample_keys", "sample_packs", "sample_tags", "samples"]
+                      "recommendation_outcomes", "sample_features", "sample_keys", "sample_packs",
+                      "sample_tags", "samples"]
     assert table_dump(database)["sample_tags"] == []
     assert counts == {name: 0 for name in empty}

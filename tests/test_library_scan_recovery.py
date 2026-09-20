@@ -9,6 +9,8 @@ operator clears each state by re-running the identical command.
 import json
 import os
 import sqlite3
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -345,3 +347,104 @@ def test_linked_entries_are_skipped_and_counted(tmp_path, capsys):
     assert summary["counts"]["added"] == 1
     assert [Path(row["original_path"]).name for row in
             sample_rows(tmp_path / "library.sqlite3")] == ["real.wav"]
+
+
+# ---------------------------------------------------------------------------
+# cooperative cancellation (#78)
+# ---------------------------------------------------------------------------
+
+
+#: The stated bound on the delay between a cancellation request and the stopped
+#: scan, measured on this module's synthetic trees. The callback is consulted
+#: between folder entries and between file reconciliations, so at most one
+#: file's work remains when a request arrives.
+CANCEL_LATENCY_BOUND_SECONDS = 1.0
+
+
+def scan_with_signal(root, database, signal, capsys, role="bass"):
+    """Run the scanner itself with a cancellation callback and return its summary."""
+
+    code = scanner.run(root, role, database, cancelled=signal)
+    printed = [line for line in capsys.readouterr().out.splitlines() if line.strip()]
+    return code, json.loads(printed[-1])
+
+
+def test_a_cancelled_scan_reports_cancelled_and_exits_130(tmp_path, capsys):
+    root = build(tmp_path, {f"{index}.wav": tone(110 + index) for index in range(6)})
+    database = tmp_path / "library.sqlite3"
+    calls = []
+
+    def signal():
+        calls.append(1)
+        return len(calls) > 2
+
+    code, summary = scan_with_signal(root, database, signal, capsys)
+    assert code == 130
+    assert summary["state"] == scanner.STATE_CANCELLED
+    assert summary["counts"]["discovered"] <= 6
+    # The scan stopped early: it never claimed to have finished the folder, and it
+    # wrote no row for a file it did not reach.
+    assert len(sample_rows(database)) <= 6
+
+
+def test_a_cancelled_scan_is_recovered_by_the_identical_command(tmp_path, capsys):
+    root = build(tmp_path, {f"{index}.wav": tone(110 + index) for index in range(8)})
+    database = tmp_path / "library.sqlite3"
+    control = tmp_path / "control.sqlite3"
+    # The same tree scanned without interruption is the state to match.
+    assert run_scan(capsys, root, control)[0] == 0
+    calls = []
+
+    def signal():
+        calls.append(1)
+        return len(calls) > 5
+
+    code, summary = scan_with_signal(root, database, signal, capsys)
+    assert code == 130 and summary["state"] == scanner.STATE_CANCELLED
+    code, summary = run_scan(capsys, root, database)
+    assert code == 0 and summary["state"] == scanner.STATE_COMPLETE
+    assert summary["counts"]["discovered"] == 8 and summary["counts"]["missing"] == 0
+    assert projection(database) == projection(control)
+
+
+def test_a_cancellation_request_is_honoured_within_the_stated_bound(tmp_path, capsys):
+    root = build(tmp_path, {f"{index:03d}.wav": tone(110 + index) for index in range(200)})
+    database = tmp_path / "library.sqlite3"
+    reached, cancel = threading.Event(), threading.Event()
+
+    def signal():
+        reached.set()
+        cancel.wait(30.0)
+        return True
+
+    outcome = {}
+
+    def scan():
+        outcome["code"] = scanner.run(root, "bass", database, cancelled=signal)
+
+    worker = threading.Thread(target=scan, name="tera-scan-cancel-test")
+    worker.start()
+    assert reached.wait(30.0)
+    requested = time.monotonic()
+    cancel.set()
+    worker.join(30.0)
+    stopped = time.monotonic() - requested
+    assert not worker.is_alive()
+    assert outcome["code"] == 130
+    assert stopped <= CANCEL_LATENCY_BOUND_SECONDS, stopped
+    printed = [line for line in capsys.readouterr().out.splitlines() if line.strip()]
+    assert json.loads(printed[-1])["state"] == scanner.STATE_CANCELLED
+
+
+def test_discovery_is_identical_with_and_without_a_cancellation_signal(tmp_path, capsys):
+    root = build(tmp_path, {name: tone(110 + index)
+                            for index, name in enumerate(("b.wav", "a.wav", "c.wav"))})
+    plain = scanner.traverse(root)
+    assert plain == scanner.traverse(root, cancelled=lambda: False)
+    assert plain[0] == ["a.wav", "b.wav", "c.wav"]
+    # A signal that never fires leaves the summary's state and counts alone.
+    code_plain, plain_summary = run_scan(capsys, root, tmp_path / "plain.sqlite3")
+    code_signal, signal_summary = scan_with_signal(root, tmp_path / "signal.sqlite3",
+                                                   lambda: False, capsys)
+    assert (code_signal, signal_summary["state"], signal_summary["counts"]) == \
+           (code_plain, plain_summary["state"], plain_summary["counts"])
