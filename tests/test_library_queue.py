@@ -776,3 +776,147 @@ def test_store_analysis_writes_under_the_row_identity_and_touches_no_sample_row(
         assert getattr(raised.value, "code", None) == "unknown_analysis_version"
     finally:
         connection.close()
+
+
+# ---------------------------------------------------------------------------
+# pruning terminal history (#74)
+# ---------------------------------------------------------------------------
+
+
+#: One item per state, with the age its `finished_at` is given, the failure code
+#: the schema requires for an error state, and whether the documented predicate
+#: makes it prunable.
+PRUNE_STATES = (
+    ("complete", "aged", None, True),
+    ("cancelled", "aged", None, True),
+    ("superseded", "aged", "analysis_version_changed", True),
+    ("complete", "recent", None, False),
+    ("failed", "aged", "unsupported_format", False),
+    ("orphaned", "aged", "sample_missing", False),
+    ("pending", None, None, False),
+    ("running", None, None, False),
+)
+#: Comfortably older than the thirty-day cutoff, in `schema.utc_now`'s format.
+AGED_STAMP = "2024-01-01T00:00:00Z"
+
+
+def library_rows(database):
+    """Every library table's rows, as one comparable structure."""
+
+    return {table: query(database, "SELECT * FROM " + table + " ORDER BY 1")
+            for table in LIBRARY_TABLES}
+
+
+def queue_in_every_state(tmp_path, capsys):
+    """A scanned library queued with one item in each documented state."""
+
+    files = {f"{letter}.wav": tone(110 + 10 * index)
+             for index, letter in enumerate("abcdefgh")}
+    root = build(tmp_path, files)
+    database = tmp_path / "library.sqlite3"
+    code, summary = run_scan(capsys, root, database)
+    assert code == 0 and summary["counts"]["queued_analysis"] == len(PRUNE_STATES)
+    connection = connect(database)
+    try:
+        assert queue.enqueue(connection, CURRENT) == len(PRUNE_STATES)
+        # A terminal run backs the one running item: the schema requires a run id
+        # for that state, and the prune's deferral guard reads only live runs.
+        run_id = queue.open_run(connection, CURRENT)
+        queue.finish_run(connection, run_id, queue.RUN_COMPLETE)
+        identifiers = [row["item_id"] for row in
+                       connection.execute("SELECT item_id FROM job_items ORDER BY item_id")]
+        assert len(identifiers) == len(PRUNE_STATES)
+        for item_id, (state, age, code, _prunable) in zip(identifiers, PRUNE_STATES):
+            finished = None if age is None else (AGED_STAMP if age == "aged" else utc_now())
+            connection.execute(
+                "UPDATE job_items SET state = ?, finished_at = ?, claimed_at = ?, "
+                "error_code = ?, error_stage = ?, error_message = ?, run_id = ? "
+                "WHERE item_id = ?",
+                (state, finished, utc_now(), code,
+                 None if code is None else queue.stage_for(code),
+                 None if code is None else "Synthetic failure recorded by the prune test.",
+                 run_id if state == "running" else None, item_id))
+    finally:
+        connection.close()
+    # One analyzed sample, so the feature and analysis-version rows the prune
+    # must never touch are actually present.
+    store_analysis_for(database, query(database, "SELECT * FROM samples ORDER BY path_key")[0],
+                       descriptor=batch.analysis_descriptor())
+    return database
+
+
+def test_pruning_removes_exactly_the_aged_terminal_items(tmp_path, capsys):
+    assert queue.PRUNE_AFTER_DAYS == 30
+    assert tuple(queue.PRUNABLE_ITEM_STATES) == ("complete", "cancelled", "superseded")
+    database = queue_in_every_state(tmp_path, capsys)
+    before = items(database)
+    runs_before = runs(database)
+    library_before = library_rows(database)
+    assert library_before["sample_features"] and library_before["analysis_versions"]
+    connection = connect(database)
+    try:
+        result = queue.prune_history(connection)
+    finally:
+        connection.close()
+    assert result["older_than_days"] == 30 and result["deferred"] is False
+    assert result["by_state"] == {"complete": 1, "cancelled": 1, "superseded": 1}
+    assert result["total"] == 3
+    kept = [row for row in before
+            if row["state"] not in queue.PRUNABLE_ITEM_STATES or row["finished_at"] != AGED_STAMP]
+    assert len(kept) == 5
+    assert items(database) == kept
+    assert {row["state"] for row in kept} == {"complete", "failed", "orphaned", "pending",
+                                              "running"}
+    # No library, feature, analysis-version or run row changed, and no content
+    # identity moved: only the three aged terminal items are gone.
+    assert library_rows(database) == library_before
+    assert runs(database) == runs_before
+
+
+def test_pruning_again_removes_nothing_and_reports_zero(tmp_path, capsys):
+    database = queue_in_every_state(tmp_path, capsys)
+    connection = connect(database)
+    try:
+        first = queue.prune_history(connection)
+        second = queue.prune_history(connection)
+    finally:
+        connection.close()
+    assert first["total"] == 3
+    assert second == {"older_than_days": 30,
+                      "by_state": {"complete": 0, "cancelled": 0, "superseded": 0},
+                      "total": 0, "deferred": False}
+
+
+def test_a_live_run_defers_the_prune_and_removes_nothing(tmp_path, capsys):
+    database = queue_in_every_state(tmp_path, capsys)
+    connection = connect(database)
+    try:
+        # Opening the live run claims items of its own, so the snapshot the prune
+        # must leave alone is taken once the run exists.
+        assert queue.open_run(connection, CURRENT)
+        before = items(database)
+        library_before = library_rows(database)
+        result = queue.prune_history(connection)
+    finally:
+        connection.close()
+    assert result == {"older_than_days": 30,
+                      "by_state": {"complete": 0, "cancelled": 0, "superseded": 0},
+                      "total": 0, "deferred": True}
+    assert items(database) == before
+    assert library_rows(database) == library_before
+
+
+def test_the_prune_command_is_explicit_repeatable_and_coded(tmp_path, capsys):
+    database = queue_in_every_state(tmp_path, capsys)
+    assert queue.main(["--database", str(database), "--prune-history"]) == 0
+    printed = json.loads(capsys.readouterr().out)
+    assert printed["total"] == 3 and printed["deferred"] is False
+    assert queue.main(["--database", str(database), "--prune-history"]) == 0
+    assert json.loads(capsys.readouterr().out)["total"] == 0
+    # The command never runs without the explicit flag, and a refusal exits 2.
+    with pytest.raises(SystemExit):
+        queue.main(["--database", str(database)])
+    broken = tmp_path / "not-a-database.sqlite3"
+    broken.write_bytes(b"this file is not a SQLite database, and never was.")
+    assert queue.main(["--database", str(broken), "--prune-history"]) == 2
+    assert "code" in capsys.readouterr().err
