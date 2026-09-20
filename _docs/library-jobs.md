@@ -101,7 +101,9 @@ Do not bump it for a fix that leaves every stored row's meaning intact.
 ## Migrations and the two tables
 
 The queue tables are migration 2 of `backend.library.schema.MIGRATIONS`, so
-`SCHEMA_VERSION` is 2 and `PRAGMA user_version` is 2. The migration adds tables
+> **Schema version note (2026-09-20).** The version and table counts recorded in this document are those of migration 2, when this work landed. The current schema is version 3 with eleven tables, raised by migration 3 (issue #24, documented in `_docs/library-storage.md`).
+
+`SCHEMA_VERSION` was 2 and `PRAGMA user_version` was 2 when this migration landed. The migration adds tables
 and indexes only: no column, constraint or index of a version-1 table is created,
 altered or dropped, and no row is rewritten, so upgrading a database that already
 holds samples and features keeps every row identical. Reapplying the migrations

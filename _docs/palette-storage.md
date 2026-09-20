@@ -333,10 +333,10 @@ Two further decisions are recorded here because they are visible in the code:
   `tests/test_library_scanner.py` (the exact table list and the "the three
   palette tables stay empty after a scan" probe). Every change is an expectation
   update, exactly as #23's migration updated the same assertions.
-- `_docs/library-storage.md` still says the user-table set is eight tables.
-  That document is not in this task's file list, so this document is the record:
-  the set is eleven tables and the three palette tables are documented above.
-  Updating the older document is a follow-up.
+- `_docs/library-storage.md` now states the eleven-table set and schema version 3:
+  this issue's amendment put that document in the file set for exactly the statements
+  migration 3 falsified, and commit `ff02504` corrected them. The three palette
+  tables are documented above, and nothing is outstanding in the older document.
 
 ## Tests
 
