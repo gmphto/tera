@@ -135,8 +135,8 @@ export const HYBRID_FIVE = response({
   run: { ranking: { ranking_version: "hybrid-ranking-v1", weight_table_id: "hybrid-weights-v1", jev_status: "jev_present" } },
 });
 
-/** `dsp-only` with empty Jev judgments. */
-export const DSP_ONLY = response();
+/** `dsp-only` with empty Jev judgments and no alternatives. */
+export const DSP_ONLY = response({ batch: { alternatives: [] } });
 
 /** A result whose similarity is null with its reason. */
 export const NULL_SIMILARITY = response({
