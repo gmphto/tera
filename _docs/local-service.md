@@ -143,11 +143,14 @@ reader never waits for the import's writer.
 {"root": "C:\\Samples\\Kicks", "role": "kick"}
 ```
 
-`root` is required and validated with #22's root rules — an absolute local
-directory, existing, not UNC, not a mapped network drive and reached through no
-linked ancestor — and `role` is required and must be in #9's `ROLES`. A failure
-is 400 `invalid_root` or 400 `invalid_role` with no scan, no run row and no
-queue write.
+`root` is required. The route owns an absolute root: a value that is not
+absolute (`"."`, `"samples/kicks"`, an empty string) is 400 `invalid_root`
+before #22 sees it, because #22's `validate_root` resolves against the process
+working directory and a relative root would import the service's own folder.
+An absolute root is then validated with #22's root rules — existing, not UNC,
+not a mapped network drive and reached through no linked ancestor — and `role`
+is required and must be in #9's `ROLES`. A failure is 400 `invalid_root` or 400
+`invalid_role` with no scan, no run row and no queue write.
 
 The response echoes no path, no directory component and no `root`:
 
@@ -509,8 +512,15 @@ Every non-GET request must carry `Content-Type: application/json` (else 415
 holds for an operation with no request body too: a `POST` that carries nothing
 still names the media type, and `Content-Length: 0` is a valid length. A body
 larger than `MAX_REQUEST_BYTES` is refused from its header alone (413
-`request_too_large`) and is never read. An operation with no request body
-accepts an empty body or `{}` and refuses anything else as `unknown_field`.
+`request_too_large`) and is never read. A request refused before its body was
+read — a 415, or any policy refusal (403, 404, 405, 503) — has its declared
+body drained from the connection before the answer is written, so the next
+request on a kept-alive connection is still answered by this service and never
+by the standard library's HTML error page. When the framing cannot be trusted
+(no valid integer `Content-Length`, a `Transfer-Encoding`, or more than
+`MAX_REQUEST_BYTES`) the connection is closed instead, which is what 411 and
+413 already ask for. An operation with no request body accepts an empty body
+or `{}` and refuses anything else as `unknown_field`.
 
 ### Response headers
 
@@ -545,6 +555,16 @@ complete and length-accurate headers and that the service still answers
 `/health` afterwards; another opens a connection, sends a partial request and
 asserts the service closes it at the timeout and keeps serving.
 
+A request the client abandons mid-flight — a connection reset, or a read that
+cannot complete inside the timeout — is closed with no response body, and one
+path-free JSON line records it: `{"event":"request_aborted","error":"…"}` when
+the handler saw the loss, `{"event":"connection_aborted","error":"…"}` when it
+surfaces between requests. The exception's type is the whole report, because
+`_Service.handle_error` replaces the standard library's traceback (absolute
+interpreter paths, thread by thread); no stderr line carries a traceback, a
+path or a client address. A test drives a real child, resets a connection
+mid-body and asserts every non-empty stderr line is that JSON object.
+
 `SIGINT` or `SIGTERM` stops the listen socket, lets in-flight requests
 complete for up to `SHUTDOWN_GRACE_SECONDS` = 5, requests #23 cancellation for
 a live run and joins the runner thread for the same grace, closes the database
@@ -577,6 +597,12 @@ log without leaking the library.
 stdout carries three kinds of JSON line: this one, the one listening line at
 startup, and #23's own per-item progress lines, which the runner thread's drain
 prints. Every line is JSON and none carries a path, an id or a file name.
+
+stderr carries the exit-2 `configuration_error`/`bind_failed` line, one
+`{"event":"internal_error","error":"<type>"}` line for a defect inside a
+request, the `request_aborted`/`connection_aborted` lines above, and #23's own
+one-line import-failure note. None of them carries a traceback, an absolute
+path, a client address or a request value.
 
 ## Failure mapping for #31
 
@@ -715,9 +741,24 @@ stderr to files rather than pipes.
 ## Local verification
 
 Recorded on the machine this issue was implemented on (Windows, Python 3.13,
-the project interpreter `.venv\\Scripts\\python.exe` from the repository
-root). Every command below was run in this order, and the summary lines are
-copied from what was printed.
+the project interpreter `.venv\\Scripts\\python.exe` from the repository root).
+Every command below was run in this order, and the summary lines are copied
+from what was printed. The last two runs were made after the QA findings on
+`a9e0948` were fixed, with `uv run` unavailable here (it captures a child) and
+the sandbox's refusal to write inside a `0o700` temporary directory worked
+around by a scratch `sitecustomize.py`. Each of the three new tests fails on
+`a9e0948`:
+
+- `test_api_policy.py::test_a_refused_body_is_taken_off_a_kept_alive_connection`
+  sends a pipelined 415 and then a 404, each followed by `GET /health` on the
+  same socket, and asserts both answers are this service's JSON envelope (F1).
+- `test_api_imports.py::test_an_aborted_request_never_writes_a_traceback_or_a_path`
+  resets a connection mid-body against a real child and asserts every non-empty
+  stderr line is one path-free JSON object, with no traceback (F2).
+- `test_api_imports.py::test_a_relative_root_is_refused_before_it_is_resolved`
+  sends `.`, `kicks` and `./kicks` from a working directory they resolve in and
+  asserts 400 `invalid_root` with no run opened, then the same folder by its
+  absolute path as 202 (F3).
 
 ```text
 > uv run pytest tests/test_api_contracts.py tests/test_api_policy.py tests/test_api_library.py tests/test_api_imports.py
@@ -727,6 +768,16 @@ copied from what was printed.
 
 > uv run pytest
 4 failed, 2117 passed, 1 skipped in 510.98s (0:08:30)
+
+# after the three QA findings were fixed, with the project interpreter directly:
+> .venv\\Scripts\\python.exe -m pytest tests/test_api_contracts.py tests/test_api_policy.py tests/test_api_library.py tests/test_api_imports.py -p no:cacheprovider --basetemp=%TEMP%\\focused\\bt
+129 passed in 176.54s (0:02:56)
+
+> .venv\\Scripts\\python.exe -m pytest -p no:cacheprovider --basetemp=%TEMP%\\full\\bt
+4 failed, 2120 passed, 1 skipped in 518.45s (0:08:38)
+
+# the three new tests alone, run against a9e0948:
+3 failed in 3.35s
 ```
 
 The four failures are the four sandbox-blocked `CreatePipe` failures recorded
@@ -736,8 +787,8 @@ in this repository's baseline (`tests/test_batch.py::test_cli_empty_and_invalid_
 `tests/test_evaluation_prepare.py::test_preparation_idempotence_source_preservation_and_collisions`),
 each a `PermissionError: [WinError 5]` from `subprocess.py`. They are not
 caused by this change: the baseline is `4 failed, 1991 passed, 1 skipped`, so
-the delta is the 126 API tests added here, with no new failure and the same one
-skip.
+the delta is the 129 API tests added here (126 on `a9e0948` plus the three for
+its QA findings), with no new failure and the same one skip.
 
 ### Probe 1: one page is one SQL statement
 
@@ -774,6 +825,12 @@ reproduces it exactly.
   service's stdout and stderr to files under `tmp_path`, and the `.venv`
   interpreter's own `uv run` cannot be used to capture a child. Every command
   above was run with the project interpreter directly.
+- The sandbox's file policy makes a directory created with `os.mkdir(path,
+  0o700)` unwritable, which breaks `tempfile.mkdtemp` and pytest's temporary
+  directories. The two API commands above therefore ran with a scratch
+  `sitecustomize.py` on `PYTHONPATH` that coerces that one mode to the
+  platform default; it is not a project file and the service does not import
+  it.
 - The sandbox's temporary directory is addressed by its 8.3 short name
   (`...\\GIFTM~1.YUJ\\...`), while `Path.resolve()` expands it. A probe that
   builds a root with `tempfile.mkdtemp()` without resolving it makes #9's

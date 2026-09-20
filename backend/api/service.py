@@ -534,6 +534,8 @@ class _Handler(BaseHTTPRequestHandler):
     def setup(self) -> None:
         super().setup()
         self._slotted = False
+        # True once the declared body has been read, or its framing refused.
+        self._body_settled = False
         self.connection.settimeout(self.server.app.request_timeout_seconds)
 
     def finish(self) -> None:
@@ -600,11 +602,12 @@ class _Handler(BaseHTTPRequestHandler):
         except ApiError as error:
             status, code = error.status, error.code
             document, headers = error.document(app.api_schema), []
-        except TimeoutError:
-            # The client stopped mid-request. The socket timeout closes the
-            # connection and no response body is written; the slot is released
-            # by `finish`.
-            self.close_connection = True
+        except (TimeoutError, ConnectionError) as error:
+            # The client stopped mid-request: the socket timeout expired or
+            # the connection was reset. There is no channel left to answer
+            # on, so the connection is closed (the slot is released by
+            # `finish`) and one path-free line records the type.
+            self._abandoned(error)
             return
         except Exception as error:  # never leaks a message or a traceback
             _print_line({"event": "internal_error", "error": type(error).__name__},
@@ -612,7 +615,14 @@ class _Handler(BaseHTTPRequestHandler):
             status, code = 500, "internal_error"
             document, headers = ApiError("internal_error").document(app.api_schema), []
         try:
+            # Whatever the request was refused for, the connection is left at
+            # the start of the next request before the answer is written.
+            self._reframe_body()
             self._respond(status, headers, document, allow=allow, origin=origin, code=code)
+        except (TimeoutError, ConnectionError) as error:
+            # The client left while the refused body was being drained or
+            # the answer was being written.
+            self._abandoned(error)
         finally:
             app.log_request(logged_method, route_template, status, code, started)
 
@@ -632,10 +642,14 @@ class _Handler(BaseHTTPRequestHandler):
 
         The media type and the length are checked before a byte is read, and a
         body larger than `MAX_REQUEST_BYTES` is refused from its header alone:
-        the service never reads a body it will not use.
+        the service never reads a body it will not use. A body it refuses
+        before reading is still taken off the connection by `_reframe_body`
+        before the answer, or the connection is closed when its framing
+        cannot be trusted.
         """
 
         if self.command in ("GET", "HEAD", "OPTIONS"):
+            # Nothing is read here; `_reframe_body` settles the connection.
             return None
         media_type = self.headers.get("Content-Type", "")
         if media_type.split(";")[0].strip().lower() != "application/json":
@@ -644,19 +658,64 @@ class _Handler(BaseHTTPRequestHandler):
         if declared is None or not declared.strip().isdigit():
             # Without a length the body's framing is unknown, so the connection
             # is closed rather than reused.
+            self._body_settled = True
             self.close_connection = True
             raise ApiError("length_required")
         length = int(declared, 10)
         if length > MAX_REQUEST_BYTES:
+            # Refused from the header alone, so there is nothing to reframe.
+            self._body_settled = True
             self.close_connection = True
             raise ApiError("request_too_large")
         raw = self.rfile.read(length)
+        self._body_settled = True
         if not raw:
             return None
         try:
             return json.loads(raw.decode("utf-8"))
         except (UnicodeDecodeError, ValueError):
             raise ApiError("invalid_json") from None
+
+    def _reframe_body(self) -> None:
+        """Leave the connection at the start of the next request, or close it.
+
+        A request refused before its body was read (415, and every policy
+        refusal) leaves the declared bytes on a kept-alive connection. The
+        standard library would read them as the next request line and answer
+        with its own HTML 400, so the body is drained before this service's
+        envelope is written. A body whose framing cannot be trusted — no
+        valid integer `Content-Length`, a `Transfer-Encoding` this service
+        does not read, or more than `MAX_REQUEST_BYTES` — is not drained and
+        the connection is closed instead, which is what 411 and 413 already
+        ask for from their own headers.
+        """
+
+        if self._body_settled:
+            return
+        self._body_settled = True
+        declared = self.headers.get("Content-Length")
+        if declared is None:
+            # Nothing was declared: a GET-shaped request has no body to take
+            # off the connection, and a chunked request has a framing this
+            # service does not read.
+            if self.headers.get("Transfer-Encoding") is not None:
+                self.close_connection = True
+            return
+        if not declared.strip().isdigit():
+            self.close_connection = True
+            return
+        length = int(declared, 10)
+        if length > MAX_REQUEST_BYTES:
+            self.close_connection = True
+            return
+        self.rfile.read(length)
+
+    def _abandoned(self, error) -> None:
+        """One path-free line for a request the client stopped mid-flight."""
+
+        self.close_connection = True
+        _print_line({"event": "request_aborted", "error": type(error).__name__},
+                    stream=sys.stderr)
 
     def _respond(self, status, headers, document, *, allow=None, origin=None, code=None) -> None:
         payload = b"" if status == 204 else canonical(document).encode("utf-8")
@@ -698,6 +757,20 @@ class _Service(ThreadingHTTPServer):
         socketserver.TCPServer.server_bind(self)
         self.server_name = str(self.server_address[0])
         self.server_port = self.server_address[1]
+
+    def handle_error(self, request, client_address) -> None:
+        """One path-free line for a connection that failed outside a request.
+
+        The standard library prints the whole traceback here, which carries
+        absolute interpreter paths into the service's stderr. A defect inside
+        a request is reported by the handler as `internal_error`; what reaches
+        this method is a socket, so the exception's type is the whole report.
+        """
+
+        error = sys.exc_info()[1]
+        _print_line({"event": "connection_aborted",
+                     "error": type(error).__name__ if error is not None else "unknown"},
+                    stream=sys.stderr)
 
     def serve_until(self, stop: threading.Event) -> None:
         """Accept and answer requests until `stop` is set."""

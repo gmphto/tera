@@ -24,6 +24,7 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from contextlib import closing
+import os
 from pathlib import PurePosixPath, PureWindowsPath
 import sqlite3
 import sys
@@ -57,6 +58,24 @@ def status_path(run_id: str) -> str:
     """Where the run's status is read: the route path, never a filesystem path."""
 
     return f"/imports/{run_id}"
+
+
+def _absolute_root(value: str) -> bool:
+    """True only for a path that names one place whatever the process CWD is.
+
+    #22's `validate_root` canonicalises its argument with `os.path.abspath`,
+    which is right for a command line spelled from a shell: the folder is
+    resolved against the process working directory. A request has to name the
+    folder itself, because the working directory of the service is not the
+    client's: a relative value such as `.` would import the service's own
+    directory. On Windows a rooted path without a drive (`/samples`) is also
+    resolved against the process's current drive, so it is not absolute here
+    either.
+    """
+
+    if not os.path.isabs(value):
+        return False
+    return os.name != "nt" or bool(os.path.splitdrive(value)[0])
 
 
 def _file_name(path):
@@ -161,6 +180,8 @@ def start(context) -> schemas.Response:
 
     request = schemas.import_request(context.body)
     app = context.app
+    if not _absolute_root(request.root):
+        raise ApiError("invalid_root", details={"field": "root"})
     try:
         root = scanner.validate_root(request.root)
     except scanner.ScanError:

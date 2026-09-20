@@ -22,6 +22,7 @@ import os
 from pathlib import Path
 import signal
 import socket
+import struct
 import subprocess
 import sys
 import threading
@@ -216,6 +217,40 @@ def test_the_integration_check_against_a_temporary_library(tmp_path, monkeypatch
         running.stop()
     # 5. The library tree is byte-unchanged and holds no new file.
     assert _tree_state(root) == before
+
+
+# ---------------------------------------------------------------------------
+# the root rule
+# ---------------------------------------------------------------------------
+
+
+def test_a_relative_root_is_refused_before_it_is_resolved(tmp_path, monkeypatch):
+    """A root is the folder itself, never the service's working directory.
+
+    #22's `validate_root` canonicalises its argument with `os.path.abspath`,
+    which resolves against the process working directory. The route owns an
+    absolute root, so a relative value is 400 `invalid_root` before #22 sees
+    it: `.` would otherwise import whatever folder the service was started
+    in. The values below all resolve to real folders here, so the refusal is
+    the rule and not a missing directory.
+    """
+
+    root = build_library(tmp_path, {"kicks": {"kick-01.wav": tone(55)}})
+    monkeypatch.chdir(root)
+    running = start_service(str(tmp_path / "library.sqlite3"))
+    try:
+        for value in (".", "kicks", "./kicks"):
+            reply = running.client.post("/imports", {"root": value, "role": "kick"})
+            assert (reply.status, reply.code()) == (400, "invalid_root")
+            assert reply.body["error"]["details"] == {"field": "root"}
+        # No run was opened for any of them.
+        assert running.client.get("/health").body["import"]["state"] == "idle"
+        # The same folder by its absolute path is still accepted.
+        absolute = running.client.post("/imports",
+                                       {"root": str(root / "kicks"), "role": "kick"})
+        assert absolute.status == 202
+    finally:
+        running.stop()
 
 
 # ---------------------------------------------------------------------------
@@ -763,3 +798,56 @@ def test_a_corrupt_or_unsupported_database_never_resets(tmp_path, capfd):
     finally:
         running.stop()
     assert database.read_bytes() == before
+
+
+def test_an_aborted_request_never_writes_a_traceback_or_a_path(tmp_path):
+    """One path-free line replaces the standard library's traceback.
+
+    A client that sends a request line, its headers and part of its declared
+    body and then resets the connection makes `ThreadingHTTPServer` report the
+    lost socket through `handle_error`, which by default prints the whole
+    traceback with absolute interpreter paths. The service answers with one
+    JSON line naming the exception type, and keeps serving.
+    """
+
+    _folder, database = _kick_library(tmp_path)
+    port_file = tmp_path / "service-port.json"
+    process, _out, err = _start_child(tmp_path, "aborted", "--database", str(database),
+                                     "--port", "0", "--port-file", str(port_file))
+    try:
+        listening = _wait_for_port_file(port_file, process)
+        aborted = socket.create_connection(("127.0.0.1", listening["port"]), timeout=10)
+        aborted.sendall(("POST /imports HTTP/1.1\r\nHost: 127.0.0.1:%d\r\n"
+                         "Content-Type: application/json\r\n"
+                         "Content-Length: 4096\r\n\r\n" % listening["port"]).encode("ascii")
+                        + b'{"root"')
+        # A reset, not an orderly close: the handler is left mid-body.
+        aborted.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER,
+                           struct.pack("ii", 1, 0))
+        aborted.close()
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            if err.exists() and err.read_text(encoding="utf-8").strip():
+                break
+            time.sleep(0.05)
+        assert Client(listening["port"]).get("/health").status == 200
+        _stop_child(process)
+        assert process.wait(timeout=service.SHUTDOWN_GRACE_SECONDS + 5) == 0
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait(timeout=30)
+    text = err.read_text(encoding="utf-8")
+    assert "Traceback" not in text
+    assert "Exception occurred" not in text
+    assert str(tmp_path) not in text
+    assert os.path.splitdrive(str(tmp_path))[0] not in text
+    assert "\\" not in text
+    lines = [line for line in text.splitlines() if line.strip()]
+    assert lines, "the aborted request wrote nothing to stderr"
+    for line in lines:
+        # A traceback frame is not JSON, so parsing every line is the proof.
+        document = json.loads(line)
+        assert set(document) == {"event", "error"}
+        assert document["event"].endswith("_aborted")
+        assert document["error"].isidentifier()

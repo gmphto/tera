@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import ast
 from contextlib import closing
+import json
 import os
 from pathlib import Path
 import socket
@@ -303,6 +304,63 @@ def test_a_request_that_cannot_get_a_slot_is_told_to_retry(tmp_path, monkeypatch
         assert reply.headers["retry-after"] == "1"
     finally:
         running.app.concurrency.release()
+        running.stop()
+
+
+def _read_one_reply(stream):
+    """One response read from a kept-alive socket, by its declared length."""
+
+    status_line = stream.readline()
+    assert status_line, "the connection closed before the next response"
+    status = int(status_line.split()[1])
+    headers = {}
+    while True:
+        line = stream.readline()
+        if line in (b"", b"\r\n", b"\n"):
+            break
+        name, _, value = line.decode("latin-1").partition(":")
+        headers[name.strip().lower()] = value.strip()
+    raw = stream.read(int(headers.get("content-length", "0")))
+    return status, headers, raw
+
+
+def test_a_refused_body_is_taken_off_a_kept_alive_connection(tmp_path):
+    """The request after a refusal is answered by this service, not by HTML.
+
+    A 415 is decided from the media type before the body is read, and a 404
+    is decided before a handler is reached at all. Either leaves the declared
+    bytes on the connection, and the standard library would read them as the
+    next request line and answer with its own HTML 400. The service drains
+    the body before writing its envelope instead (`_reframe_body`), so two
+    requests on one connection are both the documented JSON.
+    """
+
+    running = start_service(str(tmp_path / "library.sqlite3"))
+    body = b'{"root": "x", "role": "kick"}'
+    try:
+        for path, media_type, expected, code in (
+                (b"/imports", b"text/plain", 415, "unsupported_media_type"),
+                (b"/nope", b"application/json", 404, "unknown_route")):
+            with socket.create_connection(("127.0.0.1", running.port),
+                                          timeout=10) as opened:
+                opened.settimeout(10)
+                opened.sendall(
+                    b"POST " + path + b" HTTP/1.1\r\nHost: 127.0.0.1:%d\r\n"
+                    % running.port +
+                    b"Content-Type: " + media_type +
+                    b"\r\nContent-Length: %d\r\n\r\n" % len(body) + body +
+                    b"GET /health HTTP/1.1\r\nHost: 127.0.0.1:%d\r\n\r\n"
+                    % running.port)
+                stream = opened.makefile("rb")
+                first = _read_one_reply(stream)
+                second = _read_one_reply(stream)
+            assert first[0] == expected
+            assert "connection" not in first[1]
+            assert json.loads(first[2])["error"]["code"] == code
+            assert second[0] == 200
+            assert second[1]["content-type"] == "application/json; charset=utf-8"
+            assert json.loads(second[2])["api_schema"] == "1.0"
+    finally:
         running.stop()
 
 
