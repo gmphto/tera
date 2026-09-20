@@ -28,8 +28,8 @@ sample or run therefore does not erase history; reads resolve neither.
 Deleting a project cascades through its palettes and outcomes while preserving
 the ids of other projects' rows.
 
-The unique `ux_outcomes_client_event` constraint gives `client_event_id` its
-idempotency meaning. The partial unique `ux_outcomes_removes` index on
+A unique constraint on `client_event_id`, declared in the table and materialised
+by SQLite as an automatic index, gives it its idempotency meaning. The partial unique `ux_outcomes_removes` index on
 `removes_event_id` (where non-null) permits at most one closure per selection.
 `idx_outcomes_project(project_id,event_id)`,
 `idx_outcomes_palette_candidate(palette_id,candidate_id,event_id)` and
@@ -146,6 +146,9 @@ one-line path-free access-log rules apply unchanged.
 From the repository root, `uv sync` installs the declared dependencies.
 The issue's focused verification command is `uv run pytest
 tests/test_outcome_repository.py tests/test_outcome_migration.py
-tests/test_outcome_recovery.py tests/test_api_outcomes.py`; `uv run pytest`
-is its integration check. These commands are recorded here for later
-verification, not as a claim that they have run.
+tests/test_outcome_recovery.py tests/test_api_outcomes.py`; it passed with
+`52 passed in 24.21s` at revision `0095cf0`, working tree clean. That run also
+needs the API contract file, because migration 5 and the two routes change the
+closed tables it asserts: `uv run pytest tests/test_api_outcomes.py
+tests/test_outcome_repository.py tests/test_api_contracts.py` passed with
+`132 passed in 48.09s` at revision `8c7c5bb`.
