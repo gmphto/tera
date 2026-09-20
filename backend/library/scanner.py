@@ -247,13 +247,12 @@ def main(argv=None) -> int:
 def run(folder, role, database, summary_path=None) -> int:
     """Scan one folder, print the summary and return the exit code."""
 
-    root = _root(folder)
+    root = validate_root(folder)
     destination = _summary_destination(summary_path)
-    try:
-        paths, discovery_errors, linked_paths = traverse(root)
-    except batch.BatchError as error:
-        raise ScanError(f"root: {error}") from error
-    _reject_entry_collisions(paths)
+    # The traversal and the entry-collision refusal happen before the database
+    # is opened, so a folder that cannot be scanned byte-for-byte creates no
+    # database at all (criterion `duplicate`, QA finding F2).
+    paths, discovery_errors, linked_paths = _discover(root)
     database_path = _database_path(database)
     with closing(_open_database(database_path)) as connection:
         scan = _Scan(root, role, database_path, connection)
@@ -265,6 +264,33 @@ def run(folder, role, database, summary_path=None) -> int:
     if state == STATE_INTERRUPTED:
         return 130
     return 1 if scan.failed else 0
+
+
+def reconcile(root, role, connection, database=None) -> dict:
+    """Reconcile one root through an open connection and return the summary.
+
+    This is `run` without its command: it traverses `root`, refuses colliding
+    entries, reconciles the stored rows through the caller's connection and
+    returns the same summary object, printing nothing and opening nothing.
+    Issue #27 drives a folder import from its own runner thread, where the
+    summary must not reach stdout because it carries the root's path.
+    """
+
+    paths, discovery_errors, linked_paths = _discover(root)
+    scan = _Scan(root, role, "" if database is None else database, connection)
+    state = scan.execute(paths, discovery_errors, linked_paths)
+    return scan.summary(state)
+
+
+def _discover(root):
+    """`traverse` plus the entry-collision refusal, before any database write."""
+
+    try:
+        paths, discovery_errors, linked_paths = traverse(root)
+    except batch.BatchError as error:
+        raise ScanError(f"root: {error}") from error
+    _reject_entry_collisions(paths)
+    return paths, discovery_errors, linked_paths
 
 
 class _Scan:
@@ -480,7 +506,16 @@ class _Scan:
 # ---------------------------------------------------------------------------
 
 
-def _root(folder) -> Path:
+def validate_root(folder) -> Path:
+    """One canonical import root, or `ScanError` for anything unusable.
+
+    The whole #22 root rule: a local path with no UNC prefix, no mapped network
+    drive and no linked ancestor, and an existing directory. Public because
+    issue #27 validates the root of a `POST /imports` request with exactly this
+    call before it opens a run, so the service and the command can never
+    disagree about what a root is.
+    """
+
     try:
         root = batch.local_path(folder)
     except (batch.BatchError, OSError, TypeError, ValueError) as error:

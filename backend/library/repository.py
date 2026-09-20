@@ -30,6 +30,13 @@ Rules this module enforces:
   row's analysis state (`current`, `stale`, `absent`), its stored availability
   and, for a current row, the validated `Sample` of that version, so retrieval
   fits a normalization and maps availability without a per-candidate query.
+- API reads (issue #27). `page_samples` is one statement for one page, keyed
+  by content identity and filtered by role and file name, so a page's cost does
+  not grow with the library; `sample_detail` serves one sample's stored
+  versions and measurements; `sample_counts` is what `/health` reports. A
+  sample is addressed as `sha256:<content_sha256>` because that is the identity
+  a stored sample cannot change, and the row's own `library:...` id stays
+  inside this module.
 
 Only the standard library and `backend.contracts` / `backend.analysis.batch`
 are imported here; `json` is used to parse a stored descriptor back so it can
@@ -216,6 +223,149 @@ class RetrievalRow:
     file_status: str
     content_sha256: str
     analysis_state: str
+    sample: Sample | None
+
+
+# The analysis state #27's routes report per sample. `current`, `stale` and
+# `absent` are #25's read states; `pending` and `failed` fill the `absent`
+# gap with what #23 knows about the work, so a client can tell "no analysis yet,
+# one is queued" from "no analysis, the last attempt failed".
+ANALYSIS_CURRENT = "current"
+ANALYSIS_STALE = "stale"
+ANALYSIS_PENDING = "pending"
+ANALYSIS_FAILED = "failed"
+ANALYSIS_ABSENT = "absent"
+
+ANALYSIS_STATES = (ANALYSIS_CURRENT, ANALYSIS_STALE, ANALYSIS_PENDING, ANALYSIS_FAILED,
+                   ANALYSIS_ABSENT)
+
+# #23's item states that decide the queue half of a sample's analysis state.
+# Spelled here rather than imported: `backend.library.queue` imports this module
+# for `transaction`, so the two names are the values its CHECK constraint holds.
+QUEUED_ITEM_STATES = ("pending", "running")
+FAILED_ITEM_STATE = "failed"
+
+# The API-facing identity of a stored sample. A `samples` row may carry a minted
+# `library:...` id (#22 mints one so a move or an edit keeps the row's
+# identity), so #27 addresses a sample by the one identity that never changes
+# for stored content: its `content_sha256`. `job_items.sample_id` is already
+# that content identity, which is why the queue join spells it the same way.
+CONTENT_ID_PREFIX = "sha256:"
+
+# The precedence one sample's analysis state is decided with, written once as
+# SQL for a page and once as `_analysis_state` for a single sample: what is
+# stored beats what is queued, and a recorded failure is the last thing before
+# "nothing is known". Both use the same order.
+_ANALYSIS_SQL_CASE = (
+    "CASE "
+    "WHEN EXISTS (SELECT 1 FROM sample_features AS f "
+    "             WHERE f.sample_id = s.sample_id AND f.analysis_version = ?) "
+    "  OR EXISTS (SELECT 1 FROM sample_keys AS k "
+    "             WHERE k.sample_id = s.sample_id AND k.analysis_version = ?) THEN 'current' "
+    "WHEN EXISTS (SELECT 1 FROM sample_features AS f WHERE f.sample_id = s.sample_id) "
+    "  OR EXISTS (SELECT 1 FROM sample_keys AS k WHERE k.sample_id = s.sample_id) THEN 'stale' "
+    "WHEN EXISTS (SELECT 1 FROM job_items AS j "
+    "             WHERE j.sample_id = 'sha256:' || s.content_sha256 "
+    "               AND j.analysis_version = ? AND j.state IN ('pending', 'running')) "
+    "THEN 'pending' "
+    "WHEN EXISTS (SELECT 1 FROM job_items AS j "
+    "             WHERE j.sample_id = 'sha256:' || s.content_sha256 "
+    "               AND j.analysis_version = ? AND j.state = 'failed') THEN 'failed' "
+    "ELSE 'absent' END"
+)
+
+# The one statement `page_samples` runs: the samples row, its availability and
+# its analysis state, ordered by content identity. `limit + 1` rows are read so
+# "is there another page" needs no second statement.
+_PAGE_SELECT = (
+    "SELECT s.content_sha256, s.role, s.filename, s.file_status, s.sample_rate_hz, "
+    "s.channels, s.frame_count, s.duration_ms, " + _ANALYSIS_SQL_CASE + " AS analysis_state "
+    "FROM samples AS s"
+)
+
+
+def content_identity(content_sha256: str) -> str:
+    """The contract identity of a stored content hash, as #27's routes spell it."""
+
+    return CONTENT_ID_PREFIX + content_sha256
+
+
+def content_fingerprint(sample_id: str) -> str:
+    """The 64-hex content hash inside a `sha256:<hash>` sample id."""
+
+    return sample_id[len(CONTENT_ID_PREFIX):]
+
+
+def _analysis_state(stored_versions, analysis_version, item_state) -> str:
+    """The state a stored sample and its queue row report, in the SQL order."""
+
+    if analysis_version in stored_versions:
+        return ANALYSIS_CURRENT
+    if stored_versions:
+        return ANALYSIS_STALE
+    if item_state in QUEUED_ITEM_STATES:
+        return ANALYSIS_PENDING
+    if item_state == FAILED_ITEM_STATE:
+        return ANALYSIS_FAILED
+    return ANALYSIS_ABSENT
+
+
+@dataclass(frozen=True)
+class SamplePageRow:
+    """One sample as a page of the library reports it (issue #27).
+
+    Deliberately not a `Sample`: the row is read without its measurements, so a
+    sample whose analysis has not been written yet is paged instead of raising
+    `IncompleteFeatures`. `sample_id` is `sha256:<content_sha256>`, and
+    `analysis_version` is the stored version only when `analysis_state` is
+    `current`.
+    """
+
+    sample_id: str
+    role: str
+    file_name: str
+    file_status: str
+    analysis_state: str
+    analysis_version: str | None
+    sample_rate_hz: int
+    channels: int
+    frame_count: int
+    duration_ms: float
+
+
+@dataclass(frozen=True)
+class SamplePage:
+    """One page of samples and whether another page follows."""
+
+    rows: tuple
+    has_more: bool
+
+
+@dataclass(frozen=True)
+class SampleDetail:
+    """One stored sample read for the feature-detail route (issue #27).
+
+    `sample` is the validated contract `Sample` of `analysis_version`, or None
+    when the state is not `current`; `stored_versions` lists every stored
+    analysis version ascending; `analyzed_at`, `attempts` and `error_code` come
+    from the sample's #23 item row at the current version and are None when that
+    row does not exist. Nothing here is derived, normalised or imputed.
+    """
+
+    sample_id: str
+    role: str
+    file_name: str
+    file_status: str
+    analysis_state: str
+    analysis_version: str | None
+    analyzed_at: str | None
+    attempts: int | None
+    error_code: str | None
+    stored_versions: tuple
+    sample_rate_hz: int
+    channels: int
+    frame_count: int
+    duration_ms: float
     sample: Sample | None
 
 
@@ -1025,6 +1175,117 @@ class LibraryRepository:
                                confidence=first["key_confidence"],
                                unavailable_reason=first["key_unavailable_reason"])),
             analysis_version=analysis_version, schema_version=first["schema_version"])
+
+    # -- API reads (issue #27) ---------------------------------------------
+
+    def page_samples(self, analysis_version, *, roles=None, text=None, after=None,
+                     limit=50) -> SamplePage:
+        """One page of stored samples, filtered by role and file name, in one statement.
+
+        Ordered by content identity ascending, which `content_identity` spells
+        `sha256:<content_sha256>`; `after` is such an identity and the read is
+        strictly greater than it, so a cursor is a position and never a filter
+        that could re-admit a row outside the request's roles or text. `roles`
+        is OR-ed; `text` is a case-insensitive substring match on the stored
+        file name only, never on a path. `limit + 1` rows are read, so
+        `has_more` costs no second statement: one call is one SQL statement
+        however large the page is.
+
+        A row that stores no measurements is returned as well, with its
+        `analysis_state` saying why: this read never rebuilds a `Sample`, so it
+        cannot raise `IncompleteFeatures`.
+        """
+
+        if not isinstance(limit, int) or isinstance(limit, bool) or limit < 1:
+            raise InvalidSample("limit must be a positive integer.")
+        parameters = [analysis_version, analysis_version, analysis_version, analysis_version]
+        clauses = []
+        if roles:
+            roles = tuple(roles)
+            clauses.append("s.role IN (" + ", ".join("?" * len(roles)) + ")")
+            parameters.extend(roles)
+        if text is not None:
+            clauses.append("instr(lower(s.filename), lower(?)) > 0")
+            parameters.append(text)
+        if after is not None:
+            if not isinstance(after, str) or not after.startswith(CONTENT_ID_PREFIX):
+                raise InvalidSample("after must be a sha256: content identity.")
+            clauses.append("s.content_sha256 > ?")
+            parameters.append(content_fingerprint(after))
+        statement = (_PAGE_SELECT + ("" if not clauses else " WHERE " + " AND ".join(clauses))
+                     + " ORDER BY s.content_sha256 ASC LIMIT ?")
+        parameters.append(limit + 1)
+        rows = self._all(statement, tuple(parameters))
+        has_more = len(rows) > limit
+        return SamplePage(
+            rows=tuple(
+                SamplePageRow(
+                    sample_id=content_identity(row["content_sha256"]), role=row["role"],
+                    file_name=row["filename"], file_status=row["file_status"],
+                    analysis_state=row["analysis_state"],
+                    analysis_version=(analysis_version if row["analysis_state"] == ANALYSIS_CURRENT
+                                      else None),
+                    sample_rate_hz=row["sample_rate_hz"], channels=row["channels"],
+                    frame_count=row["frame_count"], duration_ms=row["duration_ms"])
+                for row in rows[:limit]),
+            has_more=has_more)
+
+    def sample_detail(self, sample_id: str):
+        """One `SampleDetail` for a content identity, or None when it is unknown.
+
+        `sample_id` is `sha256:<content_sha256>`. The state is decided exactly
+        as `page_samples` decides it, and `sample` is the validated contract
+        `Sample` rebuilt by `get_sample` when that state is `current`, so the
+        detail route serves the same measurements every other read returns.
+        `analyzed_at` is the #23 item's `finished_at` for a complete item at
+        the current version; a sample whose analysis was stored without a queue
+        row reports it as null rather than inventing one.
+        """
+
+        fingerprint = content_fingerprint(sample_id)
+        row = self._one("SELECT * FROM samples WHERE content_sha256 = ?", (fingerprint,))
+        if row is None:
+            return None
+        versions = self.list_analysis_versions(row["sample_id"])
+        version = digest(analysis_descriptor())
+        item = self._one(
+            "SELECT state, attempts, error_code, finished_at FROM job_items "
+            "WHERE sample_id = ? AND analysis_version = ?",
+            (content_identity(fingerprint), version))
+        state = _analysis_state(versions, version, None if item is None else item["state"])
+        complete = item is not None and item["state"] == "complete"
+        return SampleDetail(
+            sample_id=content_identity(fingerprint), role=row["role"], file_name=row["filename"],
+            file_status=row["file_status"], analysis_state=state,
+            analysis_version=(version if state == ANALYSIS_CURRENT else None),
+            analyzed_at=(item["finished_at"] if complete else None),
+            attempts=(None if item is None else item["attempts"]),
+            error_code=(None if item is None else item["error_code"]),
+            stored_versions=versions, sample_rate_hz=row["sample_rate_hz"],
+            channels=row["channels"], frame_count=row["frame_count"],
+            duration_ms=row["duration_ms"],
+            sample=(None if state != ANALYSIS_CURRENT
+                    else self.get_sample(row["sample_id"], version).sample))
+
+    def sample_counts(self) -> dict:
+        """The whole-library counts #27's `/health` reports, in two statements.
+
+        `samples` is every stored row, `by_role` holds one count per
+        `backend.analysis.batch.ROLES` member (zero when absent) and `roots` is
+        the number of distinct directories that hold at least one stored sample,
+        which is what a client shows as "folders in the library".
+        `path_key` is the normalised stored path, so counting its parents needs
+        no second path scheme.
+        """
+
+        counts = {role: 0 for role in ROLES}
+        total = 0
+        for row in self._all("SELECT role, COUNT(*) AS total FROM samples GROUP BY role"):
+            counts[row["role"]] = counts.get(row["role"], 0) + row["total"]
+            total += row["total"]
+        roots = {os.path.dirname(row["path_key"])
+                 for row in self._all("SELECT path_key FROM samples")}
+        return {"samples": total, "by_role": counts, "roots": len(roots)}
 
     def insert_path_record(self, path, *, role, content_sha256, sample_rate_hz, channels,
                            frame_count, duration_ms, file_status="present", sample_id=None):

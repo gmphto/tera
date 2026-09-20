@@ -1,0 +1,450 @@
+{
+  "schema": "request-cases/1",
+  "note": "Pure request-validation cases: a parsed body or a parsed query to a value or to one ApiError code. The root value is only syntactic here; #22's root rules read the filesystem and are covered by the HTTP cases and the policy tests. Every id is synthetic.",
+  "cases": [
+    {
+      "name": "an import body with both fields",
+      "case": "import_request",
+      "input": {
+        "root": "C:\\Samples\\Kicks",
+        "role": "kick"
+      },
+      "value": {
+        "root": "C:\\Samples\\Kicks",
+        "role": "kick"
+      }
+    },
+    {
+      "name": "every role is accepted",
+      "case": "import_request",
+      "input": {
+        "root": "C:\\Samples\\Kicks",
+        "role": "sub-bass"
+      },
+      "value": {
+        "root": "C:\\Samples\\Kicks",
+        "role": "sub-bass"
+      }
+    },
+    {
+      "name": "a body that is an array",
+      "case": "import_request",
+      "input": [],
+      "code": "invalid_body"
+    },
+    {
+      "name": "a body that is a string",
+      "case": "import_request",
+      "input": "Kicks",
+      "code": "invalid_body"
+    },
+    {
+      "name": "an empty body",
+      "case": "import_request",
+      "input": {},
+      "code": "missing_field",
+      "details": {
+        "field": "root"
+      }
+    },
+    {
+      "name": "a body without root",
+      "case": "import_request",
+      "input": {
+        "role": "kick"
+      },
+      "code": "missing_field",
+      "details": {
+        "field": "root"
+      }
+    },
+    {
+      "name": "a body without role",
+      "case": "import_request",
+      "input": {
+        "root": "C:\\Samples\\Kicks"
+      },
+      "code": "missing_field",
+      "details": {
+        "field": "role"
+      }
+    },
+    {
+      "name": "a root that is a number",
+      "case": "import_request",
+      "input": {
+        "root": 5,
+        "role": "kick"
+      },
+      "code": "invalid_field_type",
+      "details": {
+        "field": "root"
+      }
+    },
+    {
+      "name": "a role that is null",
+      "case": "import_request",
+      "input": {
+        "root": "C:\\Samples\\Kicks",
+        "role": null
+      },
+      "code": "invalid_field_type",
+      "details": {
+        "field": "role"
+      }
+    },
+    {
+      "name": "a field this operation does not have",
+      "case": "import_request",
+      "input": {
+        "root": "C:\\Samples\\Kicks",
+        "role": "kick",
+        "pack": "boombap"
+      },
+      "code": "unknown_field",
+      "details": {
+        "field": "pack"
+      }
+    },
+    {
+      "name": "a role outside the vocabulary",
+      "case": "import_request",
+      "input": {
+        "root": "C:\\Samples\\Kicks",
+        "role": "snare"
+      },
+      "code": "invalid_role",
+      "details": {
+        "field": "role"
+      }
+    },
+    {
+      "name": "an empty query",
+      "case": "sample_query",
+      "input": [],
+      "value": {
+        "roles": [],
+        "text": null,
+        "limit": 50,
+        "after": null
+      }
+    },
+    {
+      "name": "repeated roles, a search text and a page size",
+      "case": "sample_query",
+      "input": [
+        [
+          "role",
+          "bass"
+        ],
+        [
+          "role",
+          "sub-bass"
+        ],
+        [
+          "q",
+          "Kick"
+        ],
+        [
+          "limit",
+          "50"
+        ]
+      ],
+      "value": {
+        "roles": [
+          "bass",
+          "sub-bass"
+        ],
+        "text": "Kick",
+        "limit": 50,
+        "after": null
+      }
+    },
+    {
+      "name": "the smallest page",
+      "case": "sample_query",
+      "input": [
+        [
+          "limit",
+          "1"
+        ]
+      ],
+      "value": {
+        "roles": [],
+        "text": null,
+        "limit": 1,
+        "after": null
+      }
+    },
+    {
+      "name": "the largest page",
+      "case": "sample_query",
+      "input": [
+        [
+          "limit",
+          "200"
+        ]
+      ],
+      "value": {
+        "roles": [],
+        "text": null,
+        "limit": 200,
+        "after": null
+      }
+    },
+    {
+      "name": "a cursor is a position",
+      "case": "sample_query",
+      "input": [
+        [
+          "cursor",
+          "eyJhZnRlciI6InNoYTI1NjphYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIiwidiI6MX0="
+        ]
+      ],
+      "value": {
+        "roles": [],
+        "text": null,
+        "limit": 50,
+        "after": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "name": "a blank search text",
+      "case": "sample_query",
+      "input": [
+        [
+          "q",
+          ""
+        ]
+      ],
+      "code": "invalid_query",
+      "details": {
+        "parameter": "q"
+      }
+    },
+    {
+      "name": "a search text of 201 characters",
+      "case": "sample_query",
+      "input": [
+        [
+          "q",
+          "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        ]
+      ],
+      "code": "invalid_query",
+      "details": {
+        "parameter": "q"
+      }
+    },
+    {
+      "name": "a page size of zero",
+      "case": "sample_query",
+      "input": [
+        [
+          "limit",
+          "0"
+        ]
+      ],
+      "code": "invalid_page_size",
+      "details": {
+        "parameter": "limit"
+      }
+    },
+    {
+      "name": "a page size above the maximum",
+      "case": "sample_query",
+      "input": [
+        [
+          "limit",
+          "201"
+        ]
+      ],
+      "code": "invalid_page_size",
+      "details": {
+        "parameter": "limit"
+      }
+    },
+    {
+      "name": "a page size that is not an integer",
+      "case": "sample_query",
+      "input": [
+        [
+          "limit",
+          "1.5"
+        ]
+      ],
+      "code": "invalid_page_size",
+      "details": {
+        "parameter": "limit"
+      }
+    },
+    {
+      "name": "a page size that is not a number",
+      "case": "sample_query",
+      "input": [
+        [
+          "limit",
+          "many"
+        ]
+      ],
+      "code": "invalid_page_size",
+      "details": {
+        "parameter": "limit"
+      }
+    },
+    {
+      "name": "a role outside the vocabulary",
+      "case": "sample_query",
+      "input": [
+        [
+          "role",
+          "snare"
+        ]
+      ],
+      "code": "invalid_role",
+      "details": {
+        "parameter": "role"
+      }
+    },
+    {
+      "name": "a parameter this operation does not have",
+      "case": "sample_query",
+      "input": [
+        [
+          "sort",
+          "asc"
+        ]
+      ],
+      "code": "unknown_query_parameter",
+      "details": {
+        "parameter": "sort"
+      }
+    },
+    {
+      "name": "a cursor that is not base64url",
+      "case": "sample_query",
+      "input": [
+        [
+          "cursor",
+          "!!not-a-cursor!!"
+        ]
+      ],
+      "code": "invalid_cursor"
+    },
+    {
+      "name": "a cursor in the standard base64 alphabet",
+      "case": "sample_query",
+      "input": [
+        [
+          "cursor",
+          "AA+/"
+        ]
+      ],
+      "code": "invalid_cursor"
+    },
+    {
+      "name": "a cursor of another version",
+      "case": "sample_query",
+      "input": [
+        [
+          "cursor",
+          "eyJhZnRlciI6InNoYTI1NjphYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIiwidiI6Mn0="
+        ]
+      ],
+      "code": "invalid_cursor"
+    },
+    {
+      "name": "a cursor naming something that is not a sample id",
+      "case": "sample_query",
+      "input": [
+        [
+          "cursor",
+          "eyJhZnRlciI6ImxpYnJhcnk6YWJjIiwidiI6MX0="
+        ]
+      ],
+      "code": "invalid_cursor"
+    },
+    {
+      "name": "a cursor with another field",
+      "case": "sample_query",
+      "input": [
+        [
+          "cursor",
+          "eyJhZnRlciI6InNoYTI1NjphYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIiwiZXh0cmEiOjIsInYiOjF9"
+        ]
+      ],
+      "code": "invalid_cursor"
+    },
+    {
+      "name": "a cursor that is not JSON",
+      "case": "sample_query",
+      "input": [
+        [
+          "cursor",
+          "bm90IGpzb24="
+        ]
+      ],
+      "code": "invalid_cursor"
+    },
+    {
+      "name": "a well-formed run id",
+      "case": "require_run_id",
+      "input": "run-0123456789abcdef",
+      "value": "run-0123456789abcdef"
+    },
+    {
+      "name": "a blank run id",
+      "case": "require_run_id",
+      "input": "",
+      "code": "invalid_run_id"
+    },
+    {
+      "name": "a run id with a space",
+      "case": "require_run_id",
+      "input": "run 1",
+      "code": "invalid_run_id"
+    },
+    {
+      "name": "a run id with a slash",
+      "case": "require_run_id",
+      "input": "run/1",
+      "code": "invalid_run_id"
+    },
+    {
+      "name": "a run id of 65 characters",
+      "case": "require_run_id",
+      "input": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+      "code": "invalid_run_id"
+    },
+    {
+      "name": "a well-formed sample id",
+      "case": "require_sample_id",
+      "input": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "value": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "name": "a sample id without its prefix",
+      "case": "require_sample_id",
+      "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "code": "invalid_sample_id"
+    },
+    {
+      "name": "a sample id with an uppercase hash",
+      "case": "require_sample_id",
+      "input": "sha256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "code": "invalid_sample_id"
+    },
+    {
+      "name": "a sample id with a short hash",
+      "case": "require_sample_id",
+      "input": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "code": "invalid_sample_id"
+    },
+    {
+      "name": "the library row id is not a sample id",
+      "case": "require_sample_id",
+      "input": "library:0123456789abcdef",
+      "code": "invalid_sample_id"
+    }
+  ]
+}

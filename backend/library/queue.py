@@ -315,6 +315,22 @@ def get_run(connection, run_id):
     return row
 
 
+def live_run(connection):
+    """The one live run row, or None; the liveness rule `open_run` refuses with.
+
+    A run is live when its row is `RUN_RUNNING` and its heartbeat is younger
+    than `LEASE_SECONDS`. A `running` row with a stale heartbeat is an
+    interrupted run whose owner died: it does not block another run, and the
+    next `open_run` or `reconcile` marks it `interrupted` and returns its
+    in-flight items to the queue. A read only, so #27's `/health` can report
+    whether an import is live without writing anything.
+    """
+
+    return connection.execute(
+        "SELECT * FROM job_runs WHERE state = 'running' AND heartbeat_at > ? "
+        "ORDER BY started_at ASC, run_id ASC LIMIT 1", (_cutoff(LEASE_SECONDS),)).fetchone()
+
+
 def open_run(connection, analysis_version, workers=DEFAULT_WORKERS,
              max_attempts=MAX_ATTEMPTS) -> str:
     """Commit one `running` run row and return its `run_id`; extract nothing.
@@ -332,9 +348,7 @@ def open_run(connection, analysis_version, workers=DEFAULT_WORKERS,
     now = utc_now()
     with transaction(connection):
         reconcile_locked(connection, now)
-        live = connection.execute(
-            "SELECT run_id, heartbeat_at FROM job_runs WHERE state = 'running' "
-            "ORDER BY started_at ASC, run_id ASC LIMIT 1").fetchone()
+        live = live_run(connection)
         if live is not None:
             raise QueueError(
                 f"Another analysis run is live on this database: {live['run_id']} "

@@ -1,0 +1,315 @@
+{
+  "schema": "http-cases/1",
+  "note": "Transport cases: a method, a path, headers and a raw body to an expected status, error code and Allow header. {root} is replaced by the test's temporary library root, {absent} by a local path that does not exist, {port} by the bound port and {run_id} by the id a setup created. A raw case is written to the socket verbatim. A case with a setup runs against a service prepared for it; the rest share one service.",
+  "cases": [
+    {
+      "name": "an unknown path",
+      "method": "GET",
+      "path": "/library/audio",
+      "status": 404,
+      "code": "unknown_route"
+    },
+    {
+      "name": "an audio-shaped path under a known prefix",
+      "method": "GET",
+      "path": "/library/samples/sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/audio",
+      "status": 404,
+      "code": "unknown_route"
+    },
+    {
+      "name": "another audio-shaped path",
+      "method": "GET",
+      "path": "/audio",
+      "status": 404,
+      "code": "unknown_route"
+    },
+    {
+      "name": "a trailing slash is another path",
+      "method": "GET",
+      "path": "/health/",
+      "status": 404,
+      "code": "unknown_route"
+    },
+    {
+      "name": "a known path with an unsupported method",
+      "method": "POST",
+      "path": "/health",
+      "status": 405,
+      "code": "method_not_allowed",
+      "allow": "GET"
+    },
+    {
+      "name": "a known path with an unsupported method among several",
+      "method": "GET",
+      "path": "/imports",
+      "status": 405,
+      "code": "method_not_allowed",
+      "allow": "POST"
+    },
+    {
+      "name": "a known path with an invented method",
+      "method": "BREW",
+      "path": "/health",
+      "status": 405,
+      "code": "method_not_allowed",
+      "allow": "GET"
+    },
+    {
+      "name": "a host the service did not bind",
+      "method": "GET",
+      "path": "/health",
+      "host": "example.invalid",
+      "status": 403,
+      "code": "host_not_allowed"
+    },
+    {
+      "name": "the loopback address with a foreign port",
+      "method": "GET",
+      "path": "/health",
+      "host": "127.0.0.1:1",
+      "status": 403,
+      "code": "host_not_allowed"
+    },
+    {
+      "name": "the bound host is accepted",
+      "method": "GET",
+      "path": "/health",
+      "status": 200,
+      "code": null
+    },
+    {
+      "name": "an origin outside the allowlist",
+      "method": "GET",
+      "path": "/health",
+      "headers": {
+        "Origin": "http://example.invalid"
+      },
+      "status": 403,
+      "code": "origin_not_allowed"
+    },
+    {
+      "name": "an allowed origin is echoed",
+      "method": "GET",
+      "path": "/health",
+      "headers": {
+        "Origin": "tauri://localhost"
+      },
+      "status": 200,
+      "code": null,
+      "cors": "tauri://localhost"
+    },
+    {
+      "name": "a preflight for an allowed origin",
+      "method": "OPTIONS",
+      "path": "/imports",
+      "headers": {
+        "Origin": "http://tauri.localhost"
+      },
+      "status": 204,
+      "code": null
+    },
+    {
+      "name": "a preflight for another origin",
+      "method": "OPTIONS",
+      "path": "/imports",
+      "headers": {
+        "Origin": "https://example.invalid"
+      },
+      "status": 403,
+      "code": "origin_not_allowed"
+    },
+    {
+      "name": "a body that is not JSON",
+      "method": "POST",
+      "path": "/imports",
+      "body": "{not json",
+      "status": 400,
+      "code": "invalid_json"
+    },
+    {
+      "name": "a JSON body that is an array",
+      "method": "POST",
+      "path": "/imports",
+      "body": "[]",
+      "status": 400,
+      "code": "invalid_body"
+    },
+    {
+      "name": "a body without a media type",
+      "method": "POST",
+      "path": "/imports",
+      "headers": {
+        "Content-Type": "text/plain"
+      },
+      "body": "{}",
+      "status": 415,
+      "code": "unsupported_media_type"
+    },
+    {
+      "name": "a POST that names no media type at all",
+      "raw": "POST /imports HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nContent-Length: 2\r\n\r\n{}",
+      "status": 415,
+      "code": "unsupported_media_type"
+    },
+    {
+      "name": "a body with an unknown field",
+      "method": "POST",
+      "path": "/imports",
+      "body": "{\"root\": \"{root}\", \"role\": \"kick\", \"pack\": 1}",
+      "status": 400,
+      "code": "unknown_field"
+    },
+    {
+      "name": "a body without a required field",
+      "method": "POST",
+      "path": "/imports",
+      "body": "{\"root\": \"{root}\"}",
+      "status": 400,
+      "code": "missing_field"
+    },
+    {
+      "name": "a body with a mistyped field",
+      "method": "POST",
+      "path": "/imports",
+      "body": "{\"root\": 5, \"role\": \"kick\"}",
+      "status": 400,
+      "code": "invalid_field_type"
+    },
+    {
+      "name": "a root that is not a local directory",
+      "method": "POST",
+      "path": "/imports",
+      "body": "{\"root\": \"relative/folder\", \"role\": \"kick\"}",
+      "status": 400,
+      "code": "invalid_root"
+    },
+    {
+      "name": "a root that does not exist",
+      "method": "POST",
+      "path": "/imports",
+      "body": "{\"root\": \"{absent}\", \"role\": \"kick\"}",
+      "status": 400,
+      "code": "invalid_root"
+    },
+    {
+      "name": "a role outside the vocabulary",
+      "method": "POST",
+      "path": "/imports",
+      "body": "{\"root\": \"{root}\", \"role\": \"snare\"}",
+      "status": 400,
+      "code": "invalid_role"
+    },
+    {
+      "name": "a malformed run id",
+      "method": "GET",
+      "path": "/imports/not%20a%20run",
+      "status": 400,
+      "code": "invalid_run_id"
+    },
+    {
+      "name": "an unknown run id",
+      "method": "GET",
+      "path": "/imports/run-00000000000000000000000000000000",
+      "status": 404,
+      "code": "unknown_import"
+    },
+    {
+      "name": "a malformed sample id",
+      "method": "GET",
+      "path": "/library/samples/library:1",
+      "status": 400,
+      "code": "invalid_sample_id"
+    },
+    {
+      "name": "an unknown sample id",
+      "method": "GET",
+      "path": "/library/samples/sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "status": 404,
+      "code": "unknown_sample"
+    },
+    {
+      "name": "a blank search text",
+      "method": "GET",
+      "path": "/library/samples?q=",
+      "status": 400,
+      "code": "invalid_query"
+    },
+    {
+      "name": "a page size that is not an integer",
+      "method": "GET",
+      "path": "/library/samples?limit=1.5",
+      "status": 400,
+      "code": "invalid_page_size"
+    },
+    {
+      "name": "an unknown query parameter",
+      "method": "GET",
+      "path": "/library/samples?sort=asc",
+      "status": 400,
+      "code": "unknown_query_parameter"
+    },
+    {
+      "name": "a malformed cursor",
+      "method": "GET",
+      "path": "/library/samples?cursor=!!",
+      "status": 400,
+      "code": "invalid_cursor"
+    },
+    {
+      "name": "a body larger than the bound",
+      "method": "POST",
+      "path": "/imports",
+      "body_size": 70000,
+      "status": 413,
+      "code": "request_too_large"
+    },
+    {
+      "name": "a chunked body without a length",
+      "raw": "POST /imports HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n",
+      "status": 411,
+      "code": "length_required"
+    },
+    {
+      "name": "an import while one is live",
+      "setup": "live_run",
+      "method": "POST",
+      "path": "/imports",
+      "body": "{\"root\": \"{root}\", \"role\": \"kick\"}",
+      "status": 409,
+      "code": "import_already_running"
+    },
+    {
+      "name": "cancelling a run that is not live",
+      "setup": "terminal_run",
+      "method": "POST",
+      "path": "/imports/{run_id}/cancel",
+      "status": 409,
+      "code": "import_not_live"
+    },
+    {
+      "name": "a read while the database is unavailable",
+      "setup": "degraded",
+      "method": "GET",
+      "path": "/library/samples",
+      "status": 503,
+      "code": "database_unavailable"
+    },
+    {
+      "name": "a start while the database is unavailable",
+      "setup": "degraded",
+      "method": "POST",
+      "path": "/imports",
+      "body": "{\"root\": \"{root}\", \"role\": \"kick\"}",
+      "status": 503,
+      "code": "database_unavailable"
+    },
+    {
+      "name": "health while the database is unavailable",
+      "setup": "degraded",
+      "method": "GET",
+      "path": "/health",
+      "status": 200,
+      "code": null
+    }
+  ]
+}
