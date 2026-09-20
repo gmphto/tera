@@ -11,6 +11,7 @@
 
 import type { CardModel } from "./cards";
 import { formatPercent, type CardState } from "./cards";
+import { AuditionControls } from "../audition/AuditionControls";
 
 export interface RecommendationCardProps {
   card: CardModel;
@@ -78,6 +79,7 @@ export function RecommendationCard({
           Uncertain — the evidence behind this candidate is thin
         </p>
       ) : null}
+      <AuditionControls candidateId={card.candidateId} />
       <div className="rec-card__actions">
         <button
           type="button"

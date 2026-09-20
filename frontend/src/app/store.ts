@@ -2,6 +2,7 @@ import { configureStore, createSlice } from "@reduxjs/toolkit";
 import { setupListeners } from "@reduxjs/toolkit/query";
 
 import browserReducer from "../features/palette/state/browserSlice";
+import { auditionReducer } from "../features/palette/audition/auditionSlice";
 import { paletteReducer } from "../features/palette/state/paletteSlice";
 import { recommendationsReducer } from "../features/palette/state/recommendationsSlice";
 import serviceReducer from "../features/service/serviceSlice";
@@ -26,6 +27,7 @@ export const store = configureStore({
     browser: browserReducer,
     palette: paletteReducer,
     recommendations: recommendationsReducer,
+    audition: auditionReducer,
     [teraApi.reducerPath]: teraApi.reducer,
   },
   middleware: (getDefaultMiddleware) => getDefaultMiddleware().concat(teraApi.middleware),

@@ -6,11 +6,13 @@
 //! interpreter on the loopback interface, shows what it is doing, and makes sure
 //! it does not outlive the window that owns it.
 
+mod audition;
 mod paths;
 mod service;
 
 use tauri::{RunEvent, WindowEvent};
 
+use audition::AuditionRegistry;
 use service::Supervisor;
 
 #[tauri::command]
@@ -38,10 +40,14 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(supervisor)
+        .manage(AuditionRegistry::load(paths::data_dir().ok()))
         .invoke_handler(tauri::generate_handler![
             service_status,
             service_start,
-            service_stop
+            service_stop,
+            audition::register_audition_root,
+            audition::forget_audition_root,
+            audition::read_audition_source
         ])
         // Starting the service spawns a thread and returns at once; the UI thread
         // is never blocked waiting for the child.

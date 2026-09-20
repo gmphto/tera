@@ -40,6 +40,7 @@ import { LibraryFilters } from "./LibraryFilters";
 import { LibraryResults } from "./LibraryResults";
 import { PageControls } from "./PageControls";
 import { baseName, pickFolder, type PickerReason } from "./folderPicker";
+import { registerPickedRoot } from "../audition/auditionSource";
 
 export function LibraryBrowser() {
   const dispatch = useAppDispatch();
@@ -127,6 +128,9 @@ export function LibraryBrowser() {
     setRetryNote(false);
     // The absolute path lives in this call and nowhere else.
     setChosenLabel(baseName(picked.root));
+    // The folder that was imported is the folder playback may resolve inside:
+    // the shell keeps its canonical form, the client keeps only an id.
+    void registerPickedRoot(picked.root);
     try {
       const answer = await startImport({ root: picked.root, role: browser.importRole }).unwrap();
       dispatch(importRunTracked(answer.import.run_id));

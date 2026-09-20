@@ -15,6 +15,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { Provider } from "react-redux";
 import { describe, expect, it } from "vitest";
 
+import { teraApi } from "../../../app/api";
+import { auditionReducer } from "../audition/auditionSlice";
 import serviceReducer from "../../service/serviceSlice";
 import type { ServiceSnapshot } from "../../service/status";
 import { paletteLoaded, paletteReducer } from "../state/paletteSlice";
@@ -78,10 +80,6 @@ const REQUEST = recommendationRequest({
   kickId: candidateId(99),
 });
 
-function render(element: ReactElement): string {
-  return renderToStaticMarkup(element);
-}
-
 /** The first opening tag carrying a `data-testid`, as its attribute map. */
 function attrsOf(html: string, testid: string): Record<string, string | true> {
   const match = new RegExp(`<[a-z]+[^>]*data-testid="${testid}"[^>]*>`).exec(html);
@@ -123,25 +121,40 @@ function ready(batch = response().recommendation, run = response().run): Recomme
   );
 }
 
-function panel(state: RecommendationsState, loadedPalette = true): string {
-  const store = configureStore({
+function storeFor(state: RecommendationsState, loadedPalette = true) {
+  // The cards carry #34's audition controls, which read the two library and
+  // outcome endpoints, so this store carries #30's api slice as well. Nothing is
+  // fetched: `renderToStaticMarkup` runs no effects and RTK Query does not
+  // subscribe without a window — and no window is also why the controls render
+  // their blocked state here.
+  return configureStore({
     reducer: {
       service: serviceReducer,
       palette: paletteReducer,
       recommendations: recommendationsReducer,
+      audition: auditionReducer,
+      [teraApi.reducerPath]: teraApi.reducer,
     },
+    middleware: (getDefaultMiddleware) => getDefaultMiddleware().concat(teraApi.middleware),
     preloadedState: {
       service: { snapshot: SNAPSHOT, origin: ORIGIN },
-      palette: paletteReducer(
-        undefined,
-        paletteLoaded(loadedPalette ? palette() : null),
-      ),
+      palette: paletteReducer(undefined, paletteLoaded(loadedPalette ? palette() : null)),
       recommendations: state,
     },
   });
-  return render(
-    createElement(Provider, { store, children: createElement(RecommendationPanel) }),
-  );
+}
+
+/** One element inside a store, which every card now needs. */
+function renderIn(store: ReturnType<typeof storeFor>, element: ReactElement): string {
+  return renderToStaticMarkup(createElement(Provider, { store, children: element }));
+}
+
+function render(element: ReactElement): string {
+  return renderIn(storeFor(ready()), element);
+}
+
+function panel(state: RecommendationsState, loadedPalette = true): string {
+  return renderIn(storeFor(state, loadedPalette), createElement(RecommendationPanel));
 }
 
 describe("a card's markup", () => {

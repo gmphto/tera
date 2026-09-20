@@ -12,6 +12,8 @@
  * each of those has exactly one client-facing sentence and one UI state here.
  */
 
+import { invoke } from "@tauri-apps/api/core";
+
 import {
   AUDITION_ERROR_CODES,
   type AuditionErrorCode,
@@ -243,3 +245,20 @@ export function createAuditionSource(shell: AuditionShell) {
 }
 
 export type AuditionSource = ReturnType<typeof createAuditionSource>;
+
+/**
+ * Remember the folder the producer just imported, for playback.
+ *
+ * The one place a folder path exists is the picker's own call, so this is what
+ * registers it: the shell canonicalises it and keeps it, and the client keeps
+ * nothing. A refusal here is not reported — an import that worked is not undone
+ * by playback being unable to resolve it, and the producer sees the real reason
+ * the first time they press play.
+ */
+export async function registerPickedRoot(path: string): Promise<void> {
+  try {
+    await createAuditionSource({ invoke }).registerAuditionRoot(path);
+  } catch {
+    // An absent shell or a refused root surfaces on the first audition instead.
+  }
+}

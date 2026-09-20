@@ -47,8 +47,15 @@ export interface RecommendationArgs {
   filters?: RecommendationFilters;
 }
 
-/** #29's event vocabulary this task may send. `auditioned` is #34's. */
-export const OUTCOME_EVENT_TYPES = ["selected", "rejected"] as const;
+/**
+ * #29's whole event vocabulary for `POST /outcomes`.
+ *
+ * The service accepts four types; this client sends three of them — `selected`
+ * and `rejected` from #33 and `auditioned` from #34 — and `removed` belongs to
+ * #36. The union is the route's, not one task's, so a later task can send its
+ * own event without widening a list another task owns.
+ */
+export const OUTCOME_EVENT_TYPES = ["selected", "rejected", "auditioned", "removed"] as const;
 export type OutcomeEventType = (typeof OUTCOME_EVENT_TYPES)[number];
 
 export interface OutcomeArgs {

@@ -13,6 +13,7 @@
  */
 
 import type { AuditionOutcomeRef, AuditionRecordState } from "./auditionTypes";
+import type { OutcomeArgs } from "../api/recommendationsApi";
 
 /** #29's event type for an audition; it is one of the four it accepts. */
 export const AUDITION_EVENT_TYPE = "auditioned";
@@ -69,6 +70,28 @@ export function auditionEventFor(input: {
     ranking_version: outcome.rankingVersion,
     mode: outcome.mode,
     candidate_analysis_version: outcome.candidateAnalysisVersion,
+  };
+}
+
+/**
+ * One wire event as the api's own argument type.
+ *
+ * The route's endpoint takes the camelCase argument shape, and this is the one
+ * place the two are mapped, so there is no second body builder anywhere in the
+ * audition code.
+ */
+export function outcomeArgsFor(event: AuditionEvent): OutcomeArgs {
+  return {
+    clientEventId: event.client_event_id,
+    eventType: event.event_type,
+    projectId: event.project_id,
+    paletteId: event.palette_id,
+    candidateId: event.candidate_id,
+    runId: event.run_id,
+    paletteRevision: event.palette_revision,
+    rankingVersion: event.ranking_version,
+    mode: event.mode,
+    candidateAnalysisVersion: event.candidate_analysis_version,
   };
 }
 
