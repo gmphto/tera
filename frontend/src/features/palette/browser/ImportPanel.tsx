@@ -41,10 +41,16 @@ export interface ImportPanelProps {
 }
 
 function FailureRows({ run }: { run: ImportRun }) {
-  const analysis = run.failures.map((failure) => ({
-    origin: "analysis",
-    view: toFailureView(failure),
-  }));
+  // `GET /imports/{run_id}` returns one record per *non-complete* item, not per
+  // failed one: a queued file is listed there with `stage` and `code` null, and
+  // #23's own docstring says those fields are null for an item that never
+  // failed. Only a record that carries one of them is a failure.
+  const analysis = run.failures
+    .filter((failure) => failure.code !== null || failure.stage !== null)
+    .map((failure) => ({
+      origin: "analysis",
+      view: toFailureView(failure),
+    }));
   const scan = (run.scan?.files ?? [])
     .filter((file) => file.error_code !== null)
     .map((file) => ({

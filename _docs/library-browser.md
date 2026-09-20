@@ -5,6 +5,25 @@ Folder import and library browsing, inside the shell from
 [#27](https://github.com/gmphto/tera/issues/27) and invents no route, no status
 vocabulary and no second source of library state.
 
+## Mappings from the landed service to this client
+
+Two landed values differ from the wording this task was groomed with. Both use
+the landed value here, as the issue requires.
+
+1. **`failures` is not a list of failures.** `GET /imports/{run_id}` returns one
+   record per *non-complete item* of the run, and `backend/library/queue.py`
+   states in its own docstring that `stage`, `code` and `message` "are null for
+   an item that never failed, such as one cancelled before it started". A file
+   that is merely queued therefore arrives with a null `stage` and `code`. The
+   panel renders one row only for a record that carries one of them, so a queue
+   of pending files is not reported as a wall of failures; `counts.failed` and
+   `import-partial` remain the honest signal.
+2. **The scan file projection carries two code fields.** `scan.files[]` has both
+   `code` (the reconciliation code: `added`, `unchanged`, `unsupported`, …) and
+   `error_code` (`unsupported_format`, `unreadable`, …). A row is rendered only
+   for a non-null `error_code`, and its `data-code` is that `error_code`, not the
+   reconciliation `code`.
+
 ## The six routes it calls
 
 | Route | Taken from the response |

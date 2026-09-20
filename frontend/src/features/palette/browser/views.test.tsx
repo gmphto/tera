@@ -369,6 +369,26 @@ describe("the import panel", () => {
     expect(markup).not.toContain("\\\\");
   });
 
+  it("never shows a queued item as a failure", () => {
+    // The route returns one record per non-complete item, so a file that is
+    // merely queued arrives with a null stage and code and must render no row.
+    const markup = panel({
+      run: run({
+        counts: { ...COUNTS, pending: 2, failed: 1, analyzed: 1 },
+        failures: [
+          { sample_id: "sha256:queued", file_name: "queued.wav", stage: null, code: null, attempts: 0 },
+          { sample_id: "sha256:broken", file_name: "broken.wav", stage: "extract", code: "extractor_failure", attempts: 1 },
+        ],
+      }),
+    });
+    const rows = markup.match(/data-testid="import-failure"/g) ?? [];
+    expect(rows).toHaveLength(1);
+    expect(markup).toContain('data-file-name="broken.wav"');
+    expect(markup).not.toContain("queued.wav");
+    expect(markup).not.toContain("unknown stage");
+    expect(markup).not.toContain("unknown code");
+  });
+
   it("shows each terminal state with its own sentence", () => {
     for (const state of ["cancelled", "interrupted", "failed"] as const) {
       const markup = panel({ run: run({ state, phase: state }) });
