@@ -116,6 +116,10 @@ struct Inner {
     state: Mutex<State>,
     child: Mutex<Option<Child>>,
     app: Mutex<Option<AppHandle>>,
+    /// Held across writing or removing the two files this window owns, so a
+    /// heartbeat that is already in flight cannot recreate them after the
+    /// shutdown path has removed them.
+    files: Mutex<()>,
     generation: AtomicU64,
     stopping: AtomicBool,
 }
@@ -133,6 +137,7 @@ impl Supervisor {
                 state: Mutex::new(State::default()),
                 child: Mutex::new(None),
                 app: Mutex::new(None),
+                files: Mutex::new(()),
                 generation: AtomicU64::new(0),
                 stopping: AtomicBool::new(false),
             }),
@@ -254,6 +259,9 @@ impl Supervisor {
             let state = self.inner.state.lock().expect("the state lock is not poisoned");
             (state.data_dir.clone(), state.port_file.clone())
         };
+        // The lock is what makes the removal final: a heartbeat that already
+        // passed its own checks must finish before these two lines run.
+        let _guard = self.inner.files.lock().expect("the files lock is not poisoned");
         if let Some(dir) = data_dir {
             let _ = fs::remove_file(Path::new(&dir).join(PORT_FILE_NAME));
             let _ = fs::remove_file(Path::new(&dir).join(INSTANCE_FILE_NAME));
@@ -599,11 +607,21 @@ impl Supervisor {
     }
 
     fn write_instance(&self, origin: &str, service_pid: u32) {
-        let (data_dir, database) = {
+        let (data_dir, database, started_at) = {
             let state = self.inner.state.lock().expect("the state lock is not poisoned");
-            (state.data_dir.clone(), state.database_path.clone())
+            (
+                state.data_dir.clone(),
+                state.database_path.clone(),
+                state.started_at.clone(),
+            )
         };
         let Some(data_dir) = data_dir else { return };
+        let _guard = self.inner.files.lock().expect("the files lock is not poisoned");
+        // A write that was in flight when the window began closing must not
+        // recreate the record the shutdown path is about to remove.
+        if self.inner.stopping.load(Ordering::SeqCst) {
+            return;
+        }
         let record = json!({
             "schema": 1,
             "owner_pid": std::process::id(),
@@ -612,7 +630,7 @@ impl Supervisor {
             "origin": origin,
             "mode": "owned",
             "database_path": database,
-            "started_at": iso_now(),
+            "started_at": started_at,
             "heartbeat_at": iso_now(),
         });
         let _ = write_json_atomic(&Path::new(&data_dir).join(INSTANCE_FILE_NAME), &record);
@@ -796,7 +814,17 @@ fn read_json(path: &Path) -> Option<Value> {
 fn write_json_atomic(path: &Path, value: &Value) -> std::io::Result<()> {
     let temporary = path.with_extension("json.tmp");
     fs::write(&temporary, value.to_string())?;
-    fs::rename(&temporary, path)
+    // Windows will not always replace an existing file through a rename, and a
+    // silently failing heartbeat write is worse than a missing one: the record
+    // would keep a stale timestamp while the panel showed a healthy service.
+    let _ = fs::remove_file(path);
+    match fs::rename(&temporary, path) {
+        Ok(()) => Ok(()),
+        Err(error) => {
+            let _ = fs::remove_file(&temporary);
+            Err(error)
+        }
+    }
 }
 
 fn taskkill(pid: u32) {
