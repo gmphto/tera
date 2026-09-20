@@ -571,7 +571,8 @@ def test_the_report_fields_are_exactly_the_declared_ones(library, tmp_path):
         assert forbidden not in text, forbidden
 
 
-def test_the_recall_command_writes_a_private_report_and_returns_the_exit_codes(tmp_path):
+def test_the_recall_command_writes_a_private_report_and_returns_the_exit_codes(tmp_path,
+                                                                                   capsys):
     connection, database = build_library(tmp_path / "library", count=4)
     connection.close()
     directory = tmp_path / "private"
@@ -621,10 +622,22 @@ def test_the_recall_command_writes_a_private_report_and_returns_the_exit_codes(t
     for command_line in refused:
         assert stored_retrieval.main(command_line) == 2, command_line
     assert json.loads(pair_path.read_text(encoding="utf-8"))["schema_version"] == "1.0"
-    with pytest.raises(SystemExit) as invalid_command:
-        stored_retrieval.main(["recall", "--database", str(database), "--output", str(output),
-                               "--not-a-flag"])
-    assert invalid_command.value.code == 2
+    # argparse-level refusals are one code plus one path-free line, exit 2,
+    # and `main` returns the code instead of raising over a usage table.
+    capsys.readouterr()  # the refusals above already asserted; read each below on its own
+    for invalid_command in (["recall", "--database", str(database), "--output", str(output),
+                             "--not-a-flag"],
+                            ["recall", "--output", str(output)],
+                            []):
+        assert stored_retrieval.main(invalid_command) == 2, invalid_command
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        lines = captured.err.rstrip("\n").splitlines()
+        assert len(lines) == 1, lines
+        assert lines[0].startswith("invalid_arguments: ")
+        assert len(lines[0]) > len("invalid_arguments: ")
+        assert "usage" not in lines[0].lower()
+        assert str(database) not in lines[0]
     original = stored_retrieval._write_report
 
     def interrupted(*args, **kwargs):

@@ -169,10 +169,19 @@ distance, is never divided by zero, is never imputed and is not counted in a
 candidate's coverage.
 
 Every returned `mean`, `std`, `similarity` and `coverage` is a finite double.
-A population whose sum or squared deviations overflow a double (a stored
-`crest_factor` of 1e308 twice) is re-scaled by its largest magnitude inside the
-same formula, so `backend.analysis.batch.canonical` never sees a NaN or an
-infinity.
+A population whose sum or squared deviations would overflow a double - a stored
+`loudness` population of `0.0` and `1e155`, or of `1e308` and `1.5e308` - is
+re-scaled by its largest magnitude inside the same formula, so
+`backend.analysis.batch.canonical` never sees a NaN or an infinity. The
+squared deviation is magnitude-checked against `sqrt(sys.float_info.max)`
+before it is squared, because `deviation ** 2` raises `OverflowError` above
+that bound instead of returning an infinity the finiteness test could see; the
+re-scaling branch is therefore reached and the exception cannot escape
+`fit_normalization`. A population member's `|z|` stays bounded by
+`sqrt(n - 1)` even in the re-scaled space, so a re-scaled population is never
+itself the extreme case; `extreme_dimension_value` is for the kick or a
+caller-supplied candidate outside the population, exactly as the next
+paragraph states.
 
 A candidate whose `|z|` exceeds `MAX_ABSOLUTE_Z` = 1e9 on any common dimension
 - or whose z-score with the kick is not finite - gets `similarity = null` with
@@ -522,8 +531,12 @@ uv run python -m backend.library.retrieval recall --database DB.sqlite3 --pair-l
 | exit 130 | interrupted before the atomic replace |
 
 Failures print one code plus one path-free message, never a traceback or a table
-dump. `main(argv)` returns the exit code; `python -m backend.library.retrieval`
-raises `SystemExit` with it.
+dump. An argument-level refusal - no command, a missing required option, an
+unknown option - is `invalid_arguments`: the parser's `error` hook raises
+instead of printing argparse's usage table, so `main(argv)` returns 2 for it
+too, and the only `SystemExit` argparse raises is the `--help` one it prints
+for the user. `main(argv)` returns the exit code;
+`python -m backend.library.retrieval` raises `SystemExit` with it.
 
 ## Input and report errors
 
@@ -543,7 +556,8 @@ raises `SystemExit` with it.
 | `duplicate_candidate_id` | `fit_normalization` or `select_shortlist` with a repeated sample id |
 
 `REPORT_ERROR_CODES` is the closed tuple of `RetrievalReportError` codes:
-`invalid_arguments` (`--output` does not end in `.json`),
+`invalid_arguments` (`--output` does not end in `.json`, or an argument-level
+refusal: no command, a missing required option or an unknown option),
 `invalid_retrieval` (the metric helpers were handed something that is not a
 `StoredRetrieval` or a `RecallReference`), `malformed_pair_list`,
 `malformed_export`, `unwritable_output` and `aliased_output`. A database that
@@ -578,7 +592,7 @@ not comparable.
 
 ## Resolved inconsistencies in the issue body
 
-Four statements in issue #25 cannot all hold literally. They are resolved as
+Five statements in issue #25 cannot all hold literally. They are resolved as
 follows, with the exact text:
 
 1. **The returned record.** "the returned record carries that `FilterResult`
@@ -611,6 +625,14 @@ follows, with the exact text:
    `len(ranked) == shortlist_size`. Resolution: equality is
    `eligible_exhausted`, because the cut removed nothing and every eligible
    candidate was returned.
+5. **The tie when the cut lands on an unscored candidate.** "`tied_ids` is
+   every ranked candidate whose similarity is exactly equal to the last
+   included candidate's (all of them, not only those beside the boundary)"
+   has no referent when the last included candidate's similarity is `null`:
+   with 55 ranked candidates, 10 scored and 45 unscored at size 50, a literal
+   reading would name all 45 unscored ids. Resolution: an unavailable
+   similarity is not a value that can tie, so `tied_ids` is the boundary
+   candidate itself, exactly as the ordering section states.
 
 Two further notes rather than contradictions: the body's example of a
 domain-refused value includes "a stored `spectral_centroid`, `spectral_rolloff`
@@ -667,23 +689,37 @@ instead of `uv run`. Every database was a temporary file and every id, path and
 hash in the fixtures is synthetic.
 
 ```text
-$env:PYTHONPATH=<session-temp>; .venv\Scripts\python.exe -m pytest tests/test_feature_retrieval.py tests/test_retrieval_integration.py -q -p no:cacheprovider --basetemp .pytest_cache\retrieval-focused -rf
-  -> 43 passed in 11.00s
+$env:PYTHONPATH=<session-temp>; .venv\Scripts\python.exe -m pytest tests/test_feature_retrieval.py tests/test_retrieval_integration.py -q -p no:cacheprovider --basetemp <session-temp>\bt-focused2 -rf
+  -> 44 passed in 10.20s
 
 $env:PYTHONPATH=<session-temp>; .venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp <session-temp>\bt-full -rf
-  -> 4 failed, 1940 passed, 1 skipped in 390.90s (0:06:30)
+  -> 4 failed, 1941 passed, 1 skipped in 322.69s (0:05:22)
 ```
 
 The baseline measured in this workspace under the same sandbox at commit
-`fda061e`, before this change, was `4 failed, 1897 passed, 1 skipped`. The four
-failures are the known sandbox-only ones, all `PermissionError [WinError 5]` at
-`_winapi.CreatePipe`: `tests/test_batch.py::test_cli_empty_and_invalid_inputs`,
+`b9b5df3`, before round two's fixes, was `4 failed, 1940 passed, 1 skipped`.
+The four failures are the known sandbox-only ones, all `PermissionError
+[WinError 5]` at `_winapi.CreatePipe`:
+`tests/test_batch.py::test_cli_empty_and_invalid_inputs`,
 `tests/test_batch.py::test_cli_fresh_and_resume`,
 `tests/test_evaluation_manifest.py::test_cli_build_validate_and_synthetic_shortfall`
 and
 `tests/test_evaluation_prepare.py::test_preparation_idempotence_source_preservation_and_collisions`.
-The change adds 43 passing tests (`1940 - 1897`, and the two files collect 43) and no new
-failure and no new skip.
+Round two adds one pure-module test
+(`test_an_overflowing_population_stays_finite_and_classifies_outside_values_extreme`)
+and three argparse-level refusal assertions inside the existing CLI test, so the
+two files collect 44 instead of 43 (`1941 - 1897` overall for the whole issue),
+with no new failure and no new skip.
+
+Round two re-probed the three QA overflow populations through the fixed
+`_statistics`: the `loudness` pairs `[1e308, 1.5e308]`, `[1e308, 1.0]` and
+`[1e155, 0.0]` all now return finite statistics instead of raising
+`OverflowError` - `mean`/`std` `1.2499999999999998e+308`/`2.5000000000000005e+307`,
+`5e+307`/`5e+307` and `5e+154`/`5e+154` respectively, each dimension active with
+no `inactive_reason`. The three argparse-level refusals (`python -m
+backend.library.retrieval` with no command, `recall` alone, and `recall` with an
+unknown option) each print exactly one `invalid_arguments:` line on stderr, exit
+2, and print no usage table.
 
 Four probe results, printed by a scratch script under the session temporary
 directory that built a temporary synthetic library (one kick and sixty basses)

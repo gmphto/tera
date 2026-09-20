@@ -20,9 +20,12 @@ Design rules:
 - The population the statistics come from is the caller's (the whole stored
   library at one analysis version, issue #25's integration), never the query's
   own return set, so one normalization record serves every query.
-- Every statistic is a finite double. A population whose sum or deviations
-  overflow a double falls back to a magnitude-scaled computation of the same
-  formula, so no returned `mean` or `std` is ever non-finite and
+- Every statistic is a finite double. A population whose sum or squared
+  deviations would overflow a double falls back to a magnitude-scaled
+  computation of the same formula; the deviation is magnitude-checked before
+  it is squared, because `deviation ** 2` raises `OverflowError` above
+  `sqrt(sys.float_info.max)`. The fallback is therefore reached instead of
+  raising, no returned `mean` or `std` is ever non-finite and
   `backend.analysis.batch.canonical` never sees a NaN or an infinity.
 - The module is pure: it imports the standard library, `backend.contracts` and
   `backend.analysis.batch`'s `digest` only. It never imports `sqlite3`, never
@@ -37,6 +40,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass, fields
 import math
+import sys
 
 from backend.analysis.batch import digest
 from backend.contracts import MEASURES, Sample
@@ -124,6 +128,13 @@ RETRIEVAL_ERROR_CODES = (
 # The transform of one dimension, and the dimension names of each transform.
 _TRANSFORM_OF = dict(RETRIEVAL_TRANSFORMS)
 _LOGGED = tuple(name for name, transform in RETRIEVAL_TRANSFORMS if transform != "linear")
+
+# The largest deviation whose square is still a finite double. A squared
+# deviation is computed by multiplication and checked against this bound
+# first: `deviation ** 2` raises `OverflowError` for a finite deviation above
+# `sqrt(sys.float_info.max)`, so a population with such a spread must reach
+# the magnitude-scaled branch of `_statistics` instead of an exception.
+_MAX_SQUARABLE_DEVIATION = math.sqrt(sys.float_info.max)
 
 
 if not set(RETRIEVAL_DIMENSIONS) <= set(MEASURES):  # pragma: no cover - a typo guard
@@ -422,18 +433,26 @@ def _statistics(values) -> tuple:
 
     The declared formulas are `mean = sum(values) / count` and
     `std = sqrt(sum((value - mean) ** 2) / count)` (ddof 0), computed in that
-    order. A population whose sum or squared deviations overflow a double would
-    return a non-finite statistic; that population is re-scaled by its largest
-    magnitude, which keeps both statistics finite without changing the formula
-    for any population that does not overflow.
+    order. A population whose sum or squared deviations would overflow a double
+    is re-scaled by its largest magnitude, which keeps both statistics finite
+    without changing the formula for any population that does not overflow. A
+    deviation is
+    magnitude-checked before it is squared because `deviation ** 2` raises
+    `OverflowError` above `_MAX_SQUARABLE_DEVIATION` instead of returning an
+    infinity the finiteness test could see; `deviation * deviation` cannot
+    raise for any finite value, so the fallback runs even when the check is
+    missed by rounding.
     """
 
     count = len(values)
     total = 0.0
     for value in values:
         total += value
-    mean = total / count if math.isfinite(total) else None
-    if mean is None:
+    if math.isfinite(total):
+        mean = total / count
+    else:
+        # The sum itself overflowed: evaluate it in the space scaled by the
+        # population's largest magnitude, where every term is bounded by 1.
         scale = max(abs(value) for value in values)
         scaled_total = 0.0
         for value in values:
@@ -441,14 +460,28 @@ def _statistics(values) -> tuple:
         mean = scaled_total / count * scale
     squared = 0.0
     for value in values:
-        squared += (value - mean) ** 2
+        deviation = value - mean
+        if not math.isfinite(deviation) or abs(deviation) > _MAX_SQUARABLE_DEVIATION:
+            squared = math.inf
+            break
+        squared += deviation * deviation
     if math.isfinite(squared):
         std = math.sqrt(squared / count)
     else:
-        scale = max(abs(value - mean) for value in values)
+        # The squared deviations would overflow: evaluate the same formula in
+        # the space scaled by the population's largest magnitude, where every
+        # scaled value lies in [-1, 1] and its square cannot overflow. Scaling
+        # the values (rather than the deviations) also covers a deviation that
+        # already overflowed to infinity in the unscaled pass above.
+        scale = max(abs(value) for value in values)
+        scaled_total = 0.0
+        for value in values:
+            scaled_total += value / scale
+        scaled_mean = scaled_total / count
         scaled_squared = 0.0
         for value in values:
-            scaled_squared += ((value - mean) / scale) ** 2
+            deviation = value / scale - scaled_mean
+            scaled_squared += deviation * deviation
         std = math.sqrt(scaled_squared / count) * scale
     return mean, std
 

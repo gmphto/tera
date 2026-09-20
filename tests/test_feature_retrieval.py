@@ -418,11 +418,47 @@ def test_degenerate_populations_and_extreme_values_never_go_non_finite():
         assert finite(dimension.mean) and finite(dimension.std)
     assert json.dumps(result.to_dict(), allow_nan=False)
     assert batch.canonical(result.to_dict())
-    huge = [sample("bass-a", {"crest_factor": 1e308}), sample("bass-b", {"crest_factor": 1e308})]
+    # A non-constant population whose squared deviations overflow a double:
+    # `(1.5e308 - 1.25e308) ** 2` raises OverflowError, so this reaches the
+    # magnitude-scaled branch of `_statistics` that the earlier constant pair
+    # (zero_variance, null statistics) never exercised.
+    huge = [sample("bass-a", {"crest_factor": 1e308}),
+            sample("bass-b", {"crest_factor": 1.5e308})]
     overflowing = fit_normalization(huge, analysis_version=ANALYSIS)
     dimension = next(item for item in overflowing.dimensions if item.name == "crest_factor")
+    assert dimension.inactive_reason is None
     assert finite(dimension.mean) and finite(dimension.std)
     assert batch.canonical(overflowing.to_dict())
+
+
+def test_an_overflowing_population_stays_finite_and_classifies_outside_values_extreme():
+    # The two loudness values are far enough apart that the unscaled squared
+    # deviations overflow a double (`(1e155 - 5e154) ** 2` raises
+    # OverflowError), so `_statistics` must take its magnitude-scaled branch
+    # and return the finite statistics of the same formula.
+    population = [sample("bass-a", {"loudness": 0.0}), sample("bass-b", {"loudness": 1e155})]
+    record = fit_normalization(population, analysis_version=ANALYSIS)
+    loudness = next(item for item in record.dimensions if item.name == "loudness")
+    assert loudness.inactive_reason is None
+    assert loudness.mean == pytest.approx(5e154, rel=1e-12)
+    assert loudness.std == pytest.approx(5e154, rel=1e-12)
+    assert math.isfinite(loudness.mean) and math.isfinite(loudness.std)
+    assert batch.canonical(record.to_dict())
+    # A candidate inside the re-scaled population is scored normally; only a
+    # value outside it can exceed MAX_ABSOLUTE_Z and be classified extreme.
+    far = sample("bass-far", {"loudness": 1e308})
+    result = select_shortlist(kick_sample({"loudness": 1e155}), (population[1], far),
+                              policy=RetrievalPolicy(50), normalization=record)
+    near = next(item for item in result.ranked if item.sample_id == "bass-b")
+    extreme = next(item for item in result.ranked if item.sample_id == "bass-far")
+    assert near.similarity == pytest.approx(1.0, abs=1e-12)
+    assert extreme.similarity is None
+    assert extreme.similarity_unavailable_reason == "extreme_dimension_value"
+    for item in result.ranked:
+        assert math.isfinite(item.coverage)
+        assert item.similarity is None or math.isfinite(item.similarity)
+    assert json.dumps(result.to_dict(), allow_nan=False)
+    assert batch.canonical(result.to_dict())
 
 
 def test_distance_coverage_and_reason_order_are_exact():
@@ -592,7 +628,7 @@ def test_the_module_imports_nothing_forbidden_and_opens_nothing():
             imported.update(alias.name for alias in node.names)
         elif isinstance(node, ast.ImportFrom):
             imported.add(node.module or "")
-    allowed = {"__future__", "collections.abc", "dataclasses", "math",
+    allowed = {"__future__", "collections.abc", "dataclasses", "math", "sys",
                "backend.analysis.batch", "backend.contracts"}
     assert imported <= allowed, imported - allowed
     for module in ("backend.analysis.batch", "backend.contracts"):

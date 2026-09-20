@@ -115,6 +115,25 @@ class RetrievalReportError(ValueError):
         super().__init__(message)
 
 
+class _ArgumentRefusal(Exception):
+    """One argument-level `recall` refusal: `invalid_arguments`, exit 2.
+
+    argparse's own `error` prints a usage table and raises `SystemExit(2)`.
+    The command-line contract here is one code plus one path-free sentence and
+    `main(argv)` returning the code, so `_ArgumentParser.error` raises this
+    instead and `main` reports it through the ordinary exit-2 path.
+    """
+
+    code = "invalid_arguments"
+
+
+class _ArgumentParser(argparse.ArgumentParser):
+    """An `ArgumentParser` that refuses with `_ArgumentRefusal`, never a dump."""
+
+    def error(self, message):
+        raise _ArgumentRefusal(message)
+
+
 @dataclass(frozen=True)
 class StoredRetrieval:
     """One `retrieve_shortlist` call: the pure result and the storage evidence.
@@ -856,7 +875,8 @@ def _error_code(error) -> str:
 def _error_message(error) -> str:
     """One path-free sentence; a foreign error's text may name a local path."""
 
-    if isinstance(error, (RetrievalReportError, RetrievalInputError, FilterInputError)):
+    if isinstance(error, (RetrievalReportError, RetrievalInputError, FilterInputError,
+                          _ArgumentRefusal)):
         return str(error) or "The retrieval request is not valid."
     return "The input could not be used; see the code."
 
@@ -931,8 +951,10 @@ def main(argv=None) -> int:
     """The `recall` command. Exit 0, 1, 2 or 130; never a traceback.
 
     `--database`, `--output` and the optional `--pair-list`, repeatable
-    `--export` and `--size` are the whole command line. Every failure prints
-    exactly one code and one path-free sentence: 2 for an invalid command, an
+    `--export` and `--size` are the whole command line; an argument-level
+    refusal (no command, a missing required option or an unknown option) is
+    `invalid_arguments`, one path-free line with no argparse usage table.
+    Every failure prints exactly one code and one path-free sentence: 2 for an
     unreadable or unsupported database, a malformed pair list or export, or an
     unwritable or aliased output; 1 when a report was written and at least one
     pair-list query could not be evaluated from the library; 0 when a report was
@@ -940,7 +962,7 @@ def main(argv=None) -> int:
     interrupted before the atomic replace.
     """
 
-    parser = argparse.ArgumentParser(
+    parser = _ArgumentParser(
         prog="python -m backend.library.retrieval",
         description="Normalized kick-to-bass retrieval recall report (#25).")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -952,8 +974,8 @@ def main(argv=None) -> int:
     recall.add_argument("--size", default=str(DEFAULT_SHORTLIST_SIZE),
                         help=f"the shortlist size, {SHORTLIST_MIN} to {SHORTLIST_MAX}")
     recall.add_argument("--output", required=True, help="the report destination, ending in .json")
-    arguments = parser.parse_args(argv)
     try:
+        arguments = parser.parse_args(argv)
         size = _size_argument(arguments.size)
         if not arguments.output.lower().endswith(".json"):
             raise RetrievalReportError("invalid_arguments", "--output must end in .json.")
@@ -970,7 +992,7 @@ def main(argv=None) -> int:
         print("interrupted: no report was replaced", file=sys.stderr)
         return 130
     except (RetrievalReportError, RetrievalInputError, FilterInputError, LibraryError,
-            BatchError, ValueError) as error:
+            BatchError, ValueError, _ArgumentRefusal) as error:
         print(f"{_error_code(error)}: {_error_message(error)}", file=sys.stderr)
         return 2
 
