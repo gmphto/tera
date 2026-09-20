@@ -17,6 +17,7 @@ export const SERVICE_POLL_INTERVAL_MS = 5000;
 export function createTeraApi({ timeoutMs = HEALTH_TIMEOUT_MS }: { timeoutMs?: number } = {}) {
   return createApi({
     reducerPath: "teraApi",
+    tagTypes: ["Palette"],
     baseQuery: createDynamicBaseQuery(timeoutMs),
     endpoints: (build) => ({
       getHealth: build.query<HealthBody, void>({
