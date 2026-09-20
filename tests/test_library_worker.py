@@ -724,6 +724,39 @@ def test_a_progress_line_reads_counts_not_the_summary_records(tmp_path, monkeypa
     assert json.loads(lines[-1])["counts"]["complete"] == 12
 
 
+def test_a_stdout_with_no_reader_left_does_not_fail_the_run(tmp_path, monkeypatch, capsys):
+    """The desktop host stops reading the service's stdout once it is healthy.
+
+    A per-item line reports an item that is already committed, so a refused
+    write cannot change the run's outcome. Measured on this machine before the
+    fix: the first completed item marked the whole run failed and left every
+    other item pending, which is the only reason a 3345-file library imported
+    one file per run.
+    """
+
+    root = build(tmp_path, {f"file-{number:03d}.wav": tone(110 + number)
+                            for number in range(4)})
+    database = tmp_path / "library.sqlite3"
+    assert run_scan(capsys, root, database)[0] == 0
+
+    class Unreadable:
+        """A stream whose descriptor has no reader: every write refuses."""
+
+        def write(self, text):
+            raise OSError(22, "Invalid argument")
+
+        def flush(self):
+            raise OSError(22, "Invalid argument")
+
+    monkeypatch.setattr(worker, "_PRINT_BROKEN", False)
+    monkeypatch.setattr(sys, "stdout", Unreadable())
+    code, printed = run_worker(capsys, database, "--workers", "1")
+    assert code == 0
+    assert printed == [], "the summary is retired with the channel"
+    states = {item["state"] for item in items(database)}
+    assert states == {queue.ITEM_COMPLETE}, states
+
+
 def test_the_drain_reclaims_its_unreachable_cycles_on_the_documented_interval(
         tmp_path, monkeypatch, capsys):
     """The bounded-memory claim rests on a collection schedule, so pin it.

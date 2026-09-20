@@ -851,3 +851,34 @@ def test_an_aborted_request_never_writes_a_traceback_or_a_path(tmp_path):
         assert set(document) == {"event", "error"}
         assert document["event"].endswith("_aborted")
         assert document["error"].isidentifier()
+
+
+def test_a_descriptor_with_no_reader_left_is_retired_instead_of_raised_on(monkeypatch):
+    """The desktop host stops reading the service's pipes once it is healthy.
+
+    Both of the service's streams are pipes to that host, and the first line
+    written after it stops reading fails with `OSError`. Measured on this
+    machine against a real import: the failure surfaced as `connection_aborted`
+    on stderr, which named the client for a failure the client did not cause,
+    and the same refusal out of the worker's per-item progress write ended the
+    run after its first completed file. Logging is an observation channel, so a
+    refused write retires its own descriptor and never reaches a caller.
+    """
+
+    real_write = os.write
+    attempted = []
+
+    def refuse(descriptor, data):
+        if descriptor in (1, 2):
+            attempted.append(descriptor)
+            raise OSError(22, "Invalid argument")
+        return real_write(descriptor, data)
+
+    monkeypatch.setattr(service, "_PRINT_BROKEN", {1: False, 2: False})
+    monkeypatch.setattr(os, "write", refuse)
+    service._print_line({"event": "request"})
+    service._print_line({"event": "request"})
+    assert attempted == [1], "a retired descriptor is not written to again"
+    service._print_line({"event": "internal_error"}, stream=sys.stderr)
+    assert attempted == [1, 2], "each descriptor retires on its own"
+    assert service._PRINT_BROKEN == {1: True, 2: True}

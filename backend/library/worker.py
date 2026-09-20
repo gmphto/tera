@@ -87,6 +87,16 @@ COLLECT_INTERVAL = 8
 
 _PRINT_LOCK = threading.Lock()
 
+# Set once stdout has refused a write, so the drain stops retrying it.
+#
+# The progress line is an observation channel, not part of the run: the desktop
+# host closes the service's pipes once the service is healthy, and the first
+# write to fd 1 then fails (`OSError`). Measured on this machine, the service's
+# first completed item marked the whole run failed and left every other item
+# pending, so one unreadable diagnostic line cost the import. The flag keeps one
+# refused write from being paid again by each of the queue's remaining items.
+_PRINT_BROKEN = False
+
 # Serializes the drain's write transactions across its worker threads.
 #
 # SQLite has one writer, but its busy handler does not queue: with four workers
@@ -539,10 +549,22 @@ def _cancel_item(connection, state, item_id):
 
 
 def _print(payload) -> None:
-    """One canonical JSON line on stdout, never interleaved with another thread's."""
+    """One canonical JSON line on stdout, never interleaved with another thread's.
 
+    A stdout with no reader left is not a run failure: the line reports an item
+    that is already committed, and the alternative — raising inside the item's
+    finalize path — ends the run after that one item. The first refused write
+    retires the channel for the rest of the process.
+    """
+
+    global _PRINT_BROKEN
+    if _PRINT_BROKEN:
+        return
     with _PRINT_LOCK:
-        print(batch.canonical(payload), flush=True)
+        try:
+            print(batch.canonical(payload), flush=True)
+        except OSError:
+            _PRINT_BROKEN = True
 
 
 def _progress(connection, state) -> None:

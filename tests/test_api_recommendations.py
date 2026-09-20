@@ -388,7 +388,11 @@ def test_the_route_inherits_the_transport_rules(tmp_path):
                                       headers={"Origin": "tauri://localhost"})
         assert allowed.status == 204
         assert allowed.headers["access-control-allow-origin"] == "tauri://localhost"
-        assert allowed.headers["access-control-allow-methods"] == "GET, POST, OPTIONS"
+        # `_PREFLIGHT_HEADERS` is one service-wide advertisement of every method
+        # the route table carries, not a per-route one: the palette's PUT routes
+        # put PUT in it for every preflight. An actual PUT to this route is still
+        # refused with 405 and its own `Allow: POST`.
+        assert allowed.headers["access-control-allow-methods"] == "GET, POST, PUT, OPTIONS"
         denied = running.client.call("OPTIONS", "/recommendations",
                                      headers={"Origin": "http://example.invalid"})
         assert (denied.status, denied.code()) == (403, "origin_not_allowed")

@@ -102,6 +102,17 @@ _METHOD_PATTERN = re.compile(r"[A-Za-z]{1,16}\Z")
 _DEV_ORIGIN_PATTERN = re.compile(r"http://(?:localhost|127\.0\.0\.1):(\d{1,5})\Z")
 _PRINT_LOCK = threading.Lock()
 
+# Per descriptor: set once that channel has refused a write.
+#
+# The desktop host pipes this service's stdout and stderr and stops reading both
+# once the service is healthy, so the first line written afterwards fails with
+# `OSError`. Logging is an observation channel: a lost line never changes a
+# response, and the alternative — raising out of the handler's own access-log
+# write — was reported on stderr as `connection_aborted`, which named the client
+# for a failure the client did not cause. Each descriptor retires on its own, so
+# a dead stdout still leaves stderr usable.
+_PRINT_BROKEN = {1: False, 2: False}
+
 
 class ServiceConfigError(Exception):
     """One refused configuration value, with the exit-2 code `main` reports."""
@@ -120,13 +131,19 @@ def _print_line(document, stream=None) -> None:
 
     `print` buffers, so two threads writing short lines can merge into one
     buffer flush. Every line this service writes is a whole JSON document and
-    reaches the descriptor in a single write call instead.
+    reaches the descriptor in a single write call instead. A descriptor with no
+    reader left is retired rather than raised on: see `_PRINT_BROKEN`.
     """
 
     data = (canonical(document) + "\n").encode("utf-8")
     descriptor = 2 if stream is sys.stderr else 1
+    if _PRINT_BROKEN[descriptor]:
+        return
     with _PRINT_LOCK:
-        os.write(descriptor, data)
+        try:
+            os.write(descriptor, data)
+        except OSError:
+            _PRINT_BROKEN[descriptor] = True
 
 
 # ---------------------------------------------------------------------------
