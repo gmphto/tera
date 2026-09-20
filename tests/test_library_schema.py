@@ -45,6 +45,7 @@ USER_TABLES = (
     "palette_items",
     "palettes",
     "projects",
+    "recommendation_outcomes",
     "sample_features",
     "sample_keys",
     "sample_packs",
@@ -71,6 +72,10 @@ COLUMNS = {
                   "disposition", "attempts", "run_id", "claimed_at", "finished_at", "error_stage",
                   "error_code", "error_message", "created_at"),
     "projects": ("project_id", "name", "created_at", "updated_at"),
+    "recommendation_outcomes": ("event_id", "client_event_id", "event_type", "project_id",
+                                "palette_id", "palette_revision", "run_id", "candidate_id",
+                                "ranking_version", "mode", "candidate_analysis_version",
+                                "removes_event_id", "recorded_at"),
     "palettes": ("palette_id", "project_id", "name", "revision", "tempo_bpm", "tempo_confidence",
                  "tempo_unavailable_reason", "key_tonic", "key_mode", "key_confidence",
                  "key_unavailable_reason", "genre", "genre_unavailable_reason", "created_at",
@@ -186,7 +191,7 @@ def column_names(connection, table):
 def test_a_fresh_database_reaches_the_current_version(tmp_path):
     connection = open_library(tmp_path / "library.sqlite3")
     try:
-        assert SCHEMA_VERSION == 4
+        assert SCHEMA_VERSION == 5
         assert MIGRATIONS[-1][0] == SCHEMA_VERSION
         assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         assert user_tables(connection) == USER_TABLES

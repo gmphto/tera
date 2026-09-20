@@ -46,8 +46,8 @@ CASES_PATH = Path(__file__).parent / "fixtures" / "palette" / "palette-cases.jso
 USER_TABLE_QUERY = ("SELECT name FROM sqlite_master WHERE type = 'table' "
                     "AND name NOT LIKE 'sqlite_%' ORDER BY name")
 USER_TABLES = ("analysis_versions", "decision_cache", "decision_model_versions", "job_items",
-               "job_runs", "palette_items", "palettes", "projects", "sample_features",
-               "sample_keys", "sample_packs", "sample_tags", "samples")
+               "job_runs", "palette_items", "palettes", "projects", "recommendation_outcomes",
+               "sample_features", "sample_keys", "sample_packs", "sample_tags", "samples")
 # The version-1 and version-2 tables, in dump order.
 LIBRARY_TABLES = ("analysis_versions", "job_runs", "job_items", "sample_packs", "samples",
                   "sample_features", "sample_keys", "sample_tags")
@@ -171,8 +171,8 @@ def set_journal_mode(path, mode):
 def test_a_fresh_database_reaches_the_current_version_with_the_palette_tables(tmp_path):
     connection = open_database(tmp_path / "library.sqlite3")
     try:
-        assert SCHEMA_VERSION == 4
-        assert [version for version, _script in MIGRATIONS] == [1, 2, 3, 4]
+        assert SCHEMA_VERSION == 5
+        assert [version for version, _script in MIGRATIONS] == [1, 2, 3, 4, 5]
         assert MIGRATIONS[-1][0] == SCHEMA_VERSION
         assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         assert user_tables(connection) == USER_TABLES

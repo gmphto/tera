@@ -43,6 +43,8 @@ CACHE_INDEXES = ("idx_decision_cache_created", "idx_decision_cache_candidate")
 V3_TABLES = ("analysis_versions", "sample_features", "sample_keys", "sample_packs", "sample_tags",
              "samples", "job_items", "job_runs", "palette_items", "palettes", "projects")
 V4_TABLES = tuple(sorted(V3_TABLES + ("decision_cache", "decision_model_versions")))
+# The current set: #29's migration 5 adds the outcome history on top of v4.
+V5_TABLES = tuple(sorted(V4_TABLES + ("recommendation_outcomes",)))
 
 ANALYSIS_VERSION = "0" * 64
 CREATED_AT = "2024-01-01T00:00:00Z"
@@ -121,15 +123,15 @@ def version_three_database(path):
     return path
 
 
-def test_the_chain_has_one_entry_per_migration_and_the_cache_is_the_last(tmp_path):
-    assert [version for version, _script in MIGRATIONS] == [1, 2, 3, 4]
-    assert SCHEMA_VERSION == 4
+def test_the_chain_is_contiguous_and_reaches_the_current_version(tmp_path):
+    assert [version for version, _script in MIGRATIONS] == [1, 2, 3, 4, 5]
+    assert SCHEMA_VERSION == 5
     assert MIGRATIONS[-1][0] == SCHEMA_VERSION
     connection = open_database(tmp_path / "library.sqlite3")
     try:
         assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
-        assert user_tables(connection) == V4_TABLES
-        assert len(V4_TABLES) == 13
+        assert user_tables(connection) == V5_TABLES
+        assert len(V5_TABLES) == 14
     finally:
         connection.close()
 
@@ -213,7 +215,7 @@ def test_upgrading_a_version_three_database_keeps_every_row(tmp_path):
     connection = open_database(path)
     try:
         assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
-        assert user_tables(connection) == V4_TABLES
+        assert user_tables(connection) == V5_TABLES
         assert ordered_dump(connection, V3_TABLES) == rows_before
         assert ordered_dump(connection, tuple(CACHE_COLUMNS)) == ((), ())
         assert verify(connection) == ()
@@ -226,13 +228,13 @@ def test_opening_twice_changes_neither_the_version_nor_a_row(tmp_path):
     first = open_database(path)
     try:
         snapshot = (first.execute("PRAGMA user_version").fetchone()[0],
-                    user_tables(first), ordered_dump(first, V4_TABLES))
+                    user_tables(first), ordered_dump(first, V5_TABLES))
     finally:
         first.close()
     second = open_database(path)
     try:
         assert (second.execute("PRAGMA user_version").fetchone()[0],
-                user_tables(second), ordered_dump(second, V4_TABLES)) == snapshot
+                user_tables(second), ordered_dump(second, V5_TABLES)) == snapshot
         assert migrate(second) == SCHEMA_VERSION
     finally:
         second.close()
@@ -282,15 +284,15 @@ def test_a_failing_cache_column_migration_rolls_back_completely(tmp_path):
     path = tmp_path / "library.sqlite3"
     connection = open_database(path)
     try:
-        before = ordered_dump(connection, V4_TABLES)
+        before = ordered_dump(connection, V5_TABLES)
         script = ("ALTER TABLE decision_cache ADD COLUMN notes TEXT;\n"
                   "SELECT no_such_function();")
         with pytest.raises(MigrationFailed) as caught:
             migrate(connection, MIGRATIONS + ((SCHEMA_VERSION + 1, script),))
         assert caught.value.code == "migration_failed"
         assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
-        assert user_tables(connection) == V4_TABLES
-        assert ordered_dump(connection, V4_TABLES) == before
+        assert user_tables(connection) == V5_TABLES
+        assert ordered_dump(connection, V5_TABLES) == before
         columns = {row[1] for row in connection.execute("PRAGMA table_info(decision_cache)")}
         assert "notes" not in columns
         assert verify(connection) == ()
