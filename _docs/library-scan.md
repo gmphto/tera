@@ -278,7 +278,7 @@ null `error_code`.
 | `role` | The explicit role of this run |
 | `database` | Canonical absolute local database path |
 | `analysis_version` | The current analysis digest |
-| `state` | `complete` or `interrupted` |
+| `state` | `complete`, `interrupted` or `cancelled` |
 | `counts` | `discovered`, `skipped_linked`, one count per reconciliation code, `queued_analysis`, `discovery_errors` |
 | `files` | One record per file whose code is not `unchanged`, in normalised-path order |
 | `discovery_errors` | #9-shaped discovery error records |
@@ -352,6 +352,12 @@ identical command re-reports the files that were already committed as
 `unchanged` with `queued` or `current`, finishes the rest, and reaches the same
 library state as an uninterrupted run. A hard kill leaves the database readable
 and resumable, because every write is one transaction.
+
+A caller may pass a cancellation callback to the scanner. It is checked during
+folder discovery and between file reads, reconciliations, and missing-row
+updates. A cancelled summary contains work completed so far; undiscovered files
+and unvisited rows are not marked missing. Re-running the scan resumes from the
+committed library state. The command returns exit 130 for a cancelled scan.
 
 ## What the scanner must not do
 

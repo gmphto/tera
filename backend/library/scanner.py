@@ -75,10 +75,20 @@ FAILED_CODES = (INACCESSIBLE, UNSUPPORTED)
 
 STATE_COMPLETE = "complete"
 STATE_INTERRUPTED = "interrupted"
+STATE_CANCELLED = "cancelled"
 
 
 class ScanError(Exception):
     """Invalid command, root, database or summary destination (exit 2)."""
+
+
+class ScanCancelled(Exception):
+    """A cooperative stop during discovery, before reconciliation can begin."""
+
+    def __init__(self, paths, discovery_errors, linked_paths):
+        self.paths = sorted(paths)
+        self.discovery_errors = list(discovery_errors)
+        self.linked_paths = sorted(linked_paths)
 
 
 # ---------------------------------------------------------------------------
@@ -86,7 +96,7 @@ class ScanError(Exception):
 # ---------------------------------------------------------------------------
 
 
-def traverse(root):
+def traverse(root, *, cancelled=None):
     """The scanned WAV paths, discovery errors and skipped linked paths.
 
     Returns (wav_paths, discovery_errors, linked_paths) for a canonical root.
@@ -104,10 +114,22 @@ def traverse(root):
     def relative(path):
         return path.relative_to(root).as_posix()
 
+    def checkpoint():
+        if cancelled is not None and cancelled():
+            raise ScanCancelled(found, failures, linked)
+
     def visit(folder):
+        checkpoint()
         try:
             with os.scandir(folder) as stream:
-                children = sorted(stream, key=lambda item: item.name)
+                if cancelled is None:
+                    children = sorted(stream, key=lambda item: item.name)
+                else:
+                    children = []
+                    for child in stream:
+                        checkpoint()
+                        children.append(child)
+                    children.sort(key=lambda item: item.name)
         except OSError as error:
             if folder == root:
                 raise batch.BatchError(f"Cannot enumerate input root: {error}") from error
@@ -115,6 +137,7 @@ def traverse(root):
                              "error": _failure("discovery", "enumeration_failed", error)})
             return
         for child in children:
+            checkpoint()
             path = Path(child.path)
             try:
                 info = child.stat(follow_symlinks=False)
@@ -129,6 +152,7 @@ def traverse(root):
                                  "error": _failure("discovery", "entry_unavailable", error)})
 
     visit(root)
+    checkpoint()
     return sorted(found), failures, sorted(linked)
 
 
@@ -244,7 +268,7 @@ def main(argv=None) -> int:
         return 2
 
 
-def run(folder, role, database, summary_path=None) -> int:
+def run(folder, role, database, summary_path=None, *, cancelled=None) -> int:
     """Scan one folder, print the summary and return the exit code."""
 
     root = validate_root(folder)
@@ -252,21 +276,33 @@ def run(folder, role, database, summary_path=None) -> int:
     # The traversal and the entry-collision refusal happen before the database
     # is opened, so a folder that cannot be scanned byte-for-byte creates no
     # database at all (criterion `duplicate`, QA finding F2).
-    paths, discovery_errors, linked_paths = _discover(root)
+    try:
+        paths, discovery_errors, linked_paths = _discover(root, cancelled=cancelled)
+        discovery_cancelled = False
+    except ScanCancelled as stopped:
+        paths, discovery_errors, linked_paths = (
+            stopped.paths, stopped.discovery_errors, stopped.linked_paths)
+        discovery_cancelled = True
     database_path = _database_path(database)
     with closing(_open_database(database_path)) as connection:
         scan = _Scan(root, role, database_path, connection)
-        state = scan.execute(paths, discovery_errors, linked_paths)
+        if discovery_cancelled:
+            scan.discovery_errors = discovery_errors
+            scan.discovered = len(paths)
+            scan.skipped_linked = len(linked_paths)
+            state = STATE_CANCELLED
+        else:
+            state = scan.execute(paths, discovery_errors, linked_paths, cancelled=cancelled)
         summary = scan.summary(state)
         print(batch.canonical(summary), flush=True)
         if destination is not None:
             _write_summary(destination, summary)
-    if state == STATE_INTERRUPTED:
+    if state in (STATE_INTERRUPTED, STATE_CANCELLED):
         return 130
     return 1 if scan.failed else 0
 
 
-def reconcile(root, role, connection, database=None) -> dict:
+def reconcile(root, role, connection, database=None, *, cancelled=None) -> dict:
     """Reconcile one root through an open connection and return the summary.
 
     This is `run` without its command: it traverses `root`, refuses colliding
@@ -276,17 +312,24 @@ def reconcile(root, role, connection, database=None) -> dict:
     summary must not reach stdout because it carries the root's path.
     """
 
-    paths, discovery_errors, linked_paths = _discover(root)
+    try:
+        paths, discovery_errors, linked_paths = _discover(root, cancelled=cancelled)
+    except ScanCancelled as stopped:
+        scan = _Scan(root, role, "" if database is None else database, connection)
+        scan.discovery_errors = stopped.discovery_errors
+        scan.discovered = len(stopped.paths)
+        scan.skipped_linked = len(stopped.linked_paths)
+        return scan.summary(STATE_CANCELLED)
     scan = _Scan(root, role, "" if database is None else database, connection)
-    state = scan.execute(paths, discovery_errors, linked_paths)
+    state = scan.execute(paths, discovery_errors, linked_paths, cancelled=cancelled)
     return scan.summary(state)
 
 
-def _discover(root):
+def _discover(root, *, cancelled=None):
     """`traverse` plus the entry-collision refusal, before any database write."""
 
     try:
-        paths, discovery_errors, linked_paths = traverse(root)
+        paths, discovery_errors, linked_paths = traverse(root, cancelled=cancelled)
     except batch.BatchError as error:
         raise ScanError(f"root: {error}") from error
     _reject_entry_collisions(paths)
@@ -311,7 +354,7 @@ class _Scan:
 
     # -- the run -----------------------------------------------------------
 
-    def execute(self, paths, discovery_errors, linked_paths) -> str:
+    def execute(self, paths, discovery_errors, linked_paths, *, cancelled=None) -> str:
         self.discovery_errors = list(discovery_errors)
         self.discovered = len(paths)
         self.skipped_linked = len(linked_paths)
@@ -333,14 +376,22 @@ class _Scan:
         state = STATE_COMPLETE
         try:
             for relative in sorted(paths, key=_identity_path):
+                if cancelled is not None and cancelled():
+                    return STATE_CANCELLED
                 outcome = self._read(relative, by_path.get(_identity_path(relative)))
                 if outcome is not None:
                     readable.append(outcome)
             for relative, fingerprint, metadata in readable:
+                if cancelled is not None and cancelled():
+                    return STATE_CANCELLED
                 self._reconcile(relative, fingerprint, metadata, by_path, pending_rows)
             for bucket in pending_rows.values():
                 for row in bucket:
+                    if cancelled is not None and cancelled():
+                        return STATE_CANCELLED
                     self._missing(row)
+            if cancelled is not None and cancelled():
+                return STATE_CANCELLED
         except KeyboardInterrupt:
             state = STATE_INTERRUPTED
         return state

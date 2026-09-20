@@ -264,8 +264,8 @@ def cancel(context) -> schemas.Response:
     """`POST /imports/{run_id}/cancel`: flag a live run and return at once.
 
     The flag is #23's own cancellation flag, so a run another process started is
-    cancelled just as well; the run reaches `cancelled` at the next item
-    boundary and everything already committed stays readable. A run that is not
+    cancelled just as well; the run reaches `cancelled` at the next scan or item
+    checkpoint and everything already committed stays readable. A run that is not
     live writes nothing and is refused, which keeps a stale `running` row from
     being flagged by a request that cannot affect it.
     """
@@ -416,8 +416,15 @@ def runner(app, run_id: str, *, root=None, role=None) -> None:
     try:
         with closing(open_database(app.database.path)) as connection:
             if root is not None:
-                app.runs.set_scan(run_id, scanner.reconcile(root, role, connection,
-                                                            app.database.path))
+                scan = scanner.reconcile(
+                    root, role, connection, app.database.path,
+                    cancelled=lambda: queue.cancel_requested(connection, run_id))
+                app.runs.set_scan(run_id, scan)
+                if scan["state"] == scanner.STATE_CANCELLED:
+                    with transaction(connection):
+                        queue.finish_run(connection, run_id, queue.RUN_CANCELLED)
+                    state = queue.RUN_CANCELLED
+                    return
             app.runs.set_phase(run_id, PHASE_ANALYZING)
             worker.run_queue(connection, run_id, RUNNER_WORKERS, RUNNER_MAX_ATTEMPTS)
             state = queue.status(connection, run_id)["state"]

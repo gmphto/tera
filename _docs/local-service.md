@@ -262,7 +262,7 @@ Documented errors: 400 `invalid_run_id`, 404 `unknown_import`, 403
 ### `POST /imports/{run_id}/cancel`
 
 No request body. Sets #23's cancellation flag and returns without waiting for
-the run to stop; the run reaches `cancelled` at the next item boundary, and
+the run to stop; the run reaches `cancelled` at the next scan or item checkpoint, and
 everything already committed stays readable.
 
 ```json
@@ -274,10 +274,10 @@ It also cancels a run another process started, because the flag lives in that
 run's row. Cancelling a run that is not live writes nothing and is 409
 `import_not_live`; an unknown id is 404 `unknown_import`.
 
-A cancelled run's scan summary is not lost: cancellation takes effect at the
-phase boundary, so a run cancelled while it is still scanning finishes that scan
-and is cancelled in the drain (the finer bound, cancelling inside the scan
-phase, is issue #78, because #22's scan exposes no cancel flag).
+A cancelled run's scan summary is not lost. Cancellation during discovery or
+reconciliation stops the scan at its next checkpoint; committed file outcomes
+remain available, and unvisited rows are not marked missing. The run then
+finishes as `cancelled` without starting the analysis drain.
 
 Documented errors: 400 `invalid_run_id`, 404 `unknown_import`, 409
 `import_not_live`, 403, 405, 411, 415, 503 `database_unavailable`, 503
