@@ -1,0 +1,1729 @@
+{
+  "note": "Hand-written expectations for backend.palette.retrieval (issue #25). Values are the stored measurements, not z-scores; every expected mean, std, similarity, coverage and cutoff was computed on paper from the declared formulas (the log1p_ms means are (0 + log1p(3)) / 2 = 0.6931471805599453) and never read back from the implementation. Ids, roles and the analysis version are synthetic; no real library path, sample name or audio byte appears here.",
+  "analysis_version": "synthetic-analysis-v1",
+  "dimensions": [
+    "fundamental",
+    "spectral_centroid",
+    "spectral_rolloff",
+    "loudness",
+    "crest_factor",
+    "transient_strength",
+    "attack",
+    "decay",
+    "band_sub",
+    "band_bass",
+    "band_low_mid",
+    "band_mid",
+    "band_high_mid",
+    "band_high"
+  ],
+  "cases": [
+    {
+      "name": "identical_vectors",
+      "note": "Two active linear dimensions with exact +/-1 z-scores; the kick equals bass-a.",
+      "population": {
+        "bass-a": {
+          "role": "bass",
+          "values": {
+            "loudness": -30,
+            "crest_factor": 2
+          }
+        },
+        "bass-b": {
+          "role": "bass",
+          "values": {
+            "loudness": -28,
+            "crest_factor": 4
+          }
+        }
+      },
+      "kick": {
+        "values": {
+          "loudness": -30,
+          "crest_factor": 2
+        }
+      },
+      "candidates": [
+        "bass-a",
+        "bass-b"
+      ],
+      "policy": {
+        "shortlist_size": 50
+      },
+      "expected": {
+        "normalization": {
+          "fundamental": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "insufficient_population"
+          },
+          "spectral_centroid": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "insufficient_population"
+          },
+          "spectral_rolloff": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "insufficient_population"
+          },
+          "loudness": {
+            "mean": -29.0,
+            "std": 1.0,
+            "inactive_reason": null
+          },
+          "crest_factor": {
+            "mean": 3.0,
+            "std": 1.0,
+            "inactive_reason": null
+          },
+          "transient_strength": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "insufficient_population"
+          },
+          "attack": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "insufficient_population"
+          },
+          "decay": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "insufficient_population"
+          },
+          "band_sub": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "insufficient_population"
+          },
+          "band_bass": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "insufficient_population"
+          },
+          "band_low_mid": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "insufficient_population"
+          },
+          "band_mid": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "insufficient_population"
+          },
+          "band_high_mid": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "insufficient_population"
+          },
+          "band_high": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "insufficient_population"
+          }
+        },
+        "order": [
+          "bass-a",
+          "bass-b"
+        ],
+        "candidates": {
+          "bass-a": {
+            "similarity": 1,
+            "reason": null,
+            "coverage": 1.0,
+            "common_dimensions": [
+              "loudness",
+              "crest_factor"
+            ]
+          },
+          "bass-b": {
+            "similarity": 0.3333333333333333,
+            "reason": null,
+            "coverage": 1.0,
+            "common_dimensions": [
+              "loudness",
+              "crest_factor"
+            ]
+          }
+        },
+        "limit_reason": "eligible_exhausted",
+        "shortlist_size_returned": 2,
+        "cutoff": {
+          "similarity": 0.3333333333333333,
+          "included": "bass-b",
+          "excluded": null,
+          "tied_ids": [
+            "bass-b"
+          ]
+        }
+      }
+    },
+    {
+      "name": "unknown_loudness",
+      "note": "bass-c stores no loudness: the distance uses the 13 common dimensions only, never the population mean. bass-b and bass-c tie at one similarity and are ordered by id.",
+      "population": {
+        "bass-a": {
+          "role": "bass",
+          "values": {
+            "fundamental": 64,
+            "spectral_centroid": 512,
+            "spectral_rolloff": 4096,
+            "loudness": -30,
+            "crest_factor": 2,
+            "transient_strength": 0.125,
+            "attack": 0,
+            "decay": 0,
+            "band_sub": 0.125,
+            "band_bass": 0.125,
+            "band_low_mid": 0.125,
+            "band_mid": 0.125,
+            "band_high_mid": 0.125,
+            "band_high": 0.125
+          }
+        },
+        "bass-b": {
+          "role": "bass",
+          "values": {
+            "fundamental": 256,
+            "spectral_centroid": 2048,
+            "spectral_rolloff": 16384,
+            "loudness": -28,
+            "crest_factor": 4,
+            "transient_strength": 0.375,
+            "attack": 3,
+            "decay": 3,
+            "band_sub": 0.375,
+            "band_bass": 0.375,
+            "band_low_mid": 0.375,
+            "band_mid": 0.375,
+            "band_high_mid": 0.375,
+            "band_high": 0.375
+          }
+        },
+        "bass-c": {
+          "role": "bass",
+          "values": {
+            "fundamental": 256,
+            "spectral_centroid": 2048,
+            "spectral_rolloff": 16384,
+            "crest_factor": 4,
+            "transient_strength": 0.375,
+            "attack": 3,
+            "decay": 3,
+            "band_sub": 0.375,
+            "band_bass": 0.375,
+            "band_low_mid": 0.375,
+            "band_mid": 0.375,
+            "band_high_mid": 0.375,
+            "band_high": 0.375
+          }
+        }
+      },
+      "kick": {
+        "values": {
+          "fundamental": 64,
+          "spectral_centroid": 512,
+          "spectral_rolloff": 4096,
+          "loudness": -30,
+          "crest_factor": 2,
+          "transient_strength": 0.125,
+          "attack": 0,
+          "decay": 0,
+          "band_sub": 0.125,
+          "band_bass": 0.125,
+          "band_low_mid": 0.125,
+          "band_mid": 0.125,
+          "band_high_mid": 0.125,
+          "band_high": 0.125
+        }
+      },
+      "candidates": [
+        "bass-c",
+        "bass-b",
+        "bass-a"
+      ],
+      "policy": {
+        "shortlist_size": 50
+      },
+      "expected": {
+        "normalization": {
+          "fundamental": {
+            "mean": 7.333333333333333,
+            "std": 0.9428090415820635,
+            "inactive_reason": null
+          },
+          "spectral_centroid": {
+            "mean": 10.333333333333334,
+            "std": 0.9428090415820635,
+            "inactive_reason": null
+          },
+          "spectral_rolloff": {
+            "mean": 13.333333333333334,
+            "std": 0.9428090415820635,
+            "inactive_reason": null
+          },
+          "loudness": {
+            "mean": -29.0,
+            "std": 1.0,
+            "inactive_reason": null
+          },
+          "crest_factor": {
+            "mean": 3.3333333333333335,
+            "std": 0.9428090415820635,
+            "inactive_reason": null
+          },
+          "transient_strength": {
+            "mean": 0.2916666666666667,
+            "std": 0.11785113019775793,
+            "inactive_reason": null
+          },
+          "attack": {
+            "mean": 0.9241962407465937,
+            "std": 0.6535054289790315,
+            "inactive_reason": null
+          },
+          "decay": {
+            "mean": 0.9241962407465937,
+            "std": 0.6535054289790315,
+            "inactive_reason": null
+          },
+          "band_sub": {
+            "mean": 0.2916666666666667,
+            "std": 0.11785113019775793,
+            "inactive_reason": null
+          },
+          "band_bass": {
+            "mean": 0.2916666666666667,
+            "std": 0.11785113019775793,
+            "inactive_reason": null
+          },
+          "band_low_mid": {
+            "mean": 0.2916666666666667,
+            "std": 0.11785113019775793,
+            "inactive_reason": null
+          },
+          "band_mid": {
+            "mean": 0.2916666666666667,
+            "std": 0.11785113019775793,
+            "inactive_reason": null
+          },
+          "band_high_mid": {
+            "mean": 0.2916666666666667,
+            "std": 0.11785113019775793,
+            "inactive_reason": null
+          },
+          "band_high": {
+            "mean": 0.2916666666666667,
+            "std": 0.11785113019775793,
+            "inactive_reason": null
+          }
+        },
+        "order": [
+          "bass-a",
+          "bass-b",
+          "bass-c"
+        ],
+        "candidates": {
+          "bass-a": {
+            "similarity": 1,
+            "reason": null,
+            "coverage": 1.0,
+            "common_dimensions": [
+              "fundamental",
+              "spectral_centroid",
+              "spectral_rolloff",
+              "loudness",
+              "crest_factor",
+              "transient_strength",
+              "attack",
+              "decay",
+              "band_sub",
+              "band_bass",
+              "band_low_mid",
+              "band_mid",
+              "band_high_mid",
+              "band_high"
+            ]
+          },
+          "bass-b": {
+            "similarity": 0.321245338463878,
+            "reason": null,
+            "coverage": 1.0,
+            "common_dimensions": [
+              "fundamental",
+              "spectral_centroid",
+              "spectral_rolloff",
+              "loudness",
+              "crest_factor",
+              "transient_strength",
+              "attack",
+              "decay",
+              "band_sub",
+              "band_bass",
+              "band_low_mid",
+              "band_mid",
+              "band_high_mid",
+              "band_high"
+            ]
+          },
+          "bass-c": {
+            "similarity": 0.32037724101704074,
+            "reason": null,
+            "coverage": 0.9285714285714286,
+            "common_dimensions": [
+              "fundamental",
+              "spectral_centroid",
+              "spectral_rolloff",
+              "crest_factor",
+              "transient_strength",
+              "attack",
+              "decay",
+              "band_sub",
+              "band_bass",
+              "band_low_mid",
+              "band_mid",
+              "band_high_mid",
+              "band_high"
+            ]
+          }
+        },
+        "limit_reason": "eligible_exhausted",
+        "shortlist_size_returned": 3,
+        "cutoff": {
+          "similarity": 0.32037724101704074,
+          "included": "bass-c",
+          "excluded": null,
+          "tied_ids": [
+            "bass-c"
+          ]
+        },
+        "not_the_population_mean": {
+          "imputed_loudness_similarity": 0.324801385413129
+        }
+      }
+    },
+    {
+      "name": "zero_spectral_centroid",
+      "note": "bass-c stores a spectral_centroid of 0, which the log2 domain refuses: masked as unknown, never -inf, and counted as one domain rejection. The dimension stays active on the two known values.",
+      "population": {
+        "bass-a": {
+          "role": "bass",
+          "values": {
+            "fundamental": 64,
+            "spectral_centroid": 512,
+            "spectral_rolloff": 4096,
+            "loudness": -30,
+            "crest_factor": 2,
+            "transient_strength": 0.125,
+            "attack": 0,
+            "decay": 0,
+            "band_sub": 0.125,
+            "band_bass": 0.125,
+            "band_low_mid": 0.125,
+            "band_mid": 0.125,
+            "band_high_mid": 0.125,
+            "band_high": 0.125
+          }
+        },
+        "bass-b": {
+          "role": "bass",
+          "values": {
+            "fundamental": 256,
+            "spectral_centroid": 2048,
+            "spectral_rolloff": 16384,
+            "loudness": -28,
+            "crest_factor": 4,
+            "transient_strength": 0.375,
+            "attack": 3,
+            "decay": 3,
+            "band_sub": 0.375,
+            "band_bass": 0.375,
+            "band_low_mid": 0.375,
+            "band_mid": 0.375,
+            "band_high_mid": 0.375,
+            "band_high": 0.375
+          }
+        },
+        "bass-c": {
+          "role": "bass",
+          "values": {
+            "fundamental": 256,
+            "spectral_rolloff": 16384,
+            "loudness": -28,
+            "crest_factor": 4,
+            "transient_strength": 0.375,
+            "attack": 3,
+            "decay": 3,
+            "band_sub": 0.375,
+            "band_bass": 0.375,
+            "band_low_mid": 0.375,
+            "band_mid": 0.375,
+            "band_high_mid": 0.375,
+            "band_high": 0.375,
+            "spectral_centroid": 0
+          }
+        }
+      },
+      "kick": {
+        "values": {
+          "fundamental": 64,
+          "spectral_centroid": 512,
+          "spectral_rolloff": 4096,
+          "loudness": -30,
+          "crest_factor": 2,
+          "transient_strength": 0.125,
+          "attack": 0,
+          "decay": 0,
+          "band_sub": 0.125,
+          "band_bass": 0.125,
+          "band_low_mid": 0.125,
+          "band_mid": 0.125,
+          "band_high_mid": 0.125,
+          "band_high": 0.125
+        }
+      },
+      "candidates": [
+        "bass-a",
+        "bass-b",
+        "bass-c"
+      ],
+      "policy": {
+        "shortlist_size": 50
+      },
+      "expected": {
+        "normalization": {
+          "fundamental": {
+            "mean": 7.333333333333333,
+            "std": 0.9428090415820635,
+            "inactive_reason": null
+          },
+          "spectral_centroid": {
+            "mean": 10.0,
+            "std": 1.0,
+            "inactive_reason": null
+          },
+          "spectral_rolloff": {
+            "mean": 13.333333333333334,
+            "std": 0.9428090415820635,
+            "inactive_reason": null
+          },
+          "loudness": {
+            "mean": -28.666666666666668,
+            "std": 0.9428090415820635,
+            "inactive_reason": null
+          },
+          "crest_factor": {
+            "mean": 3.3333333333333335,
+            "std": 0.9428090415820635,
+            "inactive_reason": null
+          },
+          "transient_strength": {
+            "mean": 0.2916666666666667,
+            "std": 0.11785113019775793,
+            "inactive_reason": null
+          },
+          "attack": {
+            "mean": 0.9241962407465937,
+            "std": 0.6535054289790315,
+            "inactive_reason": null
+          },
+          "decay": {
+            "mean": 0.9241962407465937,
+            "std": 0.6535054289790315,
+            "inactive_reason": null
+          },
+          "band_sub": {
+            "mean": 0.2916666666666667,
+            "std": 0.11785113019775793,
+            "inactive_reason": null
+          },
+          "band_bass": {
+            "mean": 0.2916666666666667,
+            "std": 0.11785113019775793,
+            "inactive_reason": null
+          },
+          "band_low_mid": {
+            "mean": 0.2916666666666667,
+            "std": 0.11785113019775793,
+            "inactive_reason": null
+          },
+          "band_mid": {
+            "mean": 0.2916666666666667,
+            "std": 0.11785113019775793,
+            "inactive_reason": null
+          },
+          "band_high_mid": {
+            "mean": 0.2916666666666667,
+            "std": 0.11785113019775793,
+            "inactive_reason": null
+          },
+          "band_high": {
+            "mean": 0.2916666666666667,
+            "std": 0.11785113019775793,
+            "inactive_reason": null
+          }
+        },
+        "domain_rejected": {
+          "spectral_centroid": 1
+        },
+        "order": [
+          "bass-a",
+          "bass-b",
+          "bass-c"
+        ],
+        "candidates": {
+          "bass-a": {
+            "similarity": 1,
+            "reason": null,
+            "coverage": 1.0,
+            "common_dimensions": [
+              "fundamental",
+              "spectral_centroid",
+              "spectral_rolloff",
+              "loudness",
+              "crest_factor",
+              "transient_strength",
+              "attack",
+              "decay",
+              "band_sub",
+              "band_bass",
+              "band_low_mid",
+              "band_mid",
+              "band_high_mid",
+              "band_high"
+            ]
+          },
+          "bass-b": {
+            "similarity": 0.321245338463878,
+            "reason": null,
+            "coverage": 1.0,
+            "common_dimensions": [
+              "fundamental",
+              "spectral_centroid",
+              "spectral_rolloff",
+              "loudness",
+              "crest_factor",
+              "transient_strength",
+              "attack",
+              "decay",
+              "band_sub",
+              "band_bass",
+              "band_low_mid",
+              "band_mid",
+              "band_high_mid",
+              "band_high"
+            ]
+          },
+          "bass-c": {
+            "similarity": 0.32037724101704074,
+            "reason": null,
+            "coverage": 0.9285714285714286,
+            "common_dimensions": [
+              "fundamental",
+              "spectral_rolloff",
+              "loudness",
+              "crest_factor",
+              "transient_strength",
+              "attack",
+              "decay",
+              "band_sub",
+              "band_bass",
+              "band_low_mid",
+              "band_mid",
+              "band_high_mid",
+              "band_high"
+            ]
+          }
+        },
+        "limit_reason": "eligible_exhausted",
+        "shortlist_size_returned": 3,
+        "cutoff": {
+          "similarity": 0.32037724101704074,
+          "included": "bass-c",
+          "excluded": null,
+          "tied_ids": [
+            "bass-c"
+          ]
+        }
+      }
+    },
+    {
+      "name": "constant_transient_strength",
+      "note": "The population's transient_strength is constant, so the dimension is inactive with zero_variance, is excluded from every distance and carries no mean or std.",
+      "population": {
+        "bass-a": {
+          "role": "bass",
+          "values": {
+            "fundamental": 64,
+            "spectral_centroid": 512,
+            "spectral_rolloff": 4096,
+            "loudness": -30,
+            "crest_factor": 2,
+            "transient_strength": 0.25,
+            "attack": 0,
+            "decay": 0,
+            "band_sub": 0.125,
+            "band_bass": 0.125,
+            "band_low_mid": 0.125,
+            "band_mid": 0.125,
+            "band_high_mid": 0.125,
+            "band_high": 0.125
+          }
+        },
+        "bass-b": {
+          "role": "bass",
+          "values": {
+            "fundamental": 256,
+            "spectral_centroid": 2048,
+            "spectral_rolloff": 16384,
+            "loudness": -28,
+            "crest_factor": 4,
+            "transient_strength": 0.25,
+            "attack": 3,
+            "decay": 3,
+            "band_sub": 0.375,
+            "band_bass": 0.375,
+            "band_low_mid": 0.375,
+            "band_mid": 0.375,
+            "band_high_mid": 0.375,
+            "band_high": 0.375
+          }
+        }
+      },
+      "kick": {
+        "values": {
+          "fundamental": 64,
+          "spectral_centroid": 512,
+          "spectral_rolloff": 4096,
+          "loudness": -30,
+          "crest_factor": 2,
+          "transient_strength": 0.25,
+          "attack": 0,
+          "decay": 0,
+          "band_sub": 0.125,
+          "band_bass": 0.125,
+          "band_low_mid": 0.125,
+          "band_mid": 0.125,
+          "band_high_mid": 0.125,
+          "band_high": 0.125
+        }
+      },
+      "candidates": [
+        "bass-a",
+        "bass-b"
+      ],
+      "policy": {
+        "shortlist_size": 50
+      },
+      "expected": {
+        "normalization": {
+          "fundamental": {
+            "mean": 7.0,
+            "std": 1.0,
+            "inactive_reason": null
+          },
+          "spectral_centroid": {
+            "mean": 10.0,
+            "std": 1.0,
+            "inactive_reason": null
+          },
+          "spectral_rolloff": {
+            "mean": 13.0,
+            "std": 1.0,
+            "inactive_reason": null
+          },
+          "loudness": {
+            "mean": -29.0,
+            "std": 1.0,
+            "inactive_reason": null
+          },
+          "crest_factor": {
+            "mean": 3.0,
+            "std": 1.0,
+            "inactive_reason": null
+          },
+          "transient_strength": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "zero_variance"
+          },
+          "attack": {
+            "mean": 0.6931471805599453,
+            "std": 0.6931471805599453,
+            "inactive_reason": null
+          },
+          "decay": {
+            "mean": 0.6931471805599453,
+            "std": 0.6931471805599453,
+            "inactive_reason": null
+          },
+          "band_sub": {
+            "mean": 0.25,
+            "std": 0.125,
+            "inactive_reason": null
+          },
+          "band_bass": {
+            "mean": 0.25,
+            "std": 0.125,
+            "inactive_reason": null
+          },
+          "band_low_mid": {
+            "mean": 0.25,
+            "std": 0.125,
+            "inactive_reason": null
+          },
+          "band_mid": {
+            "mean": 0.25,
+            "std": 0.125,
+            "inactive_reason": null
+          },
+          "band_high_mid": {
+            "mean": 0.25,
+            "std": 0.125,
+            "inactive_reason": null
+          },
+          "band_high": {
+            "mean": 0.25,
+            "std": 0.125,
+            "inactive_reason": null
+          }
+        },
+        "order": [
+          "bass-a",
+          "bass-b"
+        ],
+        "candidates": {
+          "bass-a": {
+            "similarity": 1,
+            "reason": null,
+            "coverage": 1.0,
+            "common_dimensions": [
+              "fundamental",
+              "spectral_centroid",
+              "spectral_rolloff",
+              "loudness",
+              "crest_factor",
+              "attack",
+              "decay",
+              "band_sub",
+              "band_bass",
+              "band_low_mid",
+              "band_mid",
+              "band_high_mid",
+              "band_high"
+            ]
+          },
+          "bass-b": {
+            "similarity": 0.3333333333333333,
+            "reason": null,
+            "coverage": 1.0,
+            "common_dimensions": [
+              "fundamental",
+              "spectral_centroid",
+              "spectral_rolloff",
+              "loudness",
+              "crest_factor",
+              "attack",
+              "decay",
+              "band_sub",
+              "band_bass",
+              "band_low_mid",
+              "band_mid",
+              "band_high_mid",
+              "band_high"
+            ]
+          }
+        },
+        "limit_reason": "eligible_exhausted",
+        "shortlist_size_returned": 2,
+        "cutoff": {
+          "similarity": 0.3333333333333333,
+          "included": "bass-b",
+          "excluded": null,
+          "tied_ids": [
+            "bass-b"
+          ]
+        }
+      }
+    },
+    {
+      "name": "tie_at_the_cut",
+      "note": "Built from the declared formula, not hand-listed: only loudness is stored, so it is the one active dimension and the order is by |value - kick| ascending. The last three candidates share one similarity; only the hand-stated rule is asserted, never a value produced by the implementation.",
+      "build": {
+        "kind": "loudness_steps",
+        "count": 52,
+        "id_format": "bass-{index:03d}",
+        "first_value": -21,
+        "step": -1,
+        "tie_from_index": 50,
+        "tie_value": -70,
+        "kick_loudness": -20
+      },
+      "policy": {
+        "shortlist_size": 50
+      },
+      "expected": {
+        "order_prefix": [
+          "bass-001",
+          "bass-002",
+          "bass-003",
+          "bass-004",
+          "bass-005",
+          "bass-006",
+          "bass-007",
+          "bass-008",
+          "bass-009",
+          "bass-010",
+          "bass-011",
+          "bass-012",
+          "bass-013",
+          "bass-014",
+          "bass-015",
+          "bass-016",
+          "bass-017",
+          "bass-018",
+          "bass-019",
+          "bass-020",
+          "bass-021",
+          "bass-022",
+          "bass-023",
+          "bass-024",
+          "bass-025",
+          "bass-026",
+          "bass-027",
+          "bass-028",
+          "bass-029",
+          "bass-030",
+          "bass-031",
+          "bass-032",
+          "bass-033",
+          "bass-034",
+          "bass-035",
+          "bass-036",
+          "bass-037",
+          "bass-038",
+          "bass-039",
+          "bass-040",
+          "bass-041",
+          "bass-042",
+          "bass-043",
+          "bass-044",
+          "bass-045",
+          "bass-046",
+          "bass-047",
+          "bass-048",
+          "bass-049"
+        ],
+        "shortlist_size_returned": 50,
+        "limit_reason": "shortlist_size",
+        "included": "bass-050",
+        "excluded": "bass-051",
+        "tied_ids": [
+          "bass-050",
+          "bass-051",
+          "bass-052"
+        ]
+      }
+    },
+    {
+      "name": "single_sample_population",
+      "note": "One candidate-role row: every dimension is below the population minimum, so there are no active dimensions and no candidate is scored.",
+      "population": {
+        "bass-a": {
+          "role": "bass",
+          "values": {
+            "loudness": -30
+          }
+        }
+      },
+      "kick": {
+        "values": {
+          "loudness": -30
+        }
+      },
+      "candidates": [
+        "bass-a"
+      ],
+      "policy": {
+        "shortlist_size": 50
+      },
+      "expected": {
+        "normalization": {
+          "fundamental": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "insufficient_population"
+          },
+          "spectral_centroid": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "insufficient_population"
+          },
+          "spectral_rolloff": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "insufficient_population"
+          },
+          "loudness": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "insufficient_population"
+          },
+          "crest_factor": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "insufficient_population"
+          },
+          "transient_strength": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "insufficient_population"
+          },
+          "attack": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "insufficient_population"
+          },
+          "decay": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "insufficient_population"
+          },
+          "band_sub": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "insufficient_population"
+          },
+          "band_bass": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "insufficient_population"
+          },
+          "band_low_mid": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "insufficient_population"
+          },
+          "band_mid": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "insufficient_population"
+          },
+          "band_high_mid": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "insufficient_population"
+          },
+          "band_high": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "insufficient_population"
+          }
+        },
+        "order": [
+          "bass-a"
+        ],
+        "candidates": {
+          "bass-a": {
+            "similarity": null,
+            "reason": "no_active_dimensions",
+            "coverage": 0,
+            "common_dimensions": []
+          }
+        },
+        "limit_reason": "eligible_exhausted",
+        "shortlist_size_returned": 1,
+        "cutoff": {
+          "similarity": null,
+          "included": "bass-a",
+          "excluded": null,
+          "tied_ids": [
+            "bass-a"
+          ]
+        }
+      }
+    },
+    {
+      "name": "two_of_fourteen",
+      "note": "bass-sparse knows two of the fourteen active dimensions (2/14 coverage, below the 0.50 floor), so it is unscored with insufficient_common_dimensions. It is declared outside the population, which a library read never does, to keep the population's fourteen statistics exact.",
+      "population": {
+        "bass-a": {
+          "role": "bass",
+          "values": {
+            "fundamental": 64,
+            "spectral_centroid": 512,
+            "spectral_rolloff": 4096,
+            "loudness": -30,
+            "crest_factor": 2,
+            "transient_strength": 0.125,
+            "attack": 0,
+            "decay": 0,
+            "band_sub": 0.125,
+            "band_bass": 0.125,
+            "band_low_mid": 0.125,
+            "band_mid": 0.125,
+            "band_high_mid": 0.125,
+            "band_high": 0.125
+          }
+        },
+        "bass-b": {
+          "role": "bass",
+          "values": {
+            "fundamental": 256,
+            "spectral_centroid": 2048,
+            "spectral_rolloff": 16384,
+            "loudness": -28,
+            "crest_factor": 4,
+            "transient_strength": 0.375,
+            "attack": 3,
+            "decay": 3,
+            "band_sub": 0.375,
+            "band_bass": 0.375,
+            "band_low_mid": 0.375,
+            "band_mid": 0.375,
+            "band_high_mid": 0.375,
+            "band_high": 0.375
+          }
+        }
+      },
+      "kick": {
+        "values": {
+          "fundamental": 64,
+          "spectral_centroid": 512,
+          "spectral_rolloff": 4096,
+          "loudness": -30,
+          "crest_factor": 2,
+          "transient_strength": 0.125,
+          "attack": 0,
+          "decay": 0,
+          "band_sub": 0.125,
+          "band_bass": 0.125,
+          "band_low_mid": 0.125,
+          "band_mid": 0.125,
+          "band_high_mid": 0.125,
+          "band_high": 0.125
+        }
+      },
+      "candidates": [
+        "bass-a",
+        "bass-b",
+        "bass-sparse"
+      ],
+      "outside_population": {
+        "bass-sparse": {
+          "role": "bass",
+          "values": {
+            "loudness": -29.0,
+            "crest_factor": 3.0
+          }
+        }
+      },
+      "policy": {
+        "shortlist_size": 50
+      },
+      "expected": {
+        "normalization": {
+          "fundamental": {
+            "mean": 7.0,
+            "std": 1.0,
+            "inactive_reason": null
+          },
+          "spectral_centroid": {
+            "mean": 10.0,
+            "std": 1.0,
+            "inactive_reason": null
+          },
+          "spectral_rolloff": {
+            "mean": 13.0,
+            "std": 1.0,
+            "inactive_reason": null
+          },
+          "loudness": {
+            "mean": -29.0,
+            "std": 1.0,
+            "inactive_reason": null
+          },
+          "crest_factor": {
+            "mean": 3.0,
+            "std": 1.0,
+            "inactive_reason": null
+          },
+          "transient_strength": {
+            "mean": 0.25,
+            "std": 0.125,
+            "inactive_reason": null
+          },
+          "attack": {
+            "mean": 0.6931471805599453,
+            "std": 0.6931471805599453,
+            "inactive_reason": null
+          },
+          "decay": {
+            "mean": 0.6931471805599453,
+            "std": 0.6931471805599453,
+            "inactive_reason": null
+          },
+          "band_sub": {
+            "mean": 0.25,
+            "std": 0.125,
+            "inactive_reason": null
+          },
+          "band_bass": {
+            "mean": 0.25,
+            "std": 0.125,
+            "inactive_reason": null
+          },
+          "band_low_mid": {
+            "mean": 0.25,
+            "std": 0.125,
+            "inactive_reason": null
+          },
+          "band_mid": {
+            "mean": 0.25,
+            "std": 0.125,
+            "inactive_reason": null
+          },
+          "band_high_mid": {
+            "mean": 0.25,
+            "std": 0.125,
+            "inactive_reason": null
+          },
+          "band_high": {
+            "mean": 0.25,
+            "std": 0.125,
+            "inactive_reason": null
+          }
+        },
+        "order": [
+          "bass-a",
+          "bass-b",
+          "bass-sparse"
+        ],
+        "candidates": {
+          "bass-a": {
+            "similarity": 1,
+            "reason": null,
+            "coverage": 1,
+            "common_dimensions": [
+              "fundamental",
+              "spectral_centroid",
+              "spectral_rolloff",
+              "loudness",
+              "crest_factor",
+              "transient_strength",
+              "attack",
+              "decay",
+              "band_sub",
+              "band_bass",
+              "band_low_mid",
+              "band_mid",
+              "band_high_mid",
+              "band_high"
+            ]
+          },
+          "bass-b": {
+            "similarity": 0.3333333333333333,
+            "reason": null,
+            "coverage": 1,
+            "common_dimensions": [
+              "fundamental",
+              "spectral_centroid",
+              "spectral_rolloff",
+              "loudness",
+              "crest_factor",
+              "transient_strength",
+              "attack",
+              "decay",
+              "band_sub",
+              "band_bass",
+              "band_low_mid",
+              "band_mid",
+              "band_high_mid",
+              "band_high"
+            ]
+          },
+          "bass-sparse": {
+            "similarity": null,
+            "reason": "insufficient_common_dimensions",
+            "coverage": 0.14285714285714285,
+            "common_dimensions": [
+              "loudness",
+              "crest_factor"
+            ]
+          }
+        },
+        "limit_reason": "eligible_exhausted",
+        "shortlist_size_returned": 3,
+        "cutoff": {
+          "similarity": null,
+          "included": "bass-sparse",
+          "excluded": null,
+          "tied_ids": [
+            "bass-sparse"
+          ]
+        }
+      }
+    },
+    {
+      "name": "all_unknown_kick",
+      "note": "The kick knows none of the fourteen dimensions, so its own coverage is 0.0, below the 0.50 floor: every candidate is unscored with kick_dimensions_insufficient.",
+      "population": {
+        "bass-a": {
+          "role": "bass",
+          "values": {
+            "fundamental": 64,
+            "spectral_centroid": 512,
+            "spectral_rolloff": 4096,
+            "loudness": -30,
+            "crest_factor": 2,
+            "transient_strength": 0.125,
+            "attack": 0,
+            "decay": 0,
+            "band_sub": 0.125,
+            "band_bass": 0.125,
+            "band_low_mid": 0.125,
+            "band_mid": 0.125,
+            "band_high_mid": 0.125,
+            "band_high": 0.125
+          }
+        },
+        "bass-b": {
+          "role": "bass",
+          "values": {
+            "fundamental": 256,
+            "spectral_centroid": 2048,
+            "spectral_rolloff": 16384,
+            "loudness": -28,
+            "crest_factor": 4,
+            "transient_strength": 0.375,
+            "attack": 3,
+            "decay": 3,
+            "band_sub": 0.375,
+            "band_bass": 0.375,
+            "band_low_mid": 0.375,
+            "band_mid": 0.375,
+            "band_high_mid": 0.375,
+            "band_high": 0.375
+          }
+        }
+      },
+      "kick": {
+        "values": {}
+      },
+      "candidates": [
+        "bass-a",
+        "bass-b"
+      ],
+      "policy": {
+        "shortlist_size": 50
+      },
+      "expected": {
+        "normalization": {
+          "fundamental": {
+            "mean": 7.0,
+            "std": 1.0,
+            "inactive_reason": null
+          },
+          "spectral_centroid": {
+            "mean": 10.0,
+            "std": 1.0,
+            "inactive_reason": null
+          },
+          "spectral_rolloff": {
+            "mean": 13.0,
+            "std": 1.0,
+            "inactive_reason": null
+          },
+          "loudness": {
+            "mean": -29.0,
+            "std": 1.0,
+            "inactive_reason": null
+          },
+          "crest_factor": {
+            "mean": 3.0,
+            "std": 1.0,
+            "inactive_reason": null
+          },
+          "transient_strength": {
+            "mean": 0.25,
+            "std": 0.125,
+            "inactive_reason": null
+          },
+          "attack": {
+            "mean": 0.6931471805599453,
+            "std": 0.6931471805599453,
+            "inactive_reason": null
+          },
+          "decay": {
+            "mean": 0.6931471805599453,
+            "std": 0.6931471805599453,
+            "inactive_reason": null
+          },
+          "band_sub": {
+            "mean": 0.25,
+            "std": 0.125,
+            "inactive_reason": null
+          },
+          "band_bass": {
+            "mean": 0.25,
+            "std": 0.125,
+            "inactive_reason": null
+          },
+          "band_low_mid": {
+            "mean": 0.25,
+            "std": 0.125,
+            "inactive_reason": null
+          },
+          "band_mid": {
+            "mean": 0.25,
+            "std": 0.125,
+            "inactive_reason": null
+          },
+          "band_high_mid": {
+            "mean": 0.25,
+            "std": 0.125,
+            "inactive_reason": null
+          },
+          "band_high": {
+            "mean": 0.25,
+            "std": 0.125,
+            "inactive_reason": null
+          }
+        },
+        "order": [
+          "bass-a",
+          "bass-b"
+        ],
+        "candidates": {
+          "bass-a": {
+            "similarity": null,
+            "reason": "kick_dimensions_insufficient",
+            "coverage": 0,
+            "common_dimensions": []
+          },
+          "bass-b": {
+            "similarity": null,
+            "reason": "kick_dimensions_insufficient",
+            "coverage": 0,
+            "common_dimensions": []
+          }
+        },
+        "limit_reason": "eligible_exhausted",
+        "shortlist_size_returned": 2,
+        "cutoff": {
+          "similarity": null,
+          "included": "bass-b",
+          "excluded": null,
+          "tied_ids": [
+            "bass-b"
+          ]
+        }
+      }
+    },
+    {
+      "name": "extreme_crest_factor",
+      "note": "bass-extreme stores a crest_factor of 1e308 whose z-score overflows a double; it stays ranked, last, unscored with extreme_dimension_value instead of a squared term that can overflow. It is declared outside the population because a stored population of two such values could not produce a finite statistic.",
+      "population": {
+        "bass-a": {
+          "role": "bass",
+          "values": {
+            "loudness": -30.0,
+            "crest_factor": 2.0
+          }
+        },
+        "bass-b": {
+          "role": "bass",
+          "values": {
+            "loudness": -28.0,
+            "crest_factor": 2.00000001
+          }
+        }
+      },
+      "kick": {
+        "values": {
+          "loudness": -30.0,
+          "crest_factor": 2.0
+        }
+      },
+      "candidates": [
+        "bass-a",
+        "bass-b",
+        "bass-extreme"
+      ],
+      "outside_population": {
+        "bass-extreme": {
+          "role": "bass",
+          "values": {
+            "loudness": -30.0,
+            "crest_factor": 1e+308
+          }
+        }
+      },
+      "policy": {
+        "shortlist_size": 50
+      },
+      "expected": {
+        "normalization": {
+          "fundamental": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "insufficient_population"
+          },
+          "spectral_centroid": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "insufficient_population"
+          },
+          "spectral_rolloff": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "insufficient_population"
+          },
+          "loudness": {
+            "mean": -29.0,
+            "std": 1.0,
+            "inactive_reason": null
+          },
+          "crest_factor": {
+            "mean": 2.000000005,
+            "std": 4.999999969612645e-09,
+            "inactive_reason": null
+          },
+          "transient_strength": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "insufficient_population"
+          },
+          "attack": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "insufficient_population"
+          },
+          "decay": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "insufficient_population"
+          },
+          "band_sub": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "insufficient_population"
+          },
+          "band_bass": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "insufficient_population"
+          },
+          "band_low_mid": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "insufficient_population"
+          },
+          "band_mid": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "insufficient_population"
+          },
+          "band_high_mid": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "insufficient_population"
+          },
+          "band_high": {
+            "mean": null,
+            "std": null,
+            "inactive_reason": "insufficient_population"
+          }
+        },
+        "order": [
+          "bass-a",
+          "bass-b",
+          "bass-extreme"
+        ],
+        "candidates": {
+          "bass-a": {
+            "similarity": 1,
+            "reason": null,
+            "coverage": 1.0,
+            "common_dimensions": [
+              "loudness",
+              "crest_factor"
+            ]
+          },
+          "bass-b": {
+            "similarity": 0.3333333333333333,
+            "reason": null,
+            "coverage": 1.0,
+            "common_dimensions": [
+              "loudness",
+              "crest_factor"
+            ]
+          },
+          "bass-extreme": {
+            "similarity": null,
+            "reason": "extreme_dimension_value",
+            "coverage": 1.0,
+            "common_dimensions": [
+              "loudness",
+              "crest_factor"
+            ]
+          }
+        },
+        "limit_reason": "eligible_exhausted",
+        "shortlist_size_returned": 3,
+        "cutoff": {
+          "similarity": null,
+          "included": "bass-extreme",
+          "excluded": null,
+          "tied_ids": [
+            "bass-extreme"
+          ]
+        }
+      }
+    },
+    {
+      "name": "size_below_minimum",
+      "note": "A requested size below SHORTLIST_MIN is a refusal, not an empty shortlist.",
+      "population": {
+        "bass-a": {
+          "role": "bass",
+          "values": {
+            "fundamental": 64,
+            "spectral_centroid": 512,
+            "spectral_rolloff": 4096,
+            "loudness": -30,
+            "crest_factor": 2,
+            "transient_strength": 0.125,
+            "attack": 0,
+            "decay": 0,
+            "band_sub": 0.125,
+            "band_bass": 0.125,
+            "band_low_mid": 0.125,
+            "band_mid": 0.125,
+            "band_high_mid": 0.125,
+            "band_high": 0.125
+          }
+        },
+        "bass-b": {
+          "role": "bass",
+          "values": {
+            "fundamental": 256,
+            "spectral_centroid": 2048,
+            "spectral_rolloff": 16384,
+            "loudness": -28,
+            "crest_factor": 4,
+            "transient_strength": 0.375,
+            "attack": 3,
+            "decay": 3,
+            "band_sub": 0.375,
+            "band_bass": 0.375,
+            "band_low_mid": 0.375,
+            "band_mid": 0.375,
+            "band_high_mid": 0.375,
+            "band_high": 0.375
+          }
+        }
+      },
+      "kick": {
+        "values": {
+          "fundamental": 64,
+          "spectral_centroid": 512,
+          "spectral_rolloff": 4096,
+          "loudness": -30,
+          "crest_factor": 2,
+          "transient_strength": 0.125,
+          "attack": 0,
+          "decay": 0,
+          "band_sub": 0.125,
+          "band_bass": 0.125,
+          "band_low_mid": 0.125,
+          "band_mid": 0.125,
+          "band_high_mid": 0.125,
+          "band_high": 0.125
+        }
+      },
+      "candidates": [
+        "bass-a"
+      ],
+      "policy": {
+        "shortlist_size": 49
+      },
+      "expected": {
+        "error": "invalid_shortlist_size",
+        "normalization": {
+          "fundamental": {
+            "mean": 7.0,
+            "std": 1.0,
+            "inactive_reason": null
+          },
+          "spectral_centroid": {
+            "mean": 10.0,
+            "std": 1.0,
+            "inactive_reason": null
+          },
+          "spectral_rolloff": {
+            "mean": 13.0,
+            "std": 1.0,
+            "inactive_reason": null
+          },
+          "loudness": {
+            "mean": -29.0,
+            "std": 1.0,
+            "inactive_reason": null
+          },
+          "crest_factor": {
+            "mean": 3.0,
+            "std": 1.0,
+            "inactive_reason": null
+          },
+          "transient_strength": {
+            "mean": 0.25,
+            "std": 0.125,
+            "inactive_reason": null
+          },
+          "attack": {
+            "mean": 0.6931471805599453,
+            "std": 0.6931471805599453,
+            "inactive_reason": null
+          },
+          "decay": {
+            "mean": 0.6931471805599453,
+            "std": 0.6931471805599453,
+            "inactive_reason": null
+          },
+          "band_sub": {
+            "mean": 0.25,
+            "std": 0.125,
+            "inactive_reason": null
+          },
+          "band_bass": {
+            "mean": 0.25,
+            "std": 0.125,
+            "inactive_reason": null
+          },
+          "band_low_mid": {
+            "mean": 0.25,
+            "std": 0.125,
+            "inactive_reason": null
+          },
+          "band_mid": {
+            "mean": 0.25,
+            "std": 0.125,
+            "inactive_reason": null
+          },
+          "band_high_mid": {
+            "mean": 0.25,
+            "std": 0.125,
+            "inactive_reason": null
+          },
+          "band_high": {
+            "mean": 0.25,
+            "std": 0.125,
+            "inactive_reason": null
+          }
+        }
+      }
+    }
+  ]
+}

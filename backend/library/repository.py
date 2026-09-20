@@ -26,6 +26,10 @@ Rules this module enforces:
   with the stored one, bumps it by exactly one and writes the new row. A read
   resolves each item against `samples` without writing anything and never
   raises for a sample that is missing, unknown or pruned.
+- Retrieval (issue #25). `list_retrieval_rows` is one statement per read: a
+  row's analysis state (`current`, `stale`, `absent`), its stored availability
+  and, for a current row, the validated `Sample` of that version, so retrieval
+  fits a normalization and maps availability without a per-candidate query.
 
 Only the standard library and `backend.contracts` / `backend.analysis.batch`
 are imported here; `json` is used to parse a stored descriptor back so it can
@@ -89,6 +93,25 @@ from backend.palette.model import (
 HEX_DIGITS = "0123456789abcdef"
 TAG_MAX_LENGTH = 64
 
+# The one statement `list_retrieval_rows` runs (issue #25): the samples row, its
+# measurements and key row at the requested version, and its analysis state.
+_RETRIEVAL_SELECT = (
+    "SELECT s.sample_id, s.schema_version, s.role, s.original_path, s.path_key, s.file_status, "
+    "s.content_sha256, s.sample_rate_hz, s.channels, s.frame_count, s.duration_ms, "
+    "f.measurement, f.unit, f.value, f.unavailable_reason, f.confidence, "
+    "k.sample_id AS key_sample_id, k.tonic, k.mode, k.confidence AS key_confidence, "
+    "k.unavailable_reason AS key_unavailable_reason, "
+    "CASE WHEN f.sample_id IS NOT NULL OR k.sample_id IS NOT NULL THEN 'current' "
+    "WHEN EXISTS (SELECT 1 FROM sample_features AS f2 WHERE f2.sample_id = s.sample_id) "
+    "OR EXISTS (SELECT 1 FROM sample_keys AS k2 WHERE k2.sample_id = s.sample_id) "
+    "THEN 'stale' ELSE 'absent' END AS analysis_state "
+    "FROM samples AS s "
+    "LEFT JOIN sample_features AS f ON f.sample_id = s.sample_id AND f.analysis_version = ? "
+    "LEFT JOIN sample_keys AS k ON k.sample_id = s.sample_id AND k.analysis_version = ?"
+)
+
+
+
 
 @dataclass(frozen=True)
 class ImportResult:
@@ -150,6 +173,30 @@ class LibraryPathRecord:
     duration_ms: float
     imported_at: str
     updated_at: str
+
+
+@dataclass(frozen=True)
+class RetrievalRow:
+    """One samples row read for normalized retrieval (issue #25).
+
+    `analysis_state` is `current` when the row stores the requested analysis
+    version, `stale` when it stores another version and `absent` when it
+    stores no analysis at all. `sample` is the validated contract `Sample`
+    rebuilt from the row's 19 measurements and its key row at the requested
+    version, or None for a stale or absent row. `path_key` is the normalised
+    path the duplicate collapse compares, exactly as `pending_analysis` (#22)
+    compares it, and `file_status` is the stored availability (#22/#24) that
+    becomes the retrieval availability mapping.
+    """
+
+    sample_id: str
+    role: str
+    path: str
+    path_key: str
+    file_status: str
+    content_sha256: str
+    analysis_state: str
+    sample: Sample | None
 
 
 @contextmanager
@@ -859,6 +906,95 @@ class LibraryRepository:
             "           WHERE k.sample_id = s.sample_id AND k.analysis_version = ?)) LIMIT 1",
             (content_sha256, analysis_version, analysis_version))
         return row is not None
+
+    # -- retrieval reads (issue #25) ---------------------------------------
+
+    def list_retrieval_rows(self, analysis_version, *, sample_ids=None, roles=None) -> tuple:
+        """Every stored row an analysis version names, in one statement.
+
+        Named by `sample_ids` this reads exactly those `samples` rows whatever
+        their role; without it, every row whose role is in `roles` (every row
+        when `roles` is None). The `samples` row is left-joined to that
+        version's `sample_features` and `sample_keys` rows, and each row's
+        analysis state is decided by correlated `EXISTS` lookups on the
+        primary-key prefix, so the statement count does not grow with the number
+        of rows. Rows come back ordered by `sample_id`.
+
+        A row is `current` when it stores that version, `stale` when it stores
+        another version and `absent` when it stores no analysis at all. A
+        current row that lacks any of the 19 measurements or its key row raises
+        `IncompleteFeatures`, and a current row whose registered descriptor no
+        longer re-digests raises `AnalysisVersionMismatch`; a database with no
+        current row is read without touching `analysis_versions`.
+        """
+
+        if not isinstance(analysis_version, str) or not analysis_version:
+            raise InvalidSample("analysis_version must be a non-empty string.")
+        clauses, parameters = [], [analysis_version, analysis_version]
+        if sample_ids is not None:
+            ids = tuple(sample_ids)
+            if not ids:
+                return ()
+            if any(not isinstance(value, str) or not value for value in ids):
+                raise InvalidSample("sample_ids must be non-empty strings.")
+            clauses.append("s.sample_id IN (" + ", ".join("?" * len(ids)) + ")")
+            parameters.extend(ids)
+        elif roles is not None:
+            role_list = tuple(roles)
+            if not role_list:
+                return ()
+            clauses.append("s.role IN (" + ", ".join("?" * len(role_list)) + ")")
+            parameters.extend(role_list)
+        statement = (_RETRIEVAL_SELECT + ("" if not clauses else " WHERE " + " AND ".join(clauses))
+                     + " ORDER BY s.sample_id ASC, f.measurement ASC")
+        rows = self._all(statement, tuple(parameters))
+        if any(row["analysis_state"] == "current" for row in rows):
+            self._require_version(analysis_version)
+        grouped = {}
+        for row in rows:
+            grouped.setdefault(row["sample_id"], []).append(row)
+        return tuple(
+            RetrievalRow(
+                sample_id=items[0]["sample_id"], role=items[0]["role"],
+                path=items[0]["original_path"], path_key=items[0]["path_key"],
+                file_status=items[0]["file_status"],
+                content_sha256=items[0]["content_sha256"],
+                analysis_state=items[0]["analysis_state"],
+                sample=(None if items[0]["analysis_state"] != "current"
+                        else self._retrieval_sample(items, analysis_version)))
+            for items in grouped.values())
+
+    def _retrieval_sample(self, rows, analysis_version: str) -> Sample:
+        """One current retrieval row rebuilt as a validated contract `Sample`."""
+
+        first = rows[0]
+        by_name = {row["measurement"]: row for row in rows if row["measurement"] is not None}
+        if len(by_name) != len(MEASURES) or set(by_name) != set(MEASURES):
+            raise IncompleteFeatures(
+                f"sample_id {first['sample_id']} does not hold every measurement under "
+                f"{analysis_version}.")
+        if first["key_sample_id"] is None:
+            raise IncompleteFeatures(
+                f"sample_id {first['sample_id']} has no key row under {analysis_version}.")
+        # MEASURES order, exactly as _stored_sample rebuilds it, so a retrieval
+        # sample equals the sample every other read returns.
+        measurements = tuple(
+            Measurement(name=name, unit=by_name[name]["unit"], value=by_name[name]["value"],
+                        unavailable_reason=by_name[name]["unavailable_reason"],
+                        confidence=by_name[name]["confidence"])
+            for name in MEASURES)
+        return Sample(
+            sample_id=first["sample_id"], role=first["role"],
+            audio=AudioMetadata(local_path=first["original_path"],
+                                sample_rate_hz=first["sample_rate_hz"],
+                                channels=first["channels"], frame_count=first["frame_count"],
+                                duration_ms=first["duration_ms"]),
+            features=AudioFeatures(
+                measurements=measurements,
+                key=MusicalKey(tonic=first["tonic"], mode=first["mode"],
+                               confidence=first["key_confidence"],
+                               unavailable_reason=first["key_unavailable_reason"])),
+            analysis_version=analysis_version, schema_version=first["schema_version"])
 
     def insert_path_record(self, path, *, role, content_sha256, sample_rate_hz, channels,
                            frame_count, duration_ms, file_status="present", sample_id=None):
