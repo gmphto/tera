@@ -205,6 +205,20 @@ outcome. A stronger guarantee — a Windows Job Object that kills the service ev
 on a hard kill of the host — is [#82](https://github.com/gmphto/tera/issues/82),
 because it needs another crate.
 
+Because the child is terminated rather than signalled, the database is not closed
+cleanly and SQLite's own `tera.sqlite3-wal` and `tera.sqlite3-shm` sidecars stay
+in `<data>`. They belong to the database, not to the shell: the next open reuses
+them, and a non-empty WAL is replayed by SQLite on open, so no committed row is
+lost. The shell never deletes them, because another window may be attached to the
+same database.
+
+Stopping from the terminal instead of the window is a different path: Ctrl+C is
+sent to every process in the console group, so the *service* shuts down cleanly
+and removes its own port file, while the shell is killed without running the
+handler above and leaves `service-instance.json` behind. The next launch reads
+that record, finds nothing answering, and overwrites it. This is the hard-kill
+case [#82](https://github.com/gmphto/tera/issues/82) covers.
+
 ## Endpoints and client state
 
 RTK Query carries exactly one endpoint, `getHealth`, whose request is exactly
