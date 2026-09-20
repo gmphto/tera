@@ -1899,6 +1899,25 @@ class LibraryRepository:
             "observation_count = decision_model_versions.observation_count + 1",
             tuple(values[name] for name in DECISION_MODEL_VERSION_COLUMNS))
 
+    # -- producer outcomes (issue #29) -------------------------------------
+
+    def record_outcome(self, submission):
+        """Append one validated producer action to local history."""
+
+        from backend.library.outcomes import record_outcome
+        return record_outcome(self.connection, submission)
+
+    def list_outcomes(self, *, project_id=None, palette_id=None, run_id=None,
+                      candidate_id=None, event_types=None, after_event_id=None,
+                      limit=50):
+        """Read outcome history by insertion order, without resolving a sample."""
+
+        from backend.library.outcomes import list_outcomes
+        return list_outcomes(
+            self.connection, project_id=project_id, palette_id=palette_id,
+            run_id=run_id, candidate_id=candidate_id, event_types=event_types,
+            after_event_id=after_event_id, limit=limit)
+
     # -- internals ---------------------------------------------------------
 
     @contextmanager

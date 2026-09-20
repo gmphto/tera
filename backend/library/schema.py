@@ -43,7 +43,7 @@ from backend.library.errors import (
 )
 
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 SQLITE_MAGIC = b"SQLite format 3\x00"
 
@@ -336,7 +336,36 @@ CREATE TABLE decision_model_versions (
 """
 
 
-MIGRATIONS = ((1, _MIGRATION_1), (2, _MIGRATION_2), (3, _MIGRATION_3), (4, _MIGRATION_4))
+# Issue #29: local producer history, independent of sample and run lifetimes.
+_MIGRATION_5 = """
+CREATE TABLE recommendation_outcomes (
+  event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+  client_event_id TEXT NOT NULL CONSTRAINT ux_outcomes_client_event UNIQUE
+    CHECK (length(trim(client_event_id)) > 0),
+  event_type TEXT NOT NULL CHECK (event_type IN ('auditioned','selected','rejected','removed')),
+  project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
+  palette_id TEXT NOT NULL REFERENCES palettes(palette_id) ON DELETE CASCADE,
+  palette_revision INTEGER NOT NULL CHECK (palette_revision >= 0),
+  run_id TEXT NOT NULL CHECK (length(trim(run_id)) > 0),
+  candidate_id TEXT NOT NULL CHECK (length(trim(candidate_id)) > 0),
+  ranking_version TEXT NOT NULL CHECK (length(trim(ranking_version)) > 0),
+  mode TEXT NOT NULL CHECK (mode IN ('dsp-only','jev-only','hybrid')),
+  candidate_analysis_version TEXT NOT NULL CHECK (length(trim(candidate_analysis_version)) > 0),
+  removes_event_id INTEGER NULL REFERENCES recommendation_outcomes(event_id) ON DELETE CASCADE,
+  recorded_at TEXT NOT NULL CHECK (length(trim(recorded_at)) > 0),
+  CHECK ((event_type = 'removed') = (removes_event_id IS NOT NULL)),
+  CHECK (removes_event_id IS NULL OR removes_event_id < event_id)
+);
+CREATE UNIQUE INDEX ux_outcomes_removes ON recommendation_outcomes(removes_event_id)
+  WHERE removes_event_id IS NOT NULL;
+CREATE INDEX idx_outcomes_project ON recommendation_outcomes(project_id, event_id);
+CREATE INDEX idx_outcomes_palette_candidate
+  ON recommendation_outcomes(palette_id, candidate_id, event_id);
+CREATE INDEX idx_outcomes_run ON recommendation_outcomes(run_id, event_id);
+"""
+
+MIGRATIONS = ((1, _MIGRATION_1), (2, _MIGRATION_2), (3, _MIGRATION_3),
+              (4, _MIGRATION_4), (5, _MIGRATION_5))
 
 
 def utc_now() -> str:

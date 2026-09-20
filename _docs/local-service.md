@@ -74,7 +74,7 @@ use writes nothing to the database and never opens it.
 
 ## The route table
 
-Eight operations, and nothing else. An unknown path is 404 `unknown_route`; a
+Ten operations, and nothing else. An unknown path is 404 `unknown_route`; a
 known path with an unsupported method is 405 `method_not_allowed` with an
 `Allow` header naming the methods that path accepts. Every method is dispatched,
 so an invented method is a 405 rather than the standard library's 501.
@@ -89,6 +89,8 @@ so an invented method is a 405 rather than the standard library's 501.
 | GET | `/library/samples` | query | 200 | `{"api_schema", "items", "page", "query"}` |
 | GET | `/library/samples/{sample_id}` | none | 200 | `{"api_schema", "sample": {..., "features"}}` |
 | POST | `/recommendations` | `{"palette_id", "revision", "limit", "filters"}` | 200 | `{"api_schema", "recommendation", "run"}` |
+| POST | `/outcomes` | One action or one removal body | 201 created, 200 retry | `{"api_schema", "created", "outcome"}` |
+| GET | `/outcomes` | Optional filters, page limit and cursor | 200 | `{"api_schema", "items", "page", "query"}` |
 
 The same table as the code spells it (`service.ROUTES`), which is the one route
 table the rest of Phase 1 reads:
@@ -101,18 +103,49 @@ table the rest of Phase 1 reads:
 - `GET /library/samples`
 - `GET /library/samples/{sample_id}`
 - `POST /recommendations`
+- `POST /outcomes`
+- `GET /outcomes`
 
-`POST /recommendations` is the only operation with a result limit and the only
-one that reads a stored palette; its request, response, counts, evidence and
+`POST /recommendations` has a result limit and reads a stored palette; its
+request, response, counts, evidence and
 every refusal are documented in [`recommendation-api.md`](recommendation-api.md)
-(issue #28). No route serves an audio byte, a filesystem path or a file:
+(issue #28). `POST /outcomes` records one explicit producer action; `GET /outcomes`
+pages its local history. Their state rules and fields are documented in
+[`outcome-storage.md`](outcome-storage.md). No route serves an audio byte, a
+filesystem path or a file:
 `GET /library/samples/{sample_id}/audio`, `GET /library/audio` and every other
 audio-shaped path are 404 `unknown_route`.
+
+### Outcome requests
+
+A producer action carries its run identity. The palette mutation happens first
+for `selected`; this route records that already-applied choice.
+
+```json
+{"client_event_id":"evt-0001","event_type":"selected","project_id":"project-001",
+ "palette_id":"palette-001","candidate_id":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+ "run_id":"run-001","palette_revision":2,"ranking_version":"ranking-v1",
+ "mode":"dsp-only","candidate_analysis_version":"analysis-v1"}
+```
+
+`POST /outcomes` returns 201 with `{"api_schema":"1.0","created":true,
+"outcome":{...}}`. An idempotent retry or repeated selection returns 200 with
+`created:false` and the original event. A removal body has exactly three fields:
+
+```json
+{"client_event_id":"evt-0002","event_type":"removed","removes_event_id":1}
+```
+
+`GET /outcomes?project_id=project-001&limit=50` returns `items` in ascending
+`event_id` order, `page` with `limit`, `count`, `next_cursor` and `has_more`, and
+`query` with the four id filters and `event_types`. The `event_type` parameter
+may repeat; a returned cursor resumes strictly after the last event. The local
+history stores ids and timestamps, never audio, paths or scores.
 
 ### `GET /health`
 
 ```json
-{"api_schema":"1.0","database":{"code":null,"journal_mode":"wal","schema_version":4,"state":"ok"},
+{"api_schema":"1.0","database":{"code":null,"journal_mode":"wal","schema_version":5,"state":"ok"},
  "import":{"phase":null,"run_id":null,"started_at":null,"state":"idle"},
  "library":{"by_role":{"bass":0,"kick":0,"sub-bass":0},"pending_analysis":0,"roots":0,"samples":0},
  "limits":{"max_concurrent_requests":8,"max_page_size":200,"max_request_bytes":65536},
@@ -391,7 +424,7 @@ Documented errors: 400 `invalid_sample_id`, 404 `unknown_sample`, 403, 405,
 One code, one status, one constant sentence of at most
 `MAX_MESSAGE_LENGTH` = 200 characters. The sentence is path-free, SQL-free and
 traceback-free, and `details` carries ids, codes, counts and the fixed names of
-request fields only — never a value a caller supplied and never a search text.
+request fields only — never an unvalidated value or search text.
 
 | Status | Code | When |
 | --- | --- | --- |
@@ -411,23 +444,34 @@ request fields only — never a value a caller supplied and never a search text.
 | 400 | `invalid_palette_id` | `palette_id` is not `[A-Za-z0-9_-]{1,64}` |
 | 400 | `invalid_revision` | `revision` is not a nonnegative integer |
 | 400 | `invalid_limit` | `limit` is not an integer in `[5, 20]` |
+| 400 | `invalid_outcome` | Outcome identity, event type or query event type is invalid |
 | 403 | `host_not_allowed` | The `Host` header is not the loopback host |
 | 403 | `origin_not_allowed` | The `Origin` header is not allowed |
 | 404 | `unknown_route` | No operation is served at this path |
 | 404 | `unknown_import` | No run has this id |
 | 404 | `unknown_sample` | No stored sample has this id |
 | 404 | `unknown_palette` | No stored palette has this id |
+| 404 | `unknown_project` | No stored project has this id |
+| 404 | `unknown_selection` | A removal does not name a stored selection |
 | 405 | `method_not_allowed` | The path does not accept this method; `Allow` names the ones it does |
 | 409 | `import_already_running` | A run is live |
 | 409 | `import_not_live` | The run is not live, so cancelling it would write nothing |
 | 409 | `revision_conflict` | The palette is not at the request's revision, before or after ranking |
 | 409 | `palette_incomplete` | The palette cannot be assembled, or its selected bass cannot be supplied |
 | 409 | `kick_unavailable` | The palette's selected kick cannot be used, with #11's or #21's reason |
+| 409 | `unknown_palette_revision` | The submitted palette revision is in the future |
+| 409 | `cross_project_reference` | The palette belongs to another project |
+| 409 | `selection_not_in_palette` | A selected candidate is not active in the bass slot |
+| 409 | `removal_not_reflected` | A removal's candidate is still active in the bass slot |
+| 409 | `outcome_conflict` | A selection is already closed or a live selection is rejected |
+| 409 | `idempotency_conflict` | The client event id already names different content |
 | 411 | `length_required` | No valid integer `Content-Length` |
 | 413 | `request_too_large` | The body is larger than `MAX_REQUEST_BYTES` |
 | 415 | `unsupported_media_type` | A non-GET request without `Content-Type: application/json` |
 | 500 | `internal_error` | An unexpected failure; the constant sentence only |
+| 500 | `write_failed` | The outcome insert or commit failed |
 | 503 | `database_unavailable` | #21's open or verify failed; `/health` still answers |
+| 503 | `database_locked` | A writer could not acquire the database lock; carries `Retry-After: 1` |
 | 503 | `server_busy` | No request slot inside `REQUEST_QUEUE_TIMEOUT_SECONDS`; carries `Retry-After: 1` |
 
 Every non-2xx response is one envelope:

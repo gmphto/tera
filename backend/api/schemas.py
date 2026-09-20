@@ -17,6 +17,7 @@ ask for `PAGE_SIZE_MIN` to `PAGE_SIZE_MAX`. Only the standard library, #9's
 from __future__ import annotations
 
 import base64
+import binascii
 from dataclasses import dataclass, field
 import json
 import re
@@ -242,6 +243,32 @@ def decode_cursor(value) -> str:
     if not isinstance(after, str) or not SAMPLE_ID_PATTERN.fullmatch(after):
         raise ApiError("invalid_cursor")
     return after
+
+
+def encode_outcome_cursor(event_id: int) -> str:
+    """Encode an outcome insertion position with the service's cursor version."""
+
+    payload = canonical({"v": CURSOR_VERSION, "after": event_id})
+    return base64.urlsafe_b64encode(payload.encode("utf-8")).decode("ascii")
+
+
+def decode_outcome_cursor(value) -> int:
+    """Decode an outcome position; deleted event ids remain valid positions."""
+
+    if not isinstance(value, str) or not CURSOR_PATTERN.fullmatch(value):
+        raise ApiError("invalid_cursor")
+    try:
+        raw = base64.urlsafe_b64decode(value.encode("ascii"))
+        payload = json.loads(raw.decode("utf-8"))
+    except (ValueError, TypeError, binascii.Error):
+        raise ApiError("invalid_cursor") from None
+    if base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=") != value.rstrip("="):
+        raise ApiError("invalid_cursor")
+    if (type(payload) is not dict or set(payload) != {"v", "after"}
+            or type(payload["v"]) is not int or payload["v"] != CURSOR_VERSION
+            or type(payload["after"]) is not int or payload["after"] < 0):
+        raise ApiError("invalid_cursor")
+    return payload["after"]
 
 
 def _pairs(value):

@@ -174,6 +174,44 @@ class PaletteIncomplete(LibraryError):
     code = "palette_incomplete"
 
 
+# -- producer outcomes (issue #29) ------------------------------------------
+
+class InvalidOutcome(LibraryError):
+    code = "invalid_outcome"
+
+
+class UnknownPaletteRevision(LibraryError):
+    code = "unknown_palette_revision"
+
+
+class CrossProjectReference(LibraryError):
+    code = "cross_project_reference"
+
+
+class UnknownSelection(LibraryError):
+    code = "unknown_selection"
+
+
+class OutcomeConflict(LibraryError):
+    code = "outcome_conflict"
+
+
+class IdempotencyConflict(LibraryError):
+    code = "idempotency_conflict"
+
+    def __init__(self, event_id):
+        self.event_id = event_id
+        super().__init__("The client event id belongs to a different outcome.")
+
+
+class SelectionNotInPalette(LibraryError):
+    code = "selection_not_in_palette"
+
+
+class RemovalNotReflected(LibraryError):
+    code = "removal_not_reflected"
+
+
 # -- decision cache (issue #26) ---------------------------------------------
 
 
@@ -199,4 +237,3 @@ class InvalidCacheBound(LibraryError):
     """A cache bound is not an int inside its published minimum and maximum."""
 
     code = "invalid_cache_bound"
-

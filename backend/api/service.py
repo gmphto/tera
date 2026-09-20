@@ -12,7 +12,8 @@ unbuffered line. No web framework, no dependency, no outbound socket, no
 credential and no audio byte.
 
 The service is a thin transport over #21's repository, #22's scanner and #23's
-queue: `backend.api.library` and `backend.api.imports` own the operations,
+queue: `backend.api.library`, `backend.api.imports`, `backend.api.recommendations`
+and `backend.api.outcomes` own the operations,
 `backend.api.schemas` validates a request and `backend.api.errors` holds the
 closed code table. `ROUTES` below is the one route table; #28, #30 and the
 client panels read it instead of keeping their own.
@@ -51,7 +52,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qsl, urlsplit
 
 from backend.analysis.batch import BatchError, ROLES, canonical, local_path
-from backend.api import imports, library, recommendations, schemas
+from backend.api import imports, library, outcomes, recommendations, schemas
 from backend.api.errors import ApiError
 from backend.api.schemas import RequestContext
 from backend.library import indexer, queue
@@ -419,6 +420,8 @@ ROUTES = (
     Route("GET", "/library/samples", library.list_samples),
     Route("GET", "/library/samples/{sample_id}", library.sample),
     Route("POST", "/recommendations", recommendations.handle_recommendation, body=True),
+    Route("POST", "/outcomes", outcomes.create_outcome, body=True),
+    Route("GET", "/outcomes", outcomes.list_outcomes),
 )
 
 _PREFLIGHT_HEADERS = (("Access-Control-Allow-Methods", "GET, POST, OPTIONS"),
@@ -602,7 +605,8 @@ class _Handler(BaseHTTPRequestHandler):
                     response.status, None, response.body, list(response.headers))
         except ApiError as error:
             status, code = error.status, error.code
-            document, headers = error.document(app.api_schema), []
+            document = error.document(app.api_schema)
+            headers = [("Retry-After", "1")] if code == "database_locked" else []
         except (TimeoutError, ConnectionError) as error:
             # The client stopped mid-request: the socket timeout expired or
             # the connection was reset. There is no channel left to answer
