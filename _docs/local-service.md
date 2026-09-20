@@ -74,7 +74,7 @@ use writes nothing to the database and never opens it.
 
 ## The route table
 
-Seven operations, and nothing else. An unknown path is 404 `unknown_route`; a
+Eight operations, and nothing else. An unknown path is 404 `unknown_route`; a
 known path with an unsupported method is 405 `method_not_allowed` with an
 `Allow` header naming the methods that path accepts. Every method is dispatched,
 so an invented method is a 405 rather than the standard library's 501.
@@ -88,6 +88,7 @@ so an invented method is a 405 rather than the standard library's 501.
 | POST | `/imports/{run_id}/retry` | none | 202 | `{"api_schema", "import": {"run_id", "retried", "status_path"}}` |
 | GET | `/library/samples` | query | 200 | `{"api_schema", "items", "page", "query"}` |
 | GET | `/library/samples/{sample_id}` | none | 200 | `{"api_schema", "sample": {..., "features"}}` |
+| POST | `/recommendations` | `{"palette_id", "revision", "limit", "filters"}` | 200 | `{"api_schema", "recommendation", "run"}` |
 
 The same table as the code spells it (`service.ROUTES`), which is the one route
 table the rest of Phase 1 reads:
@@ -99,8 +100,12 @@ table the rest of Phase 1 reads:
 - `POST /imports/{run_id}/retry`
 - `GET /library/samples`
 - `GET /library/samples/{sample_id}`
+- `POST /recommendations`
 
-No route serves an audio byte, a filesystem path or a file:
+`POST /recommendations` is the only operation with a result limit and the only
+one that reads a stored palette; its request, response, counts, evidence and
+every refusal are documented in [`recommendation-api.md`](recommendation-api.md)
+(issue #28). No route serves an audio byte, a filesystem path or a file:
 `GET /library/samples/{sample_id}/audio`, `GET /library/audio` and every other
 audio-shaped path are 404 `unknown_route`.
 
@@ -403,14 +408,21 @@ request fields only — never a value a caller supplied and never a search text.
 | 400 | `invalid_page_size` | The page size is not an integer in `[1, 200]` |
 | 400 | `unknown_query_parameter` | The query carries a parameter the operation does not accept |
 | 400 | `invalid_cursor` | The cursor is malformed or of another version |
+| 400 | `invalid_palette_id` | `palette_id` is not `[A-Za-z0-9_-]{1,64}` |
+| 400 | `invalid_revision` | `revision` is not a nonnegative integer |
+| 400 | `invalid_limit` | `limit` is not an integer in `[5, 20]` |
 | 403 | `host_not_allowed` | The `Host` header is not the loopback host |
 | 403 | `origin_not_allowed` | The `Origin` header is not allowed |
 | 404 | `unknown_route` | No operation is served at this path |
 | 404 | `unknown_import` | No run has this id |
 | 404 | `unknown_sample` | No stored sample has this id |
+| 404 | `unknown_palette` | No stored palette has this id |
 | 405 | `method_not_allowed` | The path does not accept this method; `Allow` names the ones it does |
 | 409 | `import_already_running` | A run is live |
 | 409 | `import_not_live` | The run is not live, so cancelling it would write nothing |
+| 409 | `revision_conflict` | The palette is not at the request's revision, before or after ranking |
+| 409 | `palette_incomplete` | The palette cannot be assembled, or its selected bass cannot be supplied |
+| 409 | `kick_unavailable` | The palette's selected kick cannot be used, with #11's or #21's reason |
 | 411 | `length_required` | No valid integer `Content-Length` |
 | 413 | `request_too_large` | The body is larger than `MAX_REQUEST_BYTES` |
 | 415 | `unsupported_media_type` | A non-GET request without `Content-Type: application/json` |
@@ -426,9 +438,12 @@ Every non-2xx response is one envelope:
 ```
 
 `details` holds `{"field": ...}` for a body failure, `{"parameter": ...}` for a
-query failure, `{"run_id": ...}` or `{"sample_id": ...}` for an unknown id, and
+query failure, `{"run_id": ...}` or `{"sample_id": ...}` for an unknown id,
 `{"run_id", "state", "phase", "started_at", "status_path"}` for
-`import_already_running`.
+`import_already_running`, and the recommendation route's own objects:
+`{"palette_id"}` for `unknown_palette` and `palette_incomplete`,
+`{"expected_revision", "current_revision", "phase"}` for `revision_conflict`,
+and `{"sample_id", "reason"}` for `kick_unavailable`.
 
 ### Configuration codes
 

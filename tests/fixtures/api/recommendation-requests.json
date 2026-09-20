@@ -1,0 +1,348 @@
+{
+  "schema": "recommendation-requests/1",
+  "note": "The pure request-validation cases of issue #28: one named case per rule of the POST /recommendations schema, a normalized RecommendationRequest or the ApiError code and details keys out. Every palette id is synthetic.",
+  "cases": [
+    {
+      "name": "the default body",
+      "input": {
+        "palette_id": "palette-00000000000000000000000000000001",
+        "revision": 0
+      },
+      "value": {
+        "palette_id": "palette-00000000000000000000000000000001",
+        "revision": 0,
+        "limit": 10,
+        "filters": {
+          "tempo_lock": false,
+          "exact_key_lock": false
+        }
+      }
+    },
+    {
+      "name": "the smallest limit",
+      "input": {
+        "palette_id": "palette-00000000000000000000000000000001",
+        "revision": 3,
+        "limit": 5
+      },
+      "value": {
+        "palette_id": "palette-00000000000000000000000000000001",
+        "revision": 3,
+        "limit": 5,
+        "filters": {
+          "tempo_lock": false,
+          "exact_key_lock": false
+        }
+      }
+    },
+    {
+      "name": "the largest limit",
+      "input": {
+        "palette_id": "palette-00000000000000000000000000000001",
+        "revision": 3,
+        "limit": 20
+      },
+      "value": {
+        "palette_id": "palette-00000000000000000000000000000001",
+        "revision": 3,
+        "limit": 20,
+        "filters": {
+          "tempo_lock": false,
+          "exact_key_lock": false
+        }
+      }
+    },
+    {
+      "name": "a limit of four",
+      "input": {
+        "palette_id": "palette-00000000000000000000000000000001",
+        "revision": 0,
+        "limit": 4
+      },
+      "code": "invalid_limit"
+    },
+    {
+      "name": "a limit of twenty-one",
+      "input": {
+        "palette_id": "palette-00000000000000000000000000000001",
+        "revision": 0,
+        "limit": 21
+      },
+      "code": "invalid_limit"
+    },
+    {
+      "name": "a fractional limit",
+      "input": {
+        "palette_id": "palette-00000000000000000000000000000001",
+        "revision": 0,
+        "limit": 1.5
+      },
+      "code": "invalid_limit"
+    },
+    {
+      "name": "a boolean limit",
+      "input": {
+        "palette_id": "palette-00000000000000000000000000000001",
+        "revision": 0,
+        "limit": true
+      },
+      "code": "invalid_limit"
+    },
+    {
+      "name": "a text limit",
+      "input": {
+        "palette_id": "palette-00000000000000000000000000000001",
+        "revision": 0,
+        "limit": "10"
+      },
+      "code": "invalid_limit"
+    },
+    {
+      "name": "a null limit",
+      "input": {
+        "palette_id": "palette-00000000000000000000000000000001",
+        "revision": 0,
+        "limit": null
+      },
+      "code": "invalid_limit"
+    },
+    {
+      "name": "a body that is not an object",
+      "input": [],
+      "code": "invalid_body"
+    },
+    {
+      "name": "a null body",
+      "input": null,
+      "code": "invalid_body"
+    },
+    {
+      "name": "a body without a palette id",
+      "input": {
+        "revision": 0
+      },
+      "code": "missing_field",
+      "details": {
+        "field": "palette_id"
+      }
+    },
+    {
+      "name": "a body without a revision",
+      "input": {
+        "palette_id": "palette-00000000000000000000000000000001"
+      },
+      "code": "missing_field",
+      "details": {
+        "field": "revision"
+      }
+    },
+    {
+      "name": "an unknown field",
+      "input": {
+        "palette_id": "palette-00000000000000000000000000000001",
+        "revision": 0,
+        "order": "desc"
+      },
+      "code": "unknown_field",
+      "details": {
+        "field": "order"
+      }
+    },
+    {
+      "name": "a malformed palette id",
+      "input": {
+        "palette_id": "palette id",
+        "revision": 0
+      },
+      "code": "invalid_palette_id"
+    },
+    {
+      "name": "a palette id of another shape",
+      "input": {
+        "palette_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "revision": 0
+      },
+      "code": "invalid_palette_id"
+    },
+    {
+      "name": "an over-long palette id",
+      "input": {
+        "palette_id": "ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+        "revision": 0
+      },
+      "code": "invalid_palette_id"
+    },
+    {
+      "name": "a numeric palette id",
+      "input": {
+        "palette_id": 7,
+        "revision": 0
+      },
+      "code": "invalid_palette_id"
+    },
+    {
+      "name": "a negative revision",
+      "input": {
+        "palette_id": "palette-00000000000000000000000000000001",
+        "revision": -1
+      },
+      "code": "invalid_revision"
+    },
+    {
+      "name": "a fractional revision",
+      "input": {
+        "palette_id": "palette-00000000000000000000000000000001",
+        "revision": 1.5
+      },
+      "code": "invalid_revision"
+    },
+    {
+      "name": "a boolean revision",
+      "input": {
+        "palette_id": "palette-00000000000000000000000000000001",
+        "revision": true
+      },
+      "code": "invalid_revision"
+    },
+    {
+      "name": "a text revision",
+      "input": {
+        "palette_id": "palette-00000000000000000000000000000001",
+        "revision": "3"
+      },
+      "code": "invalid_revision"
+    },
+    {
+      "name": "a null revision",
+      "input": {
+        "palette_id": "palette-00000000000000000000000000000001",
+        "revision": null
+      },
+      "code": "invalid_revision"
+    },
+    {
+      "name": "both locks set",
+      "input": {
+        "palette_id": "palette-00000000000000000000000000000001",
+        "revision": 4,
+        "filters": {
+          "tempo_lock": true,
+          "exact_key_lock": true
+        }
+      },
+      "value": {
+        "palette_id": "palette-00000000000000000000000000000001",
+        "revision": 4,
+        "limit": 10,
+        "filters": {
+          "tempo_lock": true,
+          "exact_key_lock": true
+        }
+      }
+    },
+    {
+      "name": "one lock set",
+      "input": {
+        "palette_id": "palette-00000000000000000000000000000001",
+        "revision": 4,
+        "filters": {
+          "exact_key_lock": true
+        }
+      },
+      "value": {
+        "palette_id": "palette-00000000000000000000000000000001",
+        "revision": 4,
+        "limit": 10,
+        "filters": {
+          "tempo_lock": false,
+          "exact_key_lock": true
+        }
+      }
+    },
+    {
+      "name": "an empty filter object",
+      "input": {
+        "palette_id": "palette-00000000000000000000000000000001",
+        "revision": 0,
+        "filters": {}
+      },
+      "value": {
+        "palette_id": "palette-00000000000000000000000000000001",
+        "revision": 0,
+        "limit": 10,
+        "filters": {
+          "tempo_lock": false,
+          "exact_key_lock": false
+        }
+      }
+    },
+    {
+      "name": "filters that are not an object",
+      "input": {
+        "palette_id": "palette-00000000000000000000000000000001",
+        "revision": 0,
+        "filters": []
+      },
+      "code": "invalid_field_type",
+      "details": {
+        "field": "filters"
+      }
+    },
+    {
+      "name": "a text filter value",
+      "input": {
+        "palette_id": "palette-00000000000000000000000000000001",
+        "revision": 0,
+        "filters": {
+          "tempo_lock": "true"
+        }
+      },
+      "code": "invalid_field_type",
+      "details": {
+        "field": "filters.tempo_lock"
+      }
+    },
+    {
+      "name": "a null filter value",
+      "input": {
+        "palette_id": "palette-00000000000000000000000000000001",
+        "revision": 0,
+        "filters": {
+          "exact_key_lock": null
+        }
+      },
+      "code": "invalid_field_type",
+      "details": {
+        "field": "filters.exact_key_lock"
+      }
+    },
+    {
+      "name": "a numeric filter value",
+      "input": {
+        "palette_id": "palette-00000000000000000000000000000001",
+        "revision": 0,
+        "filters": {
+          "tempo_lock": 1
+        }
+      },
+      "code": "invalid_field_type",
+      "details": {
+        "field": "filters.tempo_lock"
+      }
+    },
+    {
+      "name": "an unknown filter key",
+      "input": {
+        "palette_id": "palette-00000000000000000000000000000001",
+        "revision": 0,
+        "filters": {
+          "role_lock": true
+        }
+      },
+      "code": "unknown_field",
+      "details": {
+        "field": "filters.role_lock"
+      }
+    }
+  ]
+}

@@ -155,6 +155,16 @@ def _unavailable(dimension, code, reason):
 def _frequency_evidence(kick, candidate):
     """Shared low-band concentration into 1 - shared; see the documented mapping."""
     kick_bands, candidate_bands = _bands(kick), _bands(candidate)
+    # #11 admits a candidate whose band ratios are unknown, and #13 withholds
+    # them rather than blocking: an incomplete band set is an unavailable
+    # dimension here, never a sum over a missing value.
+    if any(value is None for value in kick_bands.values()):
+        return _unavailable("frequency", "kick_band_unknown",
+            "frequency: unavailable (kick_band_unknown); kick band ratios are incomplete")
+    if any(value is None for value in candidate_bands.values()):
+        return _unavailable("frequency", "candidate_band_unknown",
+            "frequency: unavailable (candidate_band_unknown); candidate band ratios are"
+            " incomplete")
     kick_total = sum(kick_bands.values())
     if kick_total == 0:
         return _unavailable("frequency", "kick_band_energy_zero",

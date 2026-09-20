@@ -230,14 +230,18 @@ class RunningService:
         return Client(self.port)
 
 
-def start_service(database, *, dev_origins=(), host=service.DEFAULT_HOST) -> RunningService:
+def start_service(database, *, dev_origins=(), host=service.DEFAULT_HOST,
+                  recommendations=None) -> RunningService:
     """Run `create_server` on port 0 in this process and return its port.
 
     The returned object's `stop` is the shutdown callback: it ends the accept
     loop, closes the listen socket and releases the database connection.
+    `recommendations` is #28's injectable seam and is passed through unchanged,
+    so a test can script a transport, a clock or the decision cache.
     """
 
-    server = service.create_server(database, host=host, port=0, dev_origins=dev_origins)
+    server = service.create_server(database, host=host, port=0, dev_origins=dev_origins,
+                                   recommendations=recommendations)
     thread = threading.Thread(target=server.serve_forever, name="tera-test-service", daemon=True)
     thread.start()
 

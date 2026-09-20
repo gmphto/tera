@@ -445,6 +445,55 @@
       "case": "require_sample_id",
       "input": "library:0123456789abcdef",
       "code": "invalid_sample_id"
+    },
+    {
+      "name": "a recommendation limit of four",
+      "case": "parse_recommendation_request",
+      "input": {
+        "palette_id": "palette-00000000000000000000000000000001",
+        "revision": 0,
+        "limit": 4
+      },
+      "code": "invalid_limit"
+    },
+    {
+      "name": "a recommendation with a malformed palette id",
+      "case": "parse_recommendation_request",
+      "input": {
+        "palette_id": "palette id",
+        "revision": 0
+      },
+      "code": "invalid_palette_id"
+    },
+    {
+      "name": "a recommendation with a negative revision",
+      "case": "parse_recommendation_request",
+      "input": {
+        "palette_id": "palette-00000000000000000000000000000001",
+        "revision": -1
+      },
+      "code": "invalid_revision"
+    },
+    {
+      "name": "a recommendation body with one lock",
+      "case": "parse_recommendation_request",
+      "input": {
+        "palette_id": "palette-00000000000000000000000000000001",
+        "revision": 2,
+        "limit": 5,
+        "filters": {
+          "tempo_lock": true
+        }
+      },
+      "value": {
+        "palette_id": "palette-00000000000000000000000000000001",
+        "revision": 2,
+        "limit": 5,
+        "filters": {
+          "tempo_lock": true,
+          "exact_key_lock": false
+        }
+      }
     }
   ]
 }

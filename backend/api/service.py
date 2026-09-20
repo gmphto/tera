@@ -51,7 +51,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qsl, urlsplit
 
 from backend.analysis.batch import BatchError, ROLES, canonical, local_path
-from backend.api import imports, library, schemas
+from backend.api import imports, library, recommendations, schemas
 from backend.api.errors import ApiError
 from backend.api.schemas import RequestContext
 from backend.library import indexer, queue
@@ -418,6 +418,7 @@ ROUTES = (
     Route("POST", "/imports/{run_id}/retry", imports.retry),
     Route("GET", "/library/samples", library.list_samples),
     Route("GET", "/library/samples/{sample_id}", library.sample),
+    Route("POST", "/recommendations", recommendations.handle_recommendation, body=True),
 )
 
 _PREFLIGHT_HEADERS = (("Access-Control-Allow-Methods", "GET, POST, OPTIONS"),
@@ -812,7 +813,18 @@ def _database_target(database) -> Path:
     return path
 
 
-def create_server(database, *, host=DEFAULT_HOST, port=DEFAULT_PORT, dev_origins=()):
+def _recommendation_collaborators():
+    """The recommendation collaborators built from the process environment.
+
+    Called once at startup, so a service that never receives a recommendation
+    request still builds one object and reads nothing else.
+    """
+
+    return recommendations.RecommendationCollaborators()
+
+
+def create_server(database, *, host=DEFAULT_HOST, port=DEFAULT_PORT, dev_origins=(),
+                  recommendations=None):
     """Bind the listen socket, open the database and return a ready server.
 
     The socket is bound before the database is touched, so an address that is
@@ -820,6 +832,11 @@ def create_server(database, *, host=DEFAULT_HOST, port=DEFAULT_PORT, dev_origins
     not accepted a request yet: the caller runs `serve_until(stop)` or the
     standard library's `serve_forever()`. `server_address[1]` is the bound
     port, which is the ephemeral port when `port` is 0.
+
+    `recommendations` is the one injectable seam of the recommendation route:
+    None (the default) builds #28's collaborators from the process environment at
+    startup, and a caller may supply its own to script a transport, a clock or
+    #26's cache without touching this module.
     """
 
     if host not in ALLOWED_BIND_HOSTS:
@@ -837,6 +854,8 @@ def create_server(database, *, host=DEFAULT_HOST, port=DEFAULT_PORT, dev_origins
     except BaseException:
         server.server_close()
         raise
+    app.recommendations = (recommendations if recommendations is not None
+                           else _recommendation_collaborators())
     server.app = app
     return server
 

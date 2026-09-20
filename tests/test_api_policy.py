@@ -55,22 +55,61 @@ def _code_literals(tree):
             and id(node) not in docstrings]
 
 
-def test_the_package_reaches_nothing_outside_the_library_modules():
+#: The one module allowed to reach the intelligence package, and the only two
+#: modules of it: the transport #14 owns does the sending.
+RECOMMENDATION_MODULE = PACKAGE / "recommendations.py"
+INTELLIGENCE_IMPORTS = ("backend.intelligence.jev", "backend.intelligence.questions")
+
+#: Module names no `backend/api/*` module may import: an outbound client of its
+#: own, a subprocess or the evaluation package.
+FORBIDDEN_IMPORTS = ("subprocess", "urllib.request", "http.client", "requests")
+
+
+def _imported_modules(path):
+    """Every module name one source imports, in source order."""
+
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    names = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            names.extend(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            names.append(node.module or "")
+    return names
+
+
+def test_the_library_modules_reach_no_intelligence_module_and_no_credential():
+    """Rule 1: #27's modules still import no intelligence module or credential.
+
+    The library, import, error and schema modules -- everything but #28's own
+    route -- import no `backend.intelligence.*` module, name no `TERA_JEV_*`
+    value and keep #27's other import bans.
+    """
+
     for path in _module_sources():
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                names = [alias.name for alias in node.names]
-            elif isinstance(node, ast.ImportFrom):
-                names = [node.module or ""]
-            else:
-                continue
-            for name in names:
-                assert not name.startswith("backend.intelligence"), (path, name)
-                assert not name.startswith("backend.evaluation"), (path, name)
-                assert name not in ("subprocess", "urllib.request", "http.client",
-                                    "requests"), (path, name)
-        assert "TERA_JEV" not in path.read_text(encoding="utf-8")
+        if path == RECOMMENDATION_MODULE:
+            continue
+        assert "TERA_JEV" not in path.read_text(encoding="utf-8"), path
+        for name in _imported_modules(path):
+            assert not name.startswith("backend.intelligence"), (path, name)
+            assert not name.startswith("backend.evaluation"), (path, name)
+            assert name not in FORBIDDEN_IMPORTS, (path, name)
+
+
+def test_the_recommendation_route_is_the_one_intelligence_seam_and_opens_no_socket():
+    """Rule 2: #28 may import #13 and #14 while still opening no socket.
+
+    No other `backend/api/*` module may weaken this: `recommendations.py` is
+    the single module that imports the intelligence package, it imports only the
+    questions and the adapter, and it imports no outbound client of its own --
+    the transport #14 owns does the sending.
+    """
+
+    names = _imported_modules(RECOMMENDATION_MODULE)
+    intelligence = {name for name in names if name.startswith("backend.intelligence")}
+    assert intelligence and intelligence <= set(INTELLIGENCE_IMPORTS), intelligence
+    assert not (set(FORBIDDEN_IMPORTS) & set(names)), names
+    assert "TERA_JEV" not in RECOMMENDATION_MODULE.read_text(encoding="utf-8")
 
 
 def test_no_module_hands_the_database_a_statement_of_its_own():

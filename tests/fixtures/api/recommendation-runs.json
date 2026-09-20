@@ -1,0 +1,198 @@
+{
+  "note": "The run-level recommendation cases of issue #28. Every expectation is hand-written here and never read back from the implementation; the library is built by tests/test_api_recommendation_flow.py from the synthetic contract samples of tests/fixtures/contracts/hybrid.json, with synthetic ids (kick-001, bass-001) and index-derived content hashes. No real library path, sample name, fingerprint, credential, endpoint or audio byte appears here.",
+  "cases": [
+    {
+      "name": "a fully judged 12-candidate run",
+      "library": {"kick": {"key": "known", "values": {"loudness": -20.0}}, "basses": {"count": 12, "values": {"loudness": "index"}}, "palette": {"kick": true, "bass": "bass-001"}},
+      "transport": {"kind": "double", "source": "double", "answer": "judgment", "confidence": 0.8, "model_version": "synthetic-jev-double-v1"},
+      "requests": [{"limit": 10}],
+      "expect": [{"status": 200, "mode": "hybrid", "jev_status": "jev_present", "counts": {"eligible": 12, "excluded": 0, "shortlisted": 12, "scored": 12, "unscored": 0, "requested": 10, "returned": 10}, "evidence": {"interface": 0, "double": 60, "unavailable": 0, "cache": 0, "cache_errors": 0}, "exclusions": [], "limit_reason": "eligible_exhausted", "shortlist_size_requested": 100, "model_versions": ["synthetic-jev-double-v1"], "result_ids": ["bass-001", "bass-002", "bass-003", "bass-004", "bass-005", "bass-006", "bass-007", "bass-008", "bass-009", "bass-010"], "alternative_ids": [], "similarity_null": [], "sample_ids": ["kick-001", "bass-001", "bass-002", "bass-003", "bass-004", "bass-005", "bass-006", "bass-007", "bass-008", "bass-009", "bass-010"], "sends": 60}]
+    },
+    {
+      "name": "a 3-candidate run",
+      "library": {"kick": {"key": "known"}, "basses": [{"id": "bass-001"}, {"id": "bass-002"}, {"id": "bass-003"}], "palette": {"kick": true, "bass": "bass-001"}},
+      "transport": {"kind": "double", "source": "double", "answer": "judgment"},
+      "requests": [{"limit": 10}],
+      "expect": [{"status": 200, "mode": "hybrid", "jev_status": "jev_present", "counts": {"eligible": 3, "excluded": 0, "shortlisted": 3, "scored": 3, "unscored": 0, "requested": 10, "returned": 3}, "evidence": {"interface": 0, "double": 15, "unavailable": 0, "cache": 0, "cache_errors": 0}, "exclusions": [], "limit_reason": "eligible_exhausted", "result_ids": ["bass-001", "bass-002", "bass-003"], "alternative_ids": [], "sends": 15}]
+    },
+    {
+      "name": "an empty library",
+      "library": {"kick": {"key": "known"}, "basses": [], "palette": {"kick": true, "bass": null}},
+      "transport": {"kind": "double", "source": "double", "answer": "judgment"},
+      "requests": [{"limit": 10}],
+      "expect": [{"status": 200, "mode": "dsp-only", "jev_status": "jev_absent", "counts": {"eligible": 0, "excluded": 0, "shortlisted": 0, "scored": 0, "unscored": 0, "requested": 10, "returned": 0}, "evidence": {"interface": 0, "double": 0, "unavailable": 0, "cache": 0, "cache_errors": 0}, "exclusions": [], "limit_reason": "no_candidates", "result_ids": [], "alternative_ids": [], "sample_ids": ["kick-001"], "sends": 0}]
+    },
+    {
+      "name": "an all-excluded library",
+      "library": {"kick": {"key": "known"}, "basses": [{"id": "bass-001", "values": {"peak": 0}}, {"id": "bass-002", "status": "missing"}], "palette": {"kick": true, "bass": "bass-001"}},
+      "transport": {"kind": "double", "source": "double", "answer": "judgment"},
+      "requests": [{"limit": 10}],
+      "expect": [{"status": 200, "mode": "dsp-only", "jev_status": "jev_absent", "counts": {"eligible": 0, "excluded": 2, "shortlisted": 0, "scored": 0, "unscored": 0, "requested": 10, "returned": 0}, "evidence": {"interface": 0, "double": 0, "unavailable": 0, "cache": 0, "cache_errors": 0}, "exclusions": [{"code": "file_missing", "count": 1}, {"code": "inconsistent_analysis", "count": 1}, {"code": "silent_audio", "count": 1}], "limit_reason": "no_candidates", "result_ids": [], "alternative_ids": [], "sample_ids": ["kick-001", "bass-001"], "sends": 0}]
+    },
+    {
+      "name": "partial evidence with a null similarity and an unknown measurement",
+      "library": {"kick": {"key": "known", "values": {"loudness": -20.0}}, "basses": [{"id": "bass-001", "values": {"loudness": -21.0}}, {"id": "bass-002", "values": {"loudness": -22.0}}, {"id": "bass-003", "values": {"loudness": -23.0, "fundamental": null}}, {"id": "bass-004", "values": {"loudness": null}}], "palette": {"kick": true, "bass": "bass-001"}},
+      "transport": {"kind": "double", "source": "double", "answer": "judgment"},
+      "requests": [{"limit": 10}],
+      "expect": [{"status": 200, "mode": "hybrid", "jev_status": "jev_present", "counts": {"eligible": 4, "excluded": 0, "shortlisted": 4, "scored": 4, "unscored": 0, "requested": 10, "returned": 4}, "evidence": {"interface": 0, "double": 20, "unavailable": 0, "cache": 0, "cache_errors": 0}, "exclusions": [], "result_ids": ["bass-001", "bass-002", "bass-003", "bass-004"], "alternative_ids": [], "similarity_null": ["bass-004"], "unknown_measurement": {"sample_id": "bass-004", "name": "loudness", "reason": "not_measured"}, "sends": 20}]
+    },
+    {
+      "name": "a fully degraded run with credentials absent",
+      "library": {"kick": {"key": "known"}, "basses": [{"id": "bass-001"}, {"id": "bass-002"}, {"id": "bass-003"}], "palette": {"kick": true, "bass": "bass-001"}},
+      "transport": {"kind": "none"},
+      "environ": {},
+      "requests": [{"limit": 10}],
+      "expect": [{"status": 200, "mode": "dsp-only", "jev_status": "jev_absent", "counts": {"eligible": 3, "excluded": 0, "shortlisted": 3, "scored": 3, "unscored": 0, "requested": 10, "returned": 3}, "evidence": {"interface": 0, "double": 0, "unavailable": 15, "cache": 0, "cache_errors": 0}, "exclusions": [], "model_versions": [], "result_ids": ["bass-001", "bass-002", "bass-003"], "alternative_ids": [], "dsp_baseline": true, "sends": 0}]
+    },
+    {
+      "name": "an abstention",
+      "library": {"kick": {"key": "known"}, "basses": [{"id": "bass-001"}, {"id": "bass-002"}, {"id": "bass-003"}], "palette": {"kick": true, "bass": "bass-001"}},
+      "transport": {"kind": "double", "source": "double", "answer": "abstain"},
+      "requests": [{"limit": 10}],
+      "expect": [{"status": 200, "mode": "dsp-only", "jev_status": "jev_absent", "counts": {"eligible": 3, "excluded": 0, "shortlisted": 3, "scored": 3, "unscored": 0, "requested": 10, "returned": 3}, "evidence": {"interface": 0, "double": 15, "unavailable": 0, "cache": 0, "cache_errors": 0}, "exclusions": [], "model_versions": [], "result_ids": ["bass-001", "bass-002", "bass-003"], "alternative_ids": [], "dsp_baseline": true, "sends": 15}]
+    },
+    {
+      "name": "a timeout",
+      "library": {"kick": {"key": "known"}, "basses": [{"id": "bass-001"}, {"id": "bass-002"}, {"id": "bass-003"}], "palette": {"kick": true, "bass": "bass-001"}},
+      "transport": {"kind": "double", "source": "double", "answer": "timeout"},
+      "requests": [{"limit": 10}],
+      "expect": [{"status": 200, "mode": "dsp-only", "jev_status": "jev_absent", "counts": {"eligible": 3, "excluded": 0, "shortlisted": 3, "scored": 3, "unscored": 0, "requested": 10, "returned": 3}, "evidence": {"interface": 0, "double": 0, "unavailable": 15, "cache": 0, "cache_errors": 0}, "exclusions": [], "model_versions": [], "result_ids": ["bass-001", "bass-002", "bass-003"], "alternative_ids": [], "dsp_baseline": true}]
+    },
+    {
+      "name": "a service error",
+      "library": {"kick": {"key": "known"}, "basses": [{"id": "bass-001"}, {"id": "bass-002"}, {"id": "bass-003"}], "palette": {"kick": true, "bass": "bass-001"}},
+      "transport": {"kind": "double", "source": "double", "answer": "service_error"},
+      "requests": [{"limit": 10}],
+      "expect": [{"status": 200, "mode": "dsp-only", "jev_status": "jev_absent", "counts": {"eligible": 3, "excluded": 0, "shortlisted": 3, "scored": 3, "unscored": 0, "requested": 10, "returned": 3}, "evidence": {"interface": 0, "double": 0, "unavailable": 15, "cache": 0, "cache_errors": 0}, "exclusions": [], "model_versions": [], "result_ids": ["bass-001", "bass-002", "bass-003"], "alternative_ids": [], "dsp_baseline": true}]
+    },
+    {
+      "name": "a cache hit on the second request",
+      "library": {"kick": {"key": "known", "values": {"loudness": -20.0}}, "basses": {"count": 12, "values": {"loudness": "index"}}, "palette": {"kick": true, "bass": "bass-001"}},
+      "transport": {"kind": "double", "source": "double", "answer": "judgment"},
+      "requests": [{"limit": 10}, {"limit": 10}],
+      "expect": [{"status": 200, "mode": "hybrid", "jev_status": "jev_present", "counts": {"eligible": 12, "excluded": 0, "shortlisted": 12, "scored": 12, "unscored": 0, "requested": 10, "returned": 10}, "evidence": {"interface": 0, "double": 60, "unavailable": 0, "cache": 0, "cache_errors": 0}, "result_ids": ["bass-001", "bass-002", "bass-003", "bass-004", "bass-005", "bass-006", "bass-007", "bass-008", "bass-009", "bass-010"], "sends": 60}, {"status": 200, "mode": "hybrid", "jev_status": "jev_present", "counts": {"eligible": 12, "excluded": 0, "shortlisted": 12, "scored": 12, "unscored": 0, "requested": 10, "returned": 10}, "evidence": {"interface": 0, "double": 0, "unavailable": 0, "cache": 60, "cache_errors": 0}, "result_ids": ["bass-001", "bass-002", "bass-003", "bass-004", "bass-005", "bass-006", "bass-007", "bass-008", "bass-009", "bass-010"], "same_run_id_as": 0, "same_recommendation_as": 0, "sends": 0}],
+      "cache_entries": 60
+    },
+    {
+      "name": "an unscorable candidate",
+      "library": {"kick": {"key": "known"}, "basses": [{"id": "bass-001"}, {"id": "bass-002", "key": "unknown", "values": {"band_sub": null, "band_bass": null, "band_low_mid": null, "band_mid": null, "band_high_mid": null, "band_high": null, "transient_position": null, "fundamental": null}}], "palette": {"kick": true, "bass": "bass-001"}},
+      "transport": {"kind": "double", "source": "double", "answer": "abstain"},
+      "requests": [{"limit": 10}],
+      "expect": [{"status": 200, "mode": "dsp-only", "jev_status": "jev_absent", "counts": {"eligible": 2, "excluded": 0, "shortlisted": 2, "scored": 1, "unscored": 1, "requested": 10, "returned": 1}, "evidence": {"interface": 0, "double": 5, "unavailable": 0, "cache": 0, "cache_errors": 0}, "exclusions": [], "model_versions": [], "result_ids": ["bass-001"], "alternative_ids": [], "sample_ids": ["kick-001", "bass-001"]}]
+    },
+    {
+      "name": "a stale-revision request",
+      "library": {"kick": {"key": "known"}, "basses": [{"id": "bass-001"}], "palette": {"kick": true, "bass": "bass-001"}},
+      "transport": {"kind": "none"},
+      "requests": [{"revision": "stale"}],
+      "expect": [{"status": 409, "code": "revision_conflict", "details": {"expected_revision": 1, "current_revision": 2, "phase": "before_ranking"}}]
+    },
+    {
+      "name": "a palette that changed after ranking",
+      "library": {"kick": {"key": "known"}, "basses": [{"id": "bass-001"}, {"id": "bass-002"}, {"id": "bass-003"}], "palette": {"kick": true, "bass": "bass-001"}},
+      "transport": {"kind": "double", "source": "double", "answer": "judgment"},
+      "on_send": "bump_palette_revision",
+      "requests": [{"limit": 10}],
+      "expect": [{"status": 409, "code": "revision_conflict", "details": {"expected_revision": 2, "current_revision": 3, "phase": "after_ranking"}}],
+      "cache_entries": 0
+    },
+    {
+      "name": "a palette with no active kick",
+      "library": {"kick": {"key": "known"}, "basses": [{"id": "bass-001"}], "palette": {"kick": false, "bass": "bass-001"}},
+      "transport": {"kind": "none"},
+      "requests": [{}],
+      "expect": [{"status": 409, "code": "palette_incomplete", "details": {"palette_id": "<palette>"}}]
+    },
+    {
+      "name": "an unavailable kick: wrong role",
+      "library": {"kick": {"key": "known"}, "basses": [{"id": "bass-001"}], "palette": {"kick": true, "bass": "bass-001"}, "after": {"role_edits": ["kick-001"]}},
+      "transport": {"kind": "none"},
+      "requests": [{}],
+      "expect": [{"status": 409, "code": "kick_unavailable", "details": {"sample_id": "kick-001", "reason": "wrong_role"}}]
+    },
+    {
+      "name": "an unavailable kick: file missing",
+      "library": {"kick": {"key": "known"}, "basses": [{"id": "bass-001"}], "palette": {"kick": true, "bass": "bass-001"}, "after": {"status": {"kick-001": "missing"}}},
+      "transport": {"kind": "none"},
+      "requests": [{}],
+      "expect": [{"status": 409, "code": "kick_unavailable", "details": {"sample_id": "kick-001", "reason": "file_missing"}}]
+    },
+    {
+      "name": "an unavailable kick: availability unknown",
+      "library": {"kick": {"key": "known"}, "basses": [{"id": "bass-001"}], "palette": {"kick": true, "bass": "bass-001"}, "after": {"status": {"kick-001": "unknown"}}},
+      "transport": {"kind": "none"},
+      "requests": [{}],
+      "expect": [{"status": 409, "code": "kick_unavailable", "details": {"sample_id": "kick-001", "reason": "availability_unknown"}}]
+    },
+    {
+      "name": "an unavailable kick: empty audio",
+      "library": {"kick": {"key": "known", "frames": 0}, "basses": [{"id": "bass-001"}], "palette": {"kick": true, "bass": "bass-001"}},
+      "transport": {"kind": "none"},
+      "requests": [{}],
+      "expect": [{"status": 409, "code": "kick_unavailable", "details": {"sample_id": "kick-001", "reason": "empty_audio"}}]
+    },
+    {
+      "name": "an unavailable kick: silent audio",
+      "library": {"kick": {"key": "known", "values": {"peak": 0}}, "basses": [{"id": "bass-001"}], "palette": {"kick": true, "bass": "bass-001"}},
+      "transport": {"kind": "none"},
+      "requests": [{}],
+      "expect": [{"status": 409, "code": "kick_unavailable", "details": {"sample_id": "kick-001", "reason": "silent_audio"}}]
+    },
+    {
+      "name": "an unavailable kick: unusable analysis",
+      "library": {"kick": {"key": "known", "values": {"peak": null}}, "basses": [{"id": "bass-001"}], "palette": {"kick": true, "bass": "bass-001"}},
+      "transport": {"kind": "none"},
+      "requests": [{}],
+      "expect": [{"status": 409, "code": "kick_unavailable", "details": {"sample_id": "kick-001", "reason": "unusable_analysis"}}]
+    },
+    {
+      "name": "an unavailable kick: inconsistent analysis",
+      "library": {"kick": {"key": "known", "values": {"rms": 0.9, "peak": 0.2}}, "basses": [{"id": "bass-001"}], "palette": {"kick": true, "bass": "bass-001"}},
+      "transport": {"kind": "none"},
+      "requests": [{}],
+      "expect": [{"status": 409, "code": "kick_unavailable", "details": {"sample_id": "kick-001", "reason": "inconsistent_analysis"}}]
+    },
+    {
+      "name": "an unavailable kick: stale analysis",
+      "library": {"kick": {"key": "known", "analysis": "stale"}, "basses": [{"id": "bass-001"}], "palette": {"kick": true, "bass": "bass-001"}},
+      "transport": {"kind": "none"},
+      "requests": [{}],
+      "expect": [{"status": 409, "code": "kick_unavailable", "details": {"sample_id": "kick-001", "reason": "stale"}}]
+    },
+    {
+      "name": "an unavailable kick: absent analysis",
+      "library": {"kick": {"key": "known", "analysis": "absent"}, "basses": [{"id": "bass-001"}], "palette": {"kick": true, "bass": "bass-001"}},
+      "transport": {"kind": "none"},
+      "requests": [{}],
+      "expect": [{"status": 409, "code": "kick_unavailable", "details": {"sample_id": "kick-001", "reason": "absent"}}]
+    },
+    {
+      "name": "an unavailable kick: pending analysis",
+      "library": {"kick": {"key": "known", "analysis": "pending"}, "basses": [{"id": "bass-001"}], "palette": {"kick": true, "bass": "bass-001"}},
+      "transport": {"kind": "none"},
+      "requests": [{}],
+      "expect": [{"status": 409, "code": "kick_unavailable", "details": {"sample_id": "kick-001", "reason": "pending"}}]
+    },
+    {
+      "name": "an unavailable kick: failed analysis",
+      "library": {"kick": {"key": "known", "analysis": "failed"}, "basses": [{"id": "bass-001"}], "palette": {"kick": true, "bass": "bass-001"}},
+      "transport": {"kind": "none"},
+      "requests": [{}],
+      "expect": [{"status": 409, "code": "kick_unavailable", "details": {"sample_id": "kick-001", "reason": "failed"}}]
+    },
+    {
+      "name": "an unavailable kick: pruned sample row",
+      "library": {"kick": {"key": "known"}, "basses": [{"id": "bass-001"}], "palette": {"kick": true, "bass": "bass-001"}, "after": {"pruned": ["kick-001"]}},
+      "transport": {"kind": "none"},
+      "requests": [{}],
+      "expect": [{"status": 409, "code": "kick_unavailable", "details": {"sample_id": "kick-001", "reason": "absent"}}]
+    },
+    {
+      "name": "a limit of five with non-empty alternatives",
+      "library": {"kick": {"key": "known", "values": {"loudness": -20.0}}, "basses": {"count": 6, "values": {"loudness": "index"}}, "palette": {"kick": true, "bass": "bass-001"}},
+      "transport": {"kind": "double", "source": "double", "answer": "judgment", "overrides": {"texture": {"confidence": 0.5}}},
+      "requests": [{"limit": 5}],
+      "expect": [{"status": 200, "mode": "hybrid", "jev_status": "jev_present", "counts": {"eligible": 6, "excluded": 0, "shortlisted": 6, "scored": 6, "unscored": 0, "requested": 5, "returned": 5}, "evidence": {"interface": 0, "double": 30, "unavailable": 0, "cache": 0, "cache_errors": 0}, "exclusions": [], "result_ids": ["bass-001", "bass-002", "bass-003", "bass-004", "bass-005"], "alternative_ids": ["bass-002", "bass-003", "bass-004"]}]
+    }
+  ]
+}

@@ -310,6 +310,54 @@
       "path": "/health",
       "status": 200,
       "code": null
+    },
+    {
+      "name": "a recommendation path with an unsupported method",
+      "method": "GET",
+      "path": "/recommendations",
+      "status": 405,
+      "code": "method_not_allowed",
+      "allow": "POST"
+    },
+    {
+      "name": "a recommendation run id is not a route",
+      "method": "GET",
+      "path": "/recommendations/0123456789abcdef",
+      "status": 404,
+      "code": "unknown_route"
+    },
+    {
+      "name": "an unknown palette",
+      "method": "POST",
+      "path": "/recommendations",
+      "body": "{\"palette_id\": \"palette-00000000000000000000000000000000\", \"revision\": 0}",
+      "status": 404,
+      "code": "unknown_palette"
+    },
+    {
+      "name": "a recommendation limit outside the range",
+      "method": "POST",
+      "path": "/recommendations",
+      "body": "{\"palette_id\": \"palette-00000000000000000000000000000000\", \"revision\": 0, \"limit\": 21}",
+      "status": 400,
+      "code": "invalid_limit"
+    },
+    {
+      "name": "a recommendation body without a revision",
+      "method": "POST",
+      "path": "/recommendations",
+      "body": "{\"palette_id\": \"palette-00000000000000000000000000000000\"}",
+      "status": 400,
+      "code": "missing_field"
+    },
+    {
+      "name": "a recommendation while the database is unavailable",
+      "setup": "degraded",
+      "method": "POST",
+      "path": "/recommendations",
+      "body": "{\"palette_id\": \"palette-00000000000000000000000000000000\", \"revision\": 0}",
+      "status": 503,
+      "code": "database_unavailable"
     }
   ]
 }

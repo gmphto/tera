@@ -21,7 +21,7 @@ import socket
 
 import pytest
 
-from backend.api import errors, schemas
+from backend.api import errors, recommendations, schemas
 from backend.api.errors import ApiError
 from backend.library import indexer, queue
 from backend.library.repository import transaction
@@ -38,7 +38,31 @@ VALIDATORS = {
     "sample_query": schemas.sample_query,
     "require_run_id": schemas.require_run_id,
     "require_sample_id": schemas.require_sample_id,
+    "parse_recommendation_request": recommendations.parse_recommendation_request,
 }
+
+#: #28's two fixture files, whose refusal cases cover the recommendation codes
+#: the two shared files do not carry.
+RECOMMENDATION_FIXTURES = ("recommendation-requests.json", "recommendation-runs.json")
+
+
+def _recommendation_codes():
+    """Every error code #28's own fixtures assert, refusal cases only.
+
+    A request case carries its code at the top level; a run case carries one per
+    request in its expectations.
+    """
+
+    codes = set()
+    for name in RECOMMENDATION_FIXTURES:
+        document = json.loads((FIXTURES / name).read_text(encoding="utf-8"))
+        for case in document["cases"]:
+            if case.get("code"):
+                codes.add(case["code"])
+            for expect in case.get("expect", ()):
+                if expect.get("code"):
+                    codes.add(expect["code"])
+    return codes
 
 
 def _value(result):
@@ -77,6 +101,10 @@ def test_every_validation_code_has_at_least_one_request_case():
                       "unknown_sample", "import_already_running", "import_not_live",
                       "length_required", "request_too_large", "unsupported_media_type",
                       "database_unavailable", "server_busy", "internal_error"}
+    # #28's state-dependent refusals are exercised over a socket by its own two
+    # fixture files instead of by a pure validator case.
+    transport_only |= {"unknown_palette", "revision_conflict", "palette_incomplete",
+                       "kick_unavailable"}
     assert {code for code, _status in errors.ERROR_CODES} - transport_only <= covered
 
 
@@ -194,6 +222,7 @@ def test_the_transport_cases_hold(tmp_path, case):
 def test_every_http_code_has_at_least_one_transport_case():
     covered = {case["code"] for case in HTTP_CASES if case["code"] is not None}
     covered |= {case["code"] for case in REQUEST_CASES if "code" in case}
+    covered |= _recommendation_codes()
     expected = {code for code, _status in errors.ERROR_CODES
                 if code not in ("internal_error", "server_busy")}
     assert expected <= covered
@@ -226,6 +255,7 @@ def test_the_route_table_is_closed_and_documented():
         ("POST", "/imports/{run_id}/retry"),
         ("GET", "/library/samples"),
         ("GET", "/library/samples/{sample_id}"),
+        ("POST", "/recommendations"),
     ]
     document = (Path(__file__).resolve().parents[1] / "_docs" / "local-service.md").read_text(
         encoding="utf-8")

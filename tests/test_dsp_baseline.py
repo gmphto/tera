@@ -296,6 +296,10 @@ def test_confidence_at_or_above_threshold_never_lowers_a_score():
       "band_high_mid": 0.0, "band_high": 0.0}, {}, "frequency", "kick_band_energy_zero"),
     ({}, {"band_sub": 0.0, "band_bass": 0.0, "band_low_mid": 0.0, "band_mid": 0.0,
           "band_high_mid": 0.0, "band_high": 0.0}, "frequency", "candidate_band_energy_zero"),
+    # A candidate #11 admits with an unknown band is an unavailable dimension,
+    # never a sum over a missing value (issue #28's recorded conflict).
+    ({"band_sub": None}, {}, "frequency", "kick_band_unknown"),
+    ({}, {"band_sub": None}, "frequency", "candidate_band_unknown"),
     ({"transient_strength": None}, {}, "transient", "kick_transient_strength_unknown"),
     ({"attack": None}, {}, "transient", "kick_attack_unknown"),
     ({"decay": None}, {}, "transient", "kick_decay_unknown"),
