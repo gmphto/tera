@@ -1,0 +1,296 @@
+{
+  "schema": "outcome-cases/1",
+  "note": "POST /outcomes cases over a real socket. The test builds the named scenario, then posts `body` (and, when present, `second` after it) and asserts the status, the code and the created flag of the last response. {project_id}, {palette_id}, {candidate_id}, {other_project_id}, {other_palette_id} and {mode} are replaced from the scenario and the contract; a literal id is used where the case needs an id that names no row. Every id here is synthetic.",
+  "cases": [
+    {
+      "name": "an audition of the active candidate",
+      "scenario": "selection",
+      "body": {
+        "client_event_id": "event-audition-1",
+        "event_type": "auditioned",
+        "project_id": "{project_id}",
+        "palette_id": "{palette_id}",
+        "candidate_id": "{candidate_id}",
+        "run_id": "run-00000000000000000000000000000001",
+        "palette_revision": 1,
+        "ranking_version": "ranking-v1",
+        "mode": "{mode}",
+        "candidate_analysis_version": "analysis-v1"
+      },
+      "status": 201,
+      "code": null,
+      "created": true
+    },
+    {
+      "name": "a selection of the active candidate",
+      "scenario": "selection",
+      "body": {
+        "client_event_id": "event-selected-1",
+        "event_type": "selected",
+        "project_id": "{project_id}",
+        "palette_id": "{palette_id}",
+        "candidate_id": "{candidate_id}",
+        "run_id": "run-00000000000000000000000000000001",
+        "palette_revision": 1,
+        "ranking_version": "ranking-v1",
+        "mode": "{mode}",
+        "candidate_analysis_version": "analysis-v1"
+      },
+      "status": 201,
+      "code": null,
+      "created": true
+    },
+    {
+      "name": "the same content under the same client event id",
+      "scenario": "selection",
+      "body": {
+        "client_event_id": "event-idempotent-1",
+        "event_type": "auditioned",
+        "project_id": "{project_id}",
+        "palette_id": "{palette_id}",
+        "candidate_id": "{candidate_id}",
+        "run_id": "run-00000000000000000000000000000001",
+        "palette_revision": 1,
+        "ranking_version": "ranking-v1",
+        "mode": "{mode}",
+        "candidate_analysis_version": "analysis-v1"
+      },
+      "second": {
+        "client_event_id": "event-idempotent-1",
+        "event_type": "auditioned",
+        "project_id": "{project_id}",
+        "palette_id": "{palette_id}",
+        "candidate_id": "{candidate_id}",
+        "run_id": "run-00000000000000000000000000000001",
+        "palette_revision": 1,
+        "ranking_version": "ranking-v1",
+        "mode": "{mode}",
+        "candidate_analysis_version": "analysis-v1"
+      },
+      "status": 200,
+      "code": null,
+      "created": false
+    },
+    {
+      "name": "a known client event id with different content",
+      "scenario": "selection",
+      "body": {
+        "client_event_id": "event-conflict-1",
+        "event_type": "auditioned",
+        "project_id": "{project_id}",
+        "palette_id": "{palette_id}",
+        "candidate_id": "{candidate_id}",
+        "run_id": "run-00000000000000000000000000000001",
+        "palette_revision": 1,
+        "ranking_version": "ranking-v1",
+        "mode": "{mode}",
+        "candidate_analysis_version": "analysis-v1"
+      },
+      "second": {
+        "client_event_id": "event-conflict-1",
+        "event_type": "auditioned",
+        "project_id": "{project_id}",
+        "palette_id": "{palette_id}",
+        "candidate_id": "candidate-other-1",
+        "run_id": "run-00000000000000000000000000000001",
+        "palette_revision": 1,
+        "ranking_version": "ranking-v1",
+        "mode": "{mode}",
+        "candidate_analysis_version": "analysis-v1"
+      },
+      "status": 409,
+      "code": "idempotency_conflict"
+    },
+    {
+      "name": "a second selection while the candidate stays active",
+      "scenario": "selection",
+      "body": {
+        "client_event_id": "event-selected-a",
+        "event_type": "selected",
+        "project_id": "{project_id}",
+        "palette_id": "{palette_id}",
+        "candidate_id": "{candidate_id}",
+        "run_id": "run-00000000000000000000000000000001",
+        "palette_revision": 1,
+        "ranking_version": "ranking-v1",
+        "mode": "{mode}",
+        "candidate_analysis_version": "analysis-v1"
+      },
+      "second": {
+        "client_event_id": "event-selected-b",
+        "event_type": "selected",
+        "project_id": "{project_id}",
+        "palette_id": "{palette_id}",
+        "candidate_id": "{candidate_id}",
+        "run_id": "run-00000000000000000000000000000001",
+        "palette_revision": 1,
+        "ranking_version": "ranking-v1",
+        "mode": "{mode}",
+        "candidate_analysis_version": "analysis-v1"
+      },
+      "status": 200,
+      "code": null,
+      "created": false
+    },
+    {
+      "name": "a rejection while the selection is live",
+      "scenario": "live_selection",
+      "body": {
+        "client_event_id": "event-rejected-live",
+        "event_type": "rejected",
+        "project_id": "{project_id}",
+        "palette_id": "{palette_id}",
+        "candidate_id": "{candidate_id}",
+        "run_id": "run-00000000000000000000000000000001",
+        "palette_revision": 1,
+        "ranking_version": "ranking-v1",
+        "mode": "{mode}",
+        "candidate_analysis_version": "analysis-v1"
+      },
+      "status": 409,
+      "code": "outcome_conflict"
+    },
+    {
+      "name": "a removal while the candidate is still active",
+      "scenario": "live_selection",
+      "body": {
+        "client_event_id": "event-removed-active",
+        "event_type": "removed",
+        "removes_event_id": 1
+      },
+      "status": 409,
+      "code": "removal_not_reflected"
+    },
+    {
+      "name": "a removal naming no selection",
+      "scenario": "empty",
+      "body": {
+        "client_event_id": "event-removed-unknown",
+        "event_type": "removed",
+        "removes_event_id": 999
+      },
+      "status": 404,
+      "code": "unknown_selection"
+    },
+    {
+      "name": "a project that has no row",
+      "scenario": "empty",
+      "body": {
+        "client_event_id": "event-unknown-project",
+        "event_type": "auditioned",
+        "project_id": "project-11111111111111111111111111111111",
+        "palette_id": "palette-11111111111111111111111111111111",
+        "candidate_id": "candidate-1",
+        "run_id": "run-00000000000000000000000000000001",
+        "palette_revision": 0,
+        "ranking_version": "ranking-v1",
+        "mode": "{mode}",
+        "candidate_analysis_version": "analysis-v1"
+      },
+      "status": 404,
+      "code": "unknown_project"
+    },
+    {
+      "name": "a palette that has no row",
+      "scenario": "project",
+      "body": {
+        "client_event_id": "event-unknown-palette",
+        "event_type": "auditioned",
+        "project_id": "{project_id}",
+        "palette_id": "palette-22222222222222222222222222222222",
+        "candidate_id": "candidate-1",
+        "run_id": "run-00000000000000000000000000000001",
+        "palette_revision": 0,
+        "ranking_version": "ranking-v1",
+        "mode": "{mode}",
+        "candidate_analysis_version": "analysis-v1"
+      },
+      "status": 404,
+      "code": "unknown_palette"
+    },
+    {
+      "name": "a palette belonging to another project",
+      "scenario": "two_projects",
+      "body": {
+        "client_event_id": "event-cross-project",
+        "event_type": "auditioned",
+        "project_id": "{project_id}",
+        "palette_id": "{other_palette_id}",
+        "candidate_id": "candidate-1",
+        "run_id": "run-00000000000000000000000000000001",
+        "palette_revision": 0,
+        "ranking_version": "ranking-v1",
+        "mode": "{mode}",
+        "candidate_analysis_version": "analysis-v1"
+      },
+      "status": 409,
+      "code": "cross_project_reference"
+    },
+    {
+      "name": "a revision the palette never had",
+      "scenario": "project",
+      "body": {
+        "client_event_id": "event-future-revision",
+        "event_type": "auditioned",
+        "project_id": "{project_id}",
+        "palette_id": "{palette_id}",
+        "candidate_id": "candidate-1",
+        "run_id": "run-00000000000000000000000000000001",
+        "palette_revision": 9,
+        "ranking_version": "ranking-v1",
+        "mode": "{mode}",
+        "candidate_analysis_version": "analysis-v1"
+      },
+      "status": 409,
+      "code": "unknown_palette_revision"
+    },
+    {
+      "name": "a selection for a candidate that is not active",
+      "scenario": "project",
+      "body": {
+        "client_event_id": "event-not-active",
+        "event_type": "selected",
+        "project_id": "{project_id}",
+        "palette_id": "{palette_id}",
+        "candidate_id": "candidate-1",
+        "run_id": "run-00000000000000000000000000000001",
+        "palette_revision": 0,
+        "ranking_version": "ranking-v1",
+        "mode": "{mode}",
+        "candidate_analysis_version": "analysis-v1"
+      },
+      "status": 409,
+      "code": "selection_not_in_palette"
+    },
+    {
+      "name": "an event type outside the vocabulary",
+      "scenario": "selection",
+      "body": {
+        "client_event_id": "event-ignored-1",
+        "event_type": "ignored",
+        "project_id": "{project_id}",
+        "palette_id": "{palette_id}",
+        "candidate_id": "{candidate_id}",
+        "run_id": "run-00000000000000000000000000000001",
+        "palette_revision": 1,
+        "ranking_version": "ranking-v1",
+        "mode": "{mode}",
+        "candidate_analysis_version": "analysis-v1"
+      },
+      "status": 400,
+      "code": "invalid_outcome"
+    },
+    {
+      "name": "a removal carrying a run field",
+      "scenario": "selection",
+      "body": {
+        "client_event_id": "event-removed-extra",
+        "event_type": "removed",
+        "removes_event_id": 1,
+        "run_id": "run-00000000000000000000000000000001"
+      },
+      "status": 400,
+      "code": "invalid_outcome"
+    }
+  ]
+}

@@ -1,0 +1,149 @@
+{
+  "schema": "history-cases/1",
+  "note": "GET /outcomes cases over a real socket. The named scenario is built, `recorded_events` are posted in order when the scenario records them, and the last response is asserted against status, code and the page arithmetic. Every id here is synthetic.",
+  "recorded_events": [
+    {
+      "client_event_id": "event-recorded-1",
+      "event_type": "auditioned",
+      "project_id": "{project_id}",
+      "palette_id": "{palette_id}",
+      "candidate_id": "{candidate_id}",
+      "run_id": "run-00000000000000000000000000000001",
+      "palette_revision": 1,
+      "ranking_version": "ranking-v1",
+      "mode": "{mode}",
+      "candidate_analysis_version": "analysis-v1"
+    },
+    {
+      "client_event_id": "event-recorded-2",
+      "event_type": "auditioned",
+      "project_id": "{project_id}",
+      "palette_id": "{palette_id}",
+      "candidate_id": "{candidate_id}",
+      "run_id": "run-00000000000000000000000000000001",
+      "palette_revision": 1,
+      "ranking_version": "ranking-v1",
+      "mode": "{mode}",
+      "candidate_analysis_version": "analysis-v1"
+    },
+    {
+      "client_event_id": "event-recorded-3",
+      "event_type": "selected",
+      "project_id": "{project_id}",
+      "palette_id": "{palette_id}",
+      "candidate_id": "{candidate_id}",
+      "run_id": "run-00000000000000000000000000000001",
+      "palette_revision": 1,
+      "ranking_version": "ranking-v1",
+      "mode": "{mode}",
+      "candidate_analysis_version": "analysis-v1"
+    }
+  ],
+  "cases": [
+    {
+      "name": "a history that holds nothing yet",
+      "scenario": "empty",
+      "path": "/outcomes",
+      "status": 200,
+      "code": null,
+      "count": 0,
+      "has_more": false
+    },
+    {
+      "name": "the recorded history in insertion order",
+      "scenario": "recorded",
+      "path": "/outcomes",
+      "status": 200,
+      "code": null,
+      "count": 3,
+      "has_more": false,
+      "event_types": [
+        "auditioned",
+        "auditioned",
+        "selected"
+      ],
+      "event_ids": [
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "name": "one event type only",
+      "scenario": "recorded",
+      "path": "/outcomes?event_type=auditioned",
+      "status": 200,
+      "code": null,
+      "count": 2,
+      "has_more": false,
+      "event_types": [
+        "auditioned",
+        "auditioned"
+      ]
+    },
+    {
+      "name": "two event types are OR-ed",
+      "scenario": "recorded",
+      "path": "/outcomes?event_type=auditioned&event_type=selected",
+      "status": 200,
+      "code": null,
+      "count": 3,
+      "has_more": false
+    },
+    {
+      "name": "a page of one with more to come",
+      "scenario": "recorded",
+      "path": "/outcomes?limit=1",
+      "status": 200,
+      "code": null,
+      "count": 1,
+      "has_more": true
+    },
+    {
+      "name": "a page past the end",
+      "scenario": "recorded",
+      "path": "/outcomes?limit=1&cursor=eyJ2IjoxLCJhZnRlciI6M30=",
+      "status": 200,
+      "code": null,
+      "count": 0,
+      "has_more": false
+    },
+    {
+      "name": "a filter that matches nothing",
+      "scenario": "recorded",
+      "path": "/outcomes?candidate_id=candidate-absent",
+      "status": 200,
+      "code": null,
+      "count": 0,
+      "has_more": false
+    },
+    {
+      "name": "an event type outside the vocabulary",
+      "scenario": "empty",
+      "path": "/outcomes?event_type=ignored",
+      "status": 400,
+      "code": "invalid_outcome"
+    },
+    {
+      "name": "a page size below the range",
+      "scenario": "empty",
+      "path": "/outcomes?limit=0",
+      "status": 400,
+      "code": "invalid_page_size"
+    },
+    {
+      "name": "a query parameter this operation does not have",
+      "scenario": "empty",
+      "path": "/outcomes?sort=asc",
+      "status": 400,
+      "code": "unknown_query_parameter"
+    },
+    {
+      "name": "a malformed cursor",
+      "scenario": "empty",
+      "path": "/outcomes?cursor=!!",
+      "status": 400,
+      "code": "invalid_cursor"
+    }
+  ]
+}

@@ -45,6 +45,22 @@ VALIDATORS = {
 #: the two shared files do not carry.
 RECOMMENDATION_FIXTURES = ("recommendation-requests.json", "recommendation-runs.json")
 
+#: #29's two fixture files, whose cases cover the outcome codes the two shared
+#: files do not carry.
+OUTCOME_FIXTURES = FIXTURES.parent / "outcomes"
+
+
+def _outcome_codes():
+    """Every error code #29's own fixtures assert."""
+
+    codes = set()
+    for name in ("outcome-cases.json", "history-cases.json"):
+        document = json.loads((OUTCOME_FIXTURES / name).read_text(encoding="utf-8"))
+        for case in document["cases"]:
+            if case.get("code"):
+                codes.add(case["code"])
+    return codes
+
 
 def _recommendation_codes():
     """Every error code #28's own fixtures assert, refusal cases only.
@@ -95,6 +111,8 @@ def test_the_request_cases_hold(case):
 
 def test_every_validation_code_has_at_least_one_request_case():
     covered = {case["code"] for case in REQUEST_CASES if "code" in case}
+    # #29's outcome refusals are exercised by its own two fixture files.
+    covered |= _outcome_codes()
     # The transport-only codes are exercised by the HTTP cases instead.
     transport_only = {"invalid_json", "invalid_root", "unknown_route", "method_not_allowed",
                       "host_not_allowed", "origin_not_allowed", "unknown_import",
@@ -105,6 +123,9 @@ def test_every_validation_code_has_at_least_one_request_case():
     # fixture files instead of by a pure validator case.
     transport_only |= {"unknown_palette", "revision_conflict", "palette_incomplete",
                        "kick_unavailable"}
+    # The two storage failures #29 names have no socket case a fixture can
+    # provoke; tests/test_outcome_repository.py owns their evidence.
+    transport_only |= {"write_failed", "database_locked"}
     assert {code for code, _status in errors.ERROR_CODES} - transport_only <= covered
 
 
@@ -223,8 +244,12 @@ def test_every_http_code_has_at_least_one_transport_case():
     covered = {case["code"] for case in HTTP_CASES if case["code"] is not None}
     covered |= {case["code"] for case in REQUEST_CASES if "code" in case}
     covered |= _recommendation_codes()
+    covered |= _outcome_codes()
     expected = {code for code, _status in errors.ERROR_CODES
                 if code not in ("internal_error", "server_busy")}
+    # The two storage failures #29 names have no socket case a fixture can
+    # provoke; tests/test_outcome_repository.py owns their evidence.
+    expected -= {"write_failed", "database_locked"}
     assert expected <= covered
 
 
@@ -256,6 +281,8 @@ def test_the_route_table_is_closed_and_documented():
         ("GET", "/library/samples"),
         ("GET", "/library/samples/{sample_id}"),
         ("POST", "/recommendations"),
+        ("POST", "/outcomes"),
+        ("GET", "/outcomes"),
     ]
     document = (Path(__file__).resolve().parents[1] / "_docs" / "local-service.md").read_text(
         encoding="utf-8")
