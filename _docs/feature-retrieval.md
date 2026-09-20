@@ -154,8 +154,7 @@ runtime versions derive the same `normalization_id` at different library roots.
 The representative path used for the duplicate collapse is reported only in the
 local in-memory records; this task adds no table, column, index or migration,
 no `CREATE TABLE`, `CREATE INDEX` or SQL string exists in either new module,
-and `backend/library/schema.py` is unchanged (`SCHEMA_VERSION` stays 3 and the
-eleven-table set is exactly what `library-storage.md` documents).
+and `backend/library/schema.py` was unchanged by this task (`SCHEMA_VERSION` was 3 and the eleven-table set was what `library-storage.md` documented; migration 4 has since raised both to version 4 and thirteen tables, issue #26).
 
 ## Degenerate populations and extreme values
 
