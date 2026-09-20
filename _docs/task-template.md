@@ -1,5 +1,9 @@
 ## Goal
 
+Optional issue template. Follow [the canonical process](process.md) for
+lifecycle, ownership, transition records and recovery; this template adds no
+stages and requires no separate PM, Engineer or QA agents.
+
 One or two sentences on what should be true when this is done.
 
 ## Acceptance criteria

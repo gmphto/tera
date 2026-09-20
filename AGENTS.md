@@ -32,7 +32,10 @@ Run from the repository root containing `pyproject.toml`.
 
 The workflow and testing rules below take precedence over conflicting rules
 in `_docs/process.md`, `_docs/team/`, and `_docs/task-template.md`.
-Those documents are optional references, not mandatory stages.
+`_docs/process.md` is the canonical lifecycle table and issue-owner interpreter
+contract. Use its rows and compact transition records; do not define another
+lifecycle in role guides or templates. This is a human/assistant protocol,
+not a product runtime. Role guides and templates remain optional references.
 
 # Implementation workflow
 
