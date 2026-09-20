@@ -460,8 +460,8 @@ nothing from a real library is sent anywhere.
   `COLLECT_INTERVAL` bounds what a drain accumulates, at the cost of completing a
   collection every 8 items; caching the evaluated hints in `backend/contracts.py`
   would remove the allocation itself, and that file is outside this issue's set.
-- **Finer cancellation (#73)** and **pruning queue history (#74)** are out of
-  scope here, as are the service start policy (#27), watching folders (#70),
+- **Finer cancellation (#73)** is out of scope here, as are the service start
+  policy (#27), watching folders (#70),
   pruning unavailable records (#71) and editing a role after import (#72).
 - **`_docs/library-storage.md` is #21's document, and this issue edits exactly
   the statements its migration 2 made false.** `202fcba` changed no other
@@ -474,6 +474,40 @@ nothing from a real library is sent anywhere.
 - A run exits 1 when any of its items ended `orphaned` or `superseded`, not only
   `failed`: a superseded item is a record in `failures`, and #9's contract
   defines exit 1 as "finished with one or more per-item errors".
+
+## Explicit queue-history pruning (#74)
+
+An operator may remove `job_items` in `complete`, `cancelled` or `superseded`
+state when their `finished_at` is strictly earlier than
+`PRUNE_AFTER_DAYS = 30` days ago. The command is explicit; a scan, import,
+worker start, service start and status read never call it:
+
+```text
+uv run python -m backend.library.queue --database DB.sqlite3 --prune-history
+```
+
+It prints canonical JSON with `older_than_days`, `by_state` counts for all
+three eligible states, `total` and `deferred`. Repeating the command after a
+successful prune reports zero for each state. It exits 0 on success and 2 on a database
+refusal; the refusal line contains only a code. The same operation is available
+to a local caller as `queue.prune_history(connection) -> dict`.
+
+The live-run guard, count and deletion run in one `transaction(connection)`.
+If any `job_runs` row is still `running`, pruning is deferred with zero
+removals and `deferred: true`. This matters because `job_items.item_id` is
+not `AUTOINCREMENT`: deleting the highest item during a live `--once` run
+could let a later enqueue reuse its id inside that run's claim horizon.
+The SQL predicate
+requires both an eligible state and a non-null `finished_at` older than the
+cutoff, so `pending`, `running`, `failed` and `orphaned` rows remain, as do
+terminal rows at or newer than the cutoff. A concurrent worker's write is
+serialized by SQLite; contention cannot outlast the connection's documented
+five-second `busy_timeout`. No `job_runs`, `samples`, `sample_features`,
+`sample_keys` or `analysis_versions` row is read, updated or deleted by the
+prune (apart from the live-run guard's single read). The run's old aggregate
+counts may decrease after its terminal items
+are pruned; this is intentional history retention, not a new run result.
+The producer-outcome log and its retention windows are separate.
 
 ## Tests
 

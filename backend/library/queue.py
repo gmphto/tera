@@ -24,12 +24,18 @@ the cancellation semantics and the progress and summary schemas.
 
 from __future__ import annotations
 
+import argparse
+from contextlib import closing
 from datetime import datetime, timedelta, timezone
 import secrets
+import sqlite3
+import sys
 
+from backend.analysis.batch import canonical
 from backend.library import indexer
+from backend.library.errors import LibraryError
 from backend.library.repository import transaction
-from backend.library.schema import utc_now
+from backend.library.schema import open_database, utc_now
 
 
 QUEUE_SCHEMA = "1.0"
@@ -57,6 +63,11 @@ ITEM_STATES = (ITEM_PENDING, ITEM_RUNNING, ITEM_COMPLETE, ITEM_FAILED, ITEM_CANC
 # `failed` and `orphaned` rows and `enqueue` may revive a `cancelled` row.
 TERMINAL_ITEM_STATES = (ITEM_COMPLETE, ITEM_FAILED, ITEM_CANCELLED, ITEM_ORPHANED,
                         ITEM_SUPERSEDED)
+
+# Issue #74: only an explicit operator call removes old terminal queue history.
+# This is separate from the producer-outcome retention policy.
+PRUNE_AFTER_DAYS = 30
+PRUNABLE_ITEM_STATES = (ITEM_COMPLETE, ITEM_CANCELLED, ITEM_SUPERSEDED)
 
 # Run states, the closed set the migration's CHECK constraint enforces.
 RUN_RUNNING = "running"
@@ -224,6 +235,40 @@ def _cutoff(seconds) -> str:
 
     moment = datetime.now(timezone.utc) - timedelta(seconds=seconds)
     return moment.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def prune_history(connection) -> dict:
+    """Delete eligible terminal job items older than the fixed retention age.
+
+    The eligible counts and deletion share one write transaction. A running
+    worker cannot change an item between those statements, and the connection's
+    configured busy timeout bounds contention. No run, sample or analysis row
+    is read or written by this operation.
+    """
+
+    cutoff = _cutoff(PRUNE_AFTER_DAYS * 24 * 60 * 60)
+    marks = ", ".join("?" for _ in PRUNABLE_ITEM_STATES)
+    predicate = (f"state IN ({marks}) AND finished_at IS NOT NULL "
+                 "AND finished_at < ?")
+    parameters = (*PRUNABLE_ITEM_STATES, cutoff)
+    with transaction(connection):
+        # job_items.item_id is not AUTOINCREMENT. Deleting the highest item
+        # during a live --once run could let a later enqueue reuse that id
+        # inside the run's claim horizon. Defer until every run has stopped.
+        if connection.execute(
+                "SELECT 1 FROM job_runs WHERE state = ? LIMIT 1",
+                (RUN_RUNNING,)).fetchone() is not None:
+            return {"older_than_days": PRUNE_AFTER_DAYS,
+                    "by_state": {state: 0 for state in PRUNABLE_ITEM_STATES},
+                    "total": 0, "deferred": True}
+        rows = connection.execute(
+            "SELECT state, COUNT(*) FROM job_items WHERE " + predicate
+            + " GROUP BY state", parameters).fetchall()
+        counts = {state: 0 for state in PRUNABLE_ITEM_STATES}
+        counts.update({state: count for state, count in rows})
+        connection.execute("DELETE FROM job_items WHERE " + predicate, parameters)
+    return {"older_than_days": PRUNE_AFTER_DAYS, "by_state": counts,
+            "total": sum(counts.values()), "deferred": False}
 
 
 # ---------------------------------------------------------------------------
@@ -686,3 +731,25 @@ def database_file(connection) -> str:
             return row[2]
     raise QueueError("The queue needs a file-backed database; an in-memory database "
                      "cannot be worked on by several threads.")
+
+
+def main(argv=None) -> int:
+    """The explicit local maintenance command for terminal queue history."""
+
+    parser = argparse.ArgumentParser(description="Prune old terminal analysis items.")
+    parser.add_argument("--database", required=True)
+    parser.add_argument("--prune-history", action="store_true", required=True)
+    arguments = parser.parse_args(argv)
+    try:
+        with closing(open_database(arguments.database)) as connection:
+            result = prune_history(connection)
+    except (LibraryError, sqlite3.Error) as error:
+        print(canonical({"code": getattr(error, "code", "write_failed")}),
+              file=sys.stderr)
+        return 2
+    print(canonical(result))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
