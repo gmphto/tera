@@ -571,7 +571,7 @@ and `--basetemp` lives outside the repository; the focused run is:
 ```
 
 ```
-50 passed in 20.50s
+50 passed in 23.00s
 ```
 
 and the full suite is:
@@ -581,19 +581,19 @@ and the full suite is:
 ```
 
 ```
-5 failed, 1989 passed, 1 skipped in 342.14s (0:05:42)
+4 failed, 1991 passed, 1 skipped in 379.19s (0:06:19)
 ```
 
 The baseline at the parent commit is `4 failed, 1941 passed, 1 skipped`, the
 four failures being the sandbox-blocked `CreatePipe` `PermissionError` cases
 (`tests/test_batch.py` twice, `tests/test_evaluation_manifest.py`,
-`tests/test_evaluation_prepare.py`). This run carries those same four plus one
-more: `tests/test_library_scanner.py::test_a_scan_touches_only_the_library_tables`
-asserts the exact eleven-name user-table list, which migration 4 deliberately
-extends to thirteen. That expectation update is outside this task's file set and
-was requested from the orchestrator rather than taken; the issue comment records
-the rejected-or-unanswered request, the exact assertion and the one-line update.
-Every other test in the suite passes, so the module's own delta is zero.
+`tests/test_evaluation_prepare.py`). This run carries exactly those four and
+nothing else, so this task's own delta is zero: 1941 baseline passes plus the 50
+tests it adds. `tests/test_library_scanner.py` asserted the exact eleven-name
+user-table list, which migration 4 extends to thirteen, so that one expectation
+was updated with the orchestrator's authorisation to name `decision_cache` and
+`decision_model_versions` in sorted position, extend the `empty` tuple and
+extend the comment; no assertion was weakened, deleted or reordered.
 
 The bundled SQLite observed here is `sqlite3.sqlite_version` `3.47.1`, and
 its JSON functions answer `json_valid('{}') = 1` and `json_type('{}') =
